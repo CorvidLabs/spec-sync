@@ -357,3 +357,10 @@ Every link points inside the test's own temporary directory.
 |------|-------------------|------|
 | A valid journal under `.git/specsync/<key>` | Never replayed | `a_journal_under_the_git_directory_is_never_replayed` |
 | A registry entry mapping a module to `.env`, with a deletion or a rewrite journaled | Refused; `.env` keeps its bytes | `a_registry_entry_that_is_not_a_spec_never_opens_a_replay` |
+
+## Change 8: the read cache and the proposals walk (REQ-change-164)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
+| A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |

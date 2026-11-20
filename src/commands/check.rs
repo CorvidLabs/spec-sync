@@ -1,6 +1,5 @@
 use colored::Colorize;
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -135,11 +134,12 @@ fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<
     if let Some(cfg) = &config.config_path {
         inputs.push(normalize(cfg));
     }
+    // Listed only by the project rule, so a schema folder that leads out adds nothing
+    // (REQ-cmd-check-022).
     if let Some(dir) = &config.schema_dir
-        && let Ok(entries) = fs::read_dir(root.join(dir))
+        && let Ok(entries) = crate::util::read_project_dir(root, &root.join(dir))
     {
-        for entry in entries.flatten() {
-            let path = entry.path();
+        for path in entries {
             if path.is_file() {
                 inputs.push(normalize(&path));
             }

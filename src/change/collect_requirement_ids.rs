@@ -73,16 +73,11 @@ fn content_digest(content: &[u8]) -> String {
 fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
     let mut proposals = Vec::new();
     let specs = root.join(crate::config::load_config(root).specs_dir);
-    for entry in walkdir::WalkDir::new(specs)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        let path = entry.path();
-        if !entry.file_type().is_file()
-            || path.file_name().and_then(|name| name.to_str()) != Some("requirements.md")
-        {
-            continue;
-        }
+    // Only through the confined walk: a `specs` folder that leads out of the project proposes
+    // nothing (REQ-change-164).
+    let found = crate::validator::find_files_named(root, &specs, "requirements.md").unwrap_or_default();
+    for path in &found {
+        let path = path.as_path();
         let content = crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         if content.contains("### REQ-") {
             continue;

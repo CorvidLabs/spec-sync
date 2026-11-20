@@ -149,6 +149,11 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
         }
 
         let path = entry.path();
+        // A linked folder is not this project's source, and is never walked: a repository can
+        // commit `lib -> ../outside` (REQ-config-018).
+        if entry.file_type().is_ok_and(|kind| kind.is_symlink()) {
+            continue;
+        }
 
         if path.is_dir() {
             // Check if this directory contains any source files (scan up to 3 levels deep)
@@ -172,6 +177,7 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
 /// Check if a directory contains source files, scanning up to `max_depth` levels.
 fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usize) -> bool {
     for entry in WalkDir::new(dir)
+        .follow_root_links(false)
         .max_depth(max_depth)
         .into_iter()
         .filter_entry(|e| {

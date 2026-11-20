@@ -20,6 +20,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 const STATE_FOLDER: &str = "specsync";
 /// Under the user's cache folder, the folder that holds one folder per project.
 const PROJECTS_FOLDER: &str = "projects";
+/// Under the user's cache folder, the folder that holds one folder per Git repository.
+const REPOSITORIES_FOLDER: &str = "repositories";
 
 /// A local state location SpecSync will not use, with the reason as the user is shown it.
 /// Carried inside an `io::Error` so a caller can tell it from a failure of the filesystem.
@@ -140,6 +142,20 @@ fn location(root: &Path) -> io::Result<Location> {
             key("project", &canonical),
         ],
     })
+}
+
+/// The folder where SpecSync keeps what it knows about the Git repository whose canonical
+/// common directory is `common_dir`, for the project at `root`: `specsync/repositories/<key>` in
+/// the user's cache folder, shared by the repository's worktrees and never in its Git directory
+/// (REQ-util-009). Refused, as for the project's own folder, when the user cache folder lies
+/// inside the project.
+pub fn repository_state_dir(root: &Path, common_dir: &Path) -> io::Result<PathBuf> {
+    let project = location(root)?;
+    Ok(project
+        .base
+        .join(STATE_FOLDER)
+        .join(REPOSITORIES_FOLDER)
+        .join(key("repository", common_dir)))
 }
 
 /// The folder where SpecSync keeps its own state about the project at `root`, in the user's

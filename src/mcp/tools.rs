@@ -20,7 +20,6 @@ use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 pub(super) const MAX_GENERATED_SPECS: usize = 1_000;
 
@@ -828,18 +827,16 @@ pub(super) fn is_issue_spec_file_name(name: &OsStr) -> Result<bool, ()> {
 
 fn find_issue_spec_files_checked(root: &Path, specs_dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut spec_files = Vec::new();
-    for result in WalkDir::new(specs_dir)
-        .follow_links(false)
-        .sort_by_file_name()
-    {
-        let entry = result.map_err(|error| {
-            let rel_path = issue_relative_spec_path(root, error.path().unwrap_or(specs_dir));
-            format!(
-                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec directory entry could not be inspected"
-            )
-        })?;
-        let is_spec = is_issue_spec_file_name(entry.file_name()).map_err(|()| {
-            let rel_path = issue_relative_spec_path(root, entry.path());
+    // Only through the confined spec walk: a `specs` folder that leads out of the project is
+    // refused, not walked (REQ-mcp-014).
+    let found = crate::validator::find_spec_files_checked(root, specs_dir)
+        .map_err(|error| format!("MCP specsync_issues issue discovery is inconclusive: {error}"))?;
+    for path in found {
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+        let is_spec = is_issue_spec_file_name(name).map_err(|()| {
+            let rel_path = issue_relative_spec_path(root, &path);
             format!(
                 "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec filename is not valid UTF-8"
             )
@@ -847,13 +844,13 @@ fn find_issue_spec_files_checked(root: &Path, specs_dir: &Path) -> Result<Vec<Pa
         if !is_spec {
             continue;
         }
-        if !entry.file_type().is_file() {
-            let rel_path = issue_relative_spec_path(root, entry.path());
+        if !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
+            let rel_path = issue_relative_spec_path(root, &path);
             return Err(format!(
                 "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec path is not a regular file"
             ));
         }
-        spec_files.push(entry.into_path());
+        spec_files.push(path);
     }
     spec_files.sort();
     Ok(spec_files)

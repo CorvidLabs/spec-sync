@@ -24,7 +24,6 @@ use std::io::Write;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use walkdir::WalkDir;
 
 static CONSUMED_BY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap());
@@ -273,6 +272,23 @@ pub fn find_spec_files_checked(root: &Path, dir: &Path) -> Result<Vec<PathBuf>, 
         MAX_COVERAGE_DEPTH,
     )
     .map_err(|error| format!("spec discovery stopped: {error}"))
+}
+
+/// Every file named exactly `name` under the project directory `dir`, sorted, through the same
+/// confined, budgeted walk as [`find_spec_files_checked`], so a folder that leads out of the
+/// project is refused instead of walked (REQ-validator-053).
+pub(crate) fn find_files_named(root: &Path, dir: &Path, name: &str) -> Result<Vec<PathBuf>, String> {
+    Ok(crate::util::find_project_files(
+        root,
+        dir,
+        name,
+        MAX_COVERAGE_ENTRIES,
+        MAX_COVERAGE_DEPTH,
+    )
+    .map_err(|error| format!("spec discovery stopped: {error}"))?
+    .into_iter()
+    .filter(|path| path.file_name().is_some_and(|file| file == name))
+    .collect())
 }
 
 /// [`find_spec_files_checked`] for a command: a refused or over-budget walk ends the command
@@ -3168,16 +3184,16 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 
     let parent = Path::new(missing_file).parent()?;
     let search_dir = root.join(parent);
-    if !search_dir.exists() {
-        return None;
-    }
-
-    let entries = std::fs::read_dir(&search_dir).ok()?;
+    // The folder comes from the repository's own `files:` text, so it is listed only by the
+    // project rule: `..` or a link out of the project lists nothing (REQ-validator-053).
+    let entries = crate::util::read_project_dir(root, &search_dir).ok()?;
     let mut best: Option<(String, usize)> = None;
 
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !entry.path().is_file() {
+    for entry in entries {
+        let Some(name) = entry.file_name().map(|name| name.to_string_lossy().to_string()) else {
+            continue;
+        };
+        if !entry.is_file() {
             continue;
         }
         let dist = levenshtein(missing_name, &name);

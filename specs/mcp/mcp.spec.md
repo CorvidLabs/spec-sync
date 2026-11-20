@@ -147,6 +147,7 @@ The implementation uses private protocol, tools, confinement, preflight, snapsho
     or missing lock — never silent rewrite.
 36. `mcp lock --write` writes the lock through `util::write_project_file`. A lock linked to a regular file inside the project is written through. One that leaves the project through a symbolic link, is a dangling link, or is not a regular file is refused with an error naming it and exit 2 (REQ-mcp-011).
 37. Every read of a project file here, `.specsync/mcp-tools.lock.json` (4 MiB) in `mcp diff`, goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-mcp-012).
+38. The issues tool finds spec files only through `validator::find_spec_files_checked`, and still reports a spec path that is not a regular file as inconclusive (REQ-mcp-014).
 
 ## Behavioral Examples
 

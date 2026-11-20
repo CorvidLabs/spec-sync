@@ -112,6 +112,7 @@ suppression, exit handling, and GitHub drift diagnostics.
    reserved device basenames, trailing spaces/dots, and module names longer than 247 UTF-8 bytes so
    generated spec filenames remain portable 255-byte path components.
 9. Every read of a project file here, the spec files read for frontmatter, ownership and inline ignores (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-commands-014).
+10. `check_case_collision` takes the project root and lists the specs folder only through `util::read_project_dir`; a specs folder that leads out of the project is nothing to collide with (REQ-commands-016).
 
 ## Behavioral Examples
 

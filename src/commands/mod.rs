@@ -262,13 +262,23 @@ pub(crate) fn validate_scaffold_module_name(module_name: &str) -> Result<(), Str
 /// Reject a module name that would collide with an existing spec directory
 /// under a case-folding filesystem (e.g. `Lib` vs existing `lib`). Linux
 /// allows both, but the repo then breaks on macOS/Windows checkouts.
-pub(crate) fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
-    let entries = match std::fs::read_dir(specs_dir) {
-        Ok(e) => e,
-        Err(_) => return Ok(()), // no specs dir yet — nothing to collide with
+pub(crate) fn check_case_collision(
+    root: &Path,
+    specs_dir: &Path,
+    module_name: &str,
+) -> Result<(), String> {
+    // Listed only by the project rule: a specs folder that leads out of the project, or none
+    // yet, is nothing to collide with (REQ-commands-016).
+    let Ok(entries) = crate::util::read_project_dir(root, specs_dir) else {
+        return Ok(());
     };
-    for entry in entries.flatten() {
-        let existing = entry.file_name().to_string_lossy().to_string();
+    for entry in entries {
+        let Some(existing) = entry
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+        else {
+            continue;
+        };
         if existing != module_name && existing.eq_ignore_ascii_case(module_name) {
             return Err(format!(
                 "invalid module name `{module_name}`: collides with existing spec directory \
@@ -1782,9 +1792,9 @@ None.
         let tmp = tempfile::tempdir().unwrap();
         let specs_dir = tmp.path().join("specs");
         std::fs::create_dir_all(specs_dir.join("lib")).unwrap();
-        assert!(super::check_case_collision(&specs_dir, "Lib").is_err());
-        assert!(super::check_case_collision(&specs_dir, "LIB").is_err());
-        assert!(super::check_case_collision(&specs_dir, "lib").is_ok()); // same name: normal "already exists" path
-        assert!(super::check_case_collision(&specs_dir, "other").is_ok());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "Lib").is_err());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "LIB").is_err());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "lib").is_ok()); // same name: normal "already exists" path
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "other").is_ok());
     }
 }

@@ -635,6 +635,42 @@ pub fn remove_empty_project_dir(root: &Path, path: &Path) -> io::Result<()> {
     }
 }
 
+/// The entries of one directory beneath the project root, sorted, as paths under `path`
+/// (REQ-util-010). The directory is reached by the project rule, so one that leaves the project
+/// through a link at it or on the way to it, a dangling link, or the Git directory is refused
+/// with the path, and it is listed through the project handle. The project root itself is
+/// listed as it is.
+pub fn read_project_dir(root: &Path, path: &Path) -> io::Result<Vec<PathBuf>> {
+    let canonical_root = root.canonicalize()?;
+    let entries = if path == root || path == canonical_root {
+        Dir::open_ambient_dir(root, ambient_authority())?.read_dir(".")?
+    } else {
+        let directory = open_project(root, path)?;
+        match inspect_project_path(&directory)? {
+            ProjectTarget::Directory => {}
+            ProjectTarget::Absent => {
+                return Err(io::Error::new(
+                    io::ErrorKind::NotFound,
+                    format!("{} does not exist", directory.shown(&directory.relative)),
+                ));
+            }
+            ProjectTarget::File => {
+                return Err(refused_project_path(format!(
+                    "{} is not a directory",
+                    directory.shown(&directory.relative)
+                )));
+            }
+        }
+        directory.project.read_dir(&directory.relative)?
+    };
+    let mut found = Vec::new();
+    for entry in entries {
+        found.push(path.join(entry?.file_name()));
+    }
+    found.sort();
+    Ok(found)
+}
+
 /// Every regular file under the project directory `directory` whose name ends with `suffix`,
 /// sorted, as `root` joined with its path (REQ-util-002).
 ///
@@ -686,7 +722,16 @@ pub fn find_project_files(
         } else {
             current.as_path()
         };
-        for entry in start.project.read_dir(listed)? {
+        let listing = start.project.read_dir(listed).map_err(|error| {
+            // A folder that cannot be listed hides what is below it, so the error names it.
+            let shown = if current.as_os_str().is_empty() {
+                ".".to_string()
+            } else {
+                start.shown(&current).to_string()
+            };
+            io::Error::new(error.kind(), format!("cannot list {shown}: {error}"))
+        })?;
+        for entry in listing {
             let entry = entry?;
             entries += 1;
             if entries > max_entries {

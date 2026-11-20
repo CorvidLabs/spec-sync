@@ -70,6 +70,7 @@ filename-sorted inputs; compatibility wrappers remain available for older caller
 13. `parse_spec_schema` skips markdown table header rows (column named "column")
 14. Only files with recognized SQL extensions are processed (sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php)
 15. Every read of a project file here, the files in `schema_dir` (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-schema-002).
+16. `build_schema_snapshot` lists the schema folder only through `util::read_project_dir`, so a schema folder that leads out of the project is refused before any file in it is named (REQ-schema-003).
 
 ## Behavioral Examples
 

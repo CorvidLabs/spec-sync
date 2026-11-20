@@ -38,6 +38,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 5. Both validate `module_name` as a single path segment before any filesystem write — a name containing a path separator (`/`, `\`), `.`/`..`, or an absolute path is refused with exit 1, so scaffolding can never create files outside the project (no path traversal)
 6. The scaffolded spec never claims a file another spec already lists in `files:`; a module whose candidates are all owned writes no such mapping (#611).
 7. `scaffold` and `add-spec` create the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so a spec path that is a dangling link, or a spec directory that leaves the project through a link, exits 1 with an error naming the path and creates nothing there. A spec directory linked to a directory inside the project is used. `scaffold` exits 1 with the registry's error when the registry refuses the append (REQ-cmd-scaffold-007).
+8. A new module name is checked for a case collision only against spec folders the project rule reaches (REQ-cmd-scaffold-008).
 
 ## Behavioral Examples
 

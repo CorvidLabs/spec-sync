@@ -21,3 +21,4 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 
 - [x] Implement the approved exact-file creation selection correction with confined no-follow metadata traversal, explicit mapping precedence and causal focused regressions. Full final-source and independent release qualification remain separate.
 - [x] Create the spec through `generator::create_spec_file` and exit 1 on a refused registry (REQ-cmd-scaffold-007). Evidence: `tests/integration/project_links.rs` `spec_creation_*`, `scaffold_refuses_a_registry_linked_outside_the_project`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-cmd-scaffold-008).

@@ -17,7 +17,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
-    if let Err(e) = check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }

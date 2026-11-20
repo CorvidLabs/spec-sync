@@ -83,21 +83,22 @@ pub fn cmd_wizard(root: &Path) {
             if !full_src.is_dir() {
                 return vec![];
             }
-            walkdir::WalkDir::new(&full_src)
+            // Only through the confined, budgeted walk: a source folder that leads out of the
+            // project is never walked (REQ-cmd-wizard-004).
+            crate::util::find_project_files(root, &full_src, "", 100_000, 256)
+                .unwrap_or_default()
                 .into_iter()
-                .filter_map(|e| e.ok())
-                .filter(|entry| {
+                .filter(|path| {
                     is_wizard_source_candidate(
-                        entry.path(),
+                        path,
                         &module_name,
                         &config.source_extensions,
                         config.include_extensionless,
                     )
                 })
-                .map(|e| {
-                    e.path()
-                        .strip_prefix(root)
-                        .unwrap_or(e.path())
+                .map(|path| {
+                    path.strip_prefix(root)
+                        .unwrap_or(&path)
                         .to_string_lossy()
                         .replace('\\', "/")
                 })

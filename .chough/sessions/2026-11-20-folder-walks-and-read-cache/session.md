@@ -27,7 +27,7 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-20-on-4516f355-with-only-change-8-s-tests-added-all-6-new-unit]
 bugs: []
 blockers: []
 waiting_on_human: []
@@ -47,6 +47,8 @@ Every walk of a configured folder goes through the confined walk, so a committed
 - 0xLeif decided "Scope approval of walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder": "continue with 95% confidence" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 04:09Z, answering t4c's five-item list with t4c's recommendations; t4c read it as yes to items 1-4, among them item 2 'Fold the folder-walk fix into change 7?' (the ~9 configured-folder walks routed through the safe helper so a linked folder is not followed out) and item 4 'Move the history-verdict cache out of .git too, in change 7?' (read_cache.rs to the user cache folder, same LocalState pattern). Under Leif's delegation of 2026-11-20 (about 04:11Z: process calls decided by t4c on his behalf), decided by t4c: change 8 on top of change 7, no send-back. Relayed by t4c over hc to t5r); recorded by claude-code-t5r; a relayed claim, not authenticated; ran specsync change approve walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder as 0xLeif
 
 ## What was verified
+
+- [On 4516f355 with only change 8's tests added: all 6 new unit tests and the new scaffold CLI test fail (also REQ-validator-053, REQ-config-018, REQ-schema-003, REQ-commands-016, REQ-cmd-scaffold-008). change adopt's requirement proposals listed two requirements.md files behind a specs link out; the duplicate requirement ID check named specs/alpha and specs/beta behind it; source detection found lib behind a link out; the schema snapshot named outside_only.sql; a missing file's suggestion listed ../outside/data; scaffold refused auth over an Auth folder outside; the read cache path was under .git.](evidence/2026-11-20-on-4516f355-with-only-change-8-s-tests-added-all-6-new-unit.md)
 
 ## Open threads
 

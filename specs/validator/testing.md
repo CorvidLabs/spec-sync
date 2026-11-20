@@ -155,3 +155,10 @@ Every link points inside the test's own temporary directory.
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | The read in `compute_coverage_checked`, in the `include!`d `src/validator/tests.rs` | Bounded and confined; the scan finds no direct read there | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read` |
+
+## Change 8: configured-folder walks (REQ-validator-053)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A `specs` link out holding duplicate requirement IDs | One refusal; nothing outside is named | `duplicate_requirement_ids_are_never_looked_for_through_a_specs_link_out` |
+| A missing file under `../outside/...` | No suggestion | `a_missing_file_suggestion_never_lists_a_folder_outside_the_project` |

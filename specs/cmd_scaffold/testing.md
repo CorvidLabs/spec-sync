@@ -51,3 +51,9 @@ Every fixture is one temporary directory with the project and an `outside` direc
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `spec_creation_refuses_a_dangling_spec_link`, `spec_creation_creates_nothing_in_a_spec_directory_linked_outside_the_project`, `spec_creation_writes_through_a_spec_directory_link_that_stays_inside` (each runs `scaffold` and `add-spec`), `scaffold_refuses_a_registry_linked_outside_the_project` |
+
+## Change 8: case collisions (REQ-cmd-scaffold-008, REQ-commands-016)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| `scaffold auth` with a `specs` link out holding `Auth` | No collision from outside; nothing created outside | `tests/integration/project_writes.rs`: `scaffold_never_lists_a_specs_folder_linked_out_of_the_project` |

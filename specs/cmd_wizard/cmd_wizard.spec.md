@@ -37,6 +37,7 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 7. Default wizard invariants and behavioral example headings use reviewable starter text rather than unfinished-work markers
 7. Shows a full preview of the spec before asking for write confirmation
 8. The wizard's write step creates the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so a spec path that is a dangling link, or a spec directory that leaves the project through a link, exits 1 with an error naming the path and creates nothing there (REQ-cmd-wizard-003).
+9. The wizard finds candidate source files only through `util::find_project_files`, within 100,000 entries and 256 levels (REQ-cmd-wizard-004).
 
 ## Behavioral Examples
 

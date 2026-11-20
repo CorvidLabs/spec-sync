@@ -78,6 +78,7 @@ Loads canonical project configuration from `.specsync/config.toml`, with compati
     than substituting built-in defaults.
 18. Every read of a project file here, every config file (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-config-016).
 19. The ambient TOML and JSON loaders refuse a `specs_dir`, `source_dirs` entry or `schema_dir` that is absolute or holds `..`: the config is unloadable, with `` `<field>` must be a relative path inside the project, without `..`; found `<value>` ``. The MCP server applies the same rule to the configuration it snapshots and refuses that one request, naming the field. `check` and `issues` keep their own confined handling of these directories (REQ-config-017).
+20. Source auto-detection skips a child of the project root that is a symbolic link, and walks a candidate folder with `follow_root_links(false)` (REQ-config-018).
 
 ## Behavioral Examples
 

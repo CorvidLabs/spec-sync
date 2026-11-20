@@ -60,6 +60,7 @@ Manages cross-project spec registries for dependency resolution. Generates `spec
 9. Inert 5.0.1-era stubs (no registry name and no `[specs]` mappings) are treated as absent; non-inert unparsable registries fail closed through `load_local_registry`
 10. `register_module` reads and rewrites the registry through `util`'s project file functions and returns `Err` naming the path when the registry leaves the project through a symbolic link, is a dangling link, or is not a regular file. `Ok(false)` still means already listed, no `[specs]` table, or no registry (REQ-registry-003).
 11. Every read of a project file here, the local registry (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-registry-004).
+12. `generate_registry` finds spec files only through `validator::find_spec_files_checked` (REQ-registry-005).
 
 ## Behavioral Examples
 

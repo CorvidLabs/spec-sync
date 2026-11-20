@@ -6,15 +6,15 @@
 //
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
-// 2. A persistent cache of archived workflow-version history verdicts, stored under the Git
-//    common directory so every worktree shares it (never in the working tree, so it is never a
-//    project input). An entry is reused only when its content digest still matches the archived
+// 2. A persistent cache of archived workflow-version history verdicts, keyed by the Git
+//    common directory so every worktree shares it, in the user's cache folder (never in the
+//    working tree or the Git directory, so no repository or archive of one can bring it). An entry is reused only when its content digest still matches the archived
 //    `state.json` bytes, the commit it was computed at is an ancestor of the scope's `HEAD`, and
 //    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
 const READ_CACHE_SCHEMA: u32 = 1;
-const READ_CACHE_FILE: &str = "specsync/read-cache-v1.json";
+const READ_CACHE_FILE: &str = "read-cache-v1.json";
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct PersistentReadCache {
@@ -163,9 +163,13 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     if promisor.status.code() != Some(1) {
         return None;
     }
-    // The common directory, not the per-worktree one: worktrees share one object graph, and an
-    // entry is only reused after proving it against the reading worktree's own `HEAD`.
-    Some(common_dir.join(READ_CACHE_FILE))
+    // Keyed by the common directory, not the worktree: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`. Kept in
+    // the user's cache folder, never in the Git directory, which an archive of a working copy
+    // carries whole (REQ-util-009, REQ-change-164).
+    crate::util::local_state::repository_state_dir(root, &common_dir)
+        .ok()
+        .map(|folder| folder.join(READ_CACHE_FILE))
 }
 
 thread_local! {
@@ -474,7 +478,7 @@ fn with_persistent_read_cache<Value>(
         let loaded = frame
             .path
             .as_ref()
-            // not a project file read: the read cache lives in the Git common directory, not in the project
+            // not a project file read: the read cache in SpecSync's own folder in the user cache, which a repository does not control
             .and_then(|path| fs::read(path).ok())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
@@ -718,7 +722,7 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     let Ok(bytes) = serde_json::to_vec(cache) else {
         return;
     };
-    // not a project file write: the read cache in the Git common directory, which a repository does not control
+    // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
     if let Some(parent) = path.parent()
         && fs::create_dir_all(parent).is_err()
     {
@@ -732,9 +736,9 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
         std::process::id(),
         FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
     ));
-    // not a project file write: the read cache in the Git common directory, which a repository does not control
+    // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
     if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
-        // not a project file write: the read cache in the Git common directory, which a repository does not control
+        // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
         let _ = fs::remove_file(&temporary);
     }
 }

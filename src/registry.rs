@@ -3,7 +3,6 @@ use crate::types::RegistryEntry;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use walkdir::WalkDir;
 
 const REGISTRY_FILENAME: &str = "specsync-registry.toml";
 const V4_REGISTRY_RELATIVE: &str = ".specsync/registry.toml";
@@ -335,14 +334,13 @@ pub fn generate_registry(root: &Path, project_name: &str, specs_dir: &str) -> St
     let mut specs = Vec::new();
 
     if specs_path.exists() {
-        for entry in WalkDir::new(&specs_path).into_iter().filter_map(|e| e.ok()) {
-            let path = entry.path();
-            if path.is_file()
-                && path
-                    .to_str()
-                    .map(|s| s.ends_with(".spec.md"))
-                    .unwrap_or(false)
-            {
+        // Only through the confined spec walk: a `specs` link that leaves the project is never
+        // walked (REQ-registry-005).
+        let found =
+            crate::validator::find_spec_files_checked(root, &specs_path).unwrap_or_default();
+        for path in &found {
+            let path = path.as_path();
+            if path.is_file() {
                 // Skip template files
                 if let Some(name) = path.file_name().and_then(|n| n.to_str())
                     && name.starts_with('_')

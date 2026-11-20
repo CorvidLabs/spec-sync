@@ -368,7 +368,9 @@ pub(crate) fn build_schema_snapshot(
     root: &Path,
     schema_dir: &Path,
 ) -> Result<SchemaSnapshot, SchemaError> {
-    let read_dir = fs::read_dir(schema_dir).map_err(|error| {
+    // Listed only by the project rule: a schema folder that leads out of the project is refused
+    // before any file in it is named (REQ-schema-003).
+    let read_dir = crate::util::read_project_dir(root, schema_dir).map_err(|error| {
         let kind = if error.kind() == std::io::ErrorKind::NotFound {
             SchemaErrorKind::MissingDirectory
         } else {
@@ -382,15 +384,7 @@ pub(crate) fn build_schema_snapshot(
     })?;
 
     let mut files = Vec::new();
-    for entry in read_dir {
-        let entry = entry.map_err(|error| {
-            SchemaError::for_path(
-                SchemaErrorKind::ReadEntry,
-                schema_dir,
-                format!("Schema directory entry could not be read: {error}"),
-            )
-        })?;
-        let path = entry.path();
+    for path in read_dir {
         let extension = path
             .extension()
             .and_then(|extension| extension.to_str())
@@ -402,7 +396,7 @@ pub(crate) fn build_schema_snapshot(
             continue;
         }
 
-        let file_type = entry.file_type().map_err(|error| {
+        let file_type = fs::symlink_metadata(&path).map_err(|error| {
             SchemaError::for_path(
                 SchemaErrorKind::ReadEntry,
                 &path,

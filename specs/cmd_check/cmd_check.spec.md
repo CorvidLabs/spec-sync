@@ -59,6 +59,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
     cache (REQ-cmd-check-018).
 14. Every read of a project file here, the spec files it reads again (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-check-019).
 15. `--fix --backup` reads each spec through the bounded project read and writes its backup to `.specsync/backup-fix/<spec path>` through the confined project write; a `backup-fix` directory or backup file that leads out of the repository is refused with the path, and `--fix` aborts before it changes a spec. `check` uses only the cache in the project's local state folder: a `.specsync/hashes.json` in the work tree, tracked or not and in any letter case, is never read, changes nothing and is not mentioned, and the "Cache:" line names the real path (REQ-cmd-check-020, REQ-cmd-check-021).
+16. The schema folder's files enter the cache inputs only through `util::read_project_dir` (REQ-cmd-check-022).
 
 ## Behavioral Examples
 

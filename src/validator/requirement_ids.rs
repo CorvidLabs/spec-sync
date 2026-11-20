@@ -46,36 +46,16 @@ pub(crate) fn duplicate_requirement_id_errors(root: &Path) -> Vec<String> {
         return Vec::new();
     }
     let mut errors = Vec::new();
-    for entry in WalkDir::new(&specs) {
-        // A directory that cannot be traversed hides every requirements.md below it;
-        // skip silently and an audit passes over work it never inspected (#873).
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(error) => {
-                let path = error
-                    .path()
-                    .map(|path| path.strip_prefix(root).unwrap_or(path).to_path_buf());
-                // t384's nit on #1046: walkdir's Display repeats the absolute path;
-                // the OS error carries the real cause.
-                let detail = error
-                    .io_error()
-                    .map(|e| e.to_string())
-                    .unwrap_or_else(|| error.to_string());
-                errors.push(format!(
-                    "cannot traverse {} to check requirement IDs: {detail}",
-                    path.map(|path| path.display().to_string().replace('\\', "/"))
-                        .unwrap_or_else(|| specs.display().to_string())
-                ));
-                continue;
-            }
-        };
-        if !entry.file_type().is_file() {
-            continue;
+    // The confined walk refuses a `specs` folder that leads out of the project, and stops past
+    // its budget, instead of walking whatever a link names (REQ-validator-053).
+    let requirement_files = match find_files_named(root, &specs, "requirements.md") {
+        Ok(files) => files,
+        Err(error) => {
+            errors.push(format!("cannot check requirement IDs: {error}"));
+            return errors;
         }
-        if entry.file_name() != "requirements.md" {
-            continue;
-        }
-        let path = entry.path();
+    };
+    for path in &requirement_files {
         // `check` validates no companion of an archived spec. A requirements file
         // whose directory holds specs that are all archived is history, not living
         // contract, so the audit skips it too. A file with no spec beside it is

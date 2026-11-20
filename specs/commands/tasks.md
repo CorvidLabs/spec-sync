@@ -21,6 +21,7 @@ spec: commands.spec.md
   spec-path attribution privately, including legal paths containing `": "`
 - [x] Enforce portable module names, Windows reserved basenames, trailing-space/dot rejection, and
 - [x] Read project files only through the bounded project read of `util` (REQ-commands-014). Evidence: `tests/integration/project_reads.rs`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-commands-016).
   the generated spec filename byte limit with ASCII and multibyte boundary tests
 
 ## Gaps

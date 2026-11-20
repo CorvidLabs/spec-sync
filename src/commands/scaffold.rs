@@ -17,7 +17,7 @@ pub fn cmd_add_spec(root: &Path, module_name: &str) {
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
-    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = super::check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
@@ -141,7 +141,7 @@ pub fn cmd_scaffold(
         }
         None => root.join(&config.specs_dir),
     };
-    if let Err(e) = super::check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = super::check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }

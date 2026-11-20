@@ -47,3 +47,9 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## Change 8: the schema folder (REQ-schema-003)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A committed `db` link out holding a `.sql` file | Refused; no file outside is named | `a_schema_folder_linked_out_of_the_project_is_never_listed` |

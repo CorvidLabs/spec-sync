@@ -63,6 +63,8 @@ Complete selected artifacts and semantic deltas, then obtain explicit human appr
 specsync change approve add-passkeys --actor "Ada"
 ```
 
+To see first whether the approval would be accepted, add `--dry-run`. It writes nothing, reports the first problem from each of the approval's own checks in `change approve`'s words, and exits 1 when any check refuses ([CLI reference](cli.md)).
+
 Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the scoped human review are refreshed.
 
 An approval shows what was approved, not who approved it: its digest binds the content, and `--actor` is a recorded claim that SpecSync does not authenticate. The same holds for `--reviewer`.
@@ -106,7 +108,7 @@ A change whose `tasks.md` still has an open box (`- [ ]`) is refused by `change 
 error: tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/add-passkeys/tasks.md` (line 4: "Prove the fix.") and mark it `[x]`, then re-run `specsync change check add-passkeys --commit`
 ```
 
-Finish the work, tick the box, and run that command. `change status` and `change ship-status` name the same open tasks before their next step.
+Finish the work, tick the box, and run that command. `change status` and `change ship-status` name the same open tasks before their next step. `change ship-status` exits 1 while it names a blocker such as this one, so a script or CI step that runs it stops there.
 
 CI is archive-first. The `Archive` check runs before anything else and every other job depends
 on it, so a pushed tip with any open change fails `Archive` and runs nothing else. Verification
@@ -497,9 +499,12 @@ When you rename, add, or remove exports:
 
 1. Run `specsync check` to see what drifted
 2. Update the spec's Public API table
-3. Bump the `version` in frontmatter
-4. Add a Change Log entry
-5. Run `specsync check` to confirm
+3. Run `specsync check` to confirm
+
+With the change workflow, `change check` records the change in the module's history fragment,
+`specs/<module>/history/<change-id>.md`; do not bump `version:` or add a Change Log row
+(`specsync history <module>` prints the whole log). Without it, the spec's `version:` and
+Change Log are yours to keep as you choose.
 
 When you add new source files:
 
@@ -517,7 +522,7 @@ When you create a new module:
 
 ## 7. Compaction and Archival
 
-As specs accumulate changelog entries and tasks get completed, companion files grow. Two commands handle this:
+As tasks get completed, companion files grow, and a Change Log table an older SpecSync wrote can be long. Two commands handle this:
 
 ### Compact changelogs
 
@@ -526,7 +531,7 @@ specsync compact --keep 10              # keep last 10 entries per spec
 specsync compact --keep 5 --dry-run     # preview what would be removed
 ```
 
-Trims older changelog entries to prevent unbounded growth. Use `--dry-run` first to preview.
+Summarizes older Change Log rows. From SpecSync 6.4 each change is recorded in a history fragment instead of a row, so a table no longer grows; this matters only for a table an older SpecSync wrote, or one you keep by hand. Use `--dry-run` first to preview.
 
 ### Archive completed tasks
 

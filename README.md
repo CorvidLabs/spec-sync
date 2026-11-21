@@ -11,7 +11,7 @@
 
 **Turn requirements into module contracts that fail CI when code drifts—without losing the decisions and evidence around the fix.**
 
-Rust · single binary · 33 languages · no SpecSync API key required
+Rust · single binary · 33 language families · no SpecSync API key required
 
 [Install](#install) · [Quick start](#quick-start) · [Verified change workflow](#verified-change-workflow) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
 
@@ -262,7 +262,8 @@ specs/auth/
 
 | Artifact | Durable responsibility |
 |---|---|
-| `*.spec.md` | Source files, public API, invariants, behavior, errors, dependencies, and change history |
+| `*.spec.md` | Source files, public API, invariants, behavior, errors, dependencies, and a frozen Change Log |
+| `history/<change-id>.md` | One fragment per change `change check` records; `specsync history <module>` prints the whole log |
 | `requirements.md` | Stable `REQ-*` identities, normative SHALL statements, and acceptance criteria |
 | `tasks.md` | Work still to do; requirements are not checkboxes |
 | `context.md` | Decisions, constraints, key files, and handoff state |
@@ -325,7 +326,8 @@ SpecSync can stand alone or enforce the implementation layer beneath planning-or
 
 ## Supported languages
 
-SpecSync auto-detects source files and public exports across 33 languages:
+SpecSync auto-detects source files and public exports across 33 language families (Lisp covers
+Common Lisp, Scheme and Emacs Lisp; TypeScript covers JavaScript):
 
 TypeScript/JavaScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Common Lisp, Scheme, Emacs Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, and Vala.
 

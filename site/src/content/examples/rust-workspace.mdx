@@ -23,14 +23,40 @@ Running `specsync check` from the workspace root reads every `*.spec.md` file an
 
 ## 2. Inspect the drift report
 
+For a workspace with `api`, `core` and `cli` crates, each with its spec under `specs/`:
+
 ```
-  Reading 14 *.spec.md files across 3 crates...
-  ✗ crates/api/src/lib.rs: undocumented export `delete_user`
-  ✗ crates/core/src/config.rs: spec references `Config::merge` but no such method exists
-  2 errors — run `specsync check --fix` to add missing export rows
+specs/api/api.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ⚠ 1/2 exports documented
+  ⚠ Undocumented export 'delete_user' from crates/api/src/lib.rs
+  ✓ All dependency specs exist
+
+specs/cli/cli.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ✓ 1/1 exports documented
+  ✓ All dependency specs exist
+
+specs/core/core.spec.md
+  ✓ Frontmatter valid
+  ✓ All source files exist
+  ✓ All required sections present
+  ✓ 2/2 exports documented
+  ✗ Spec documents 'Config::merge' but no matching export found in source
+  ✓ All dependency specs exist
+
+3 specs checked: 2 passed, 2 warning(s), 1 failed
+File coverage: 4/4 (100%)
+LOC coverage:  5/5 (100%)
 ```
 
-Each error tells you exactly which file, which export, and which direction the drift goes.
+Each finding names the spec, the export and the direction of the drift. An export the code has
+and the spec lacks is a warning (an error under `--strict`); one the spec documents and the code
+lacks is an error.
 
 ## 3. Auto-generate missing spec entries
 
@@ -45,7 +71,7 @@ specsync check --fix
 For `Config::merge` — a method referenced in the spec but removed from the code — you need to decide: restore the method or update the spec. Editing the spec directly is fine:
 
 ```bash
-# Remove the stale section from crates/core/specs/config.spec.md
+# Remove the stale `Config::merge` row from specs/core/core.spec.md
 specsync check   # should now show 0 errors for that crate
 ```
 
@@ -76,8 +102,8 @@ Once everything is clean, your normal release flow applies. The spec is already 
 ## 8. Verify the final state
 
 ```bash
-specsync check
-# 0 errors, 0 warnings — workspace in sync
+specsync check --strict
+# 3 specs checked: 3 passed, 0 warning(s), 0 failed
 ```
 
 That's the eight-command path from "spec drift everywhere" to a clean workspace, end to end. From here you do what you'd do in any Cargo workspace: bump the version, run the release lane, push the tag. The spec is part of the source tree, so it shipped with the commit you tagged — no separate docs-deploy step, no out-of-band sync.

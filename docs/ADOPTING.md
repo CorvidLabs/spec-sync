@@ -109,18 +109,18 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
     specsync change ship <id>
 
 Run `review` and `ship` consecutively, without committing between them. The reviewer may be
-the scope approver. Commit and push the archive result, wait for required checks, then merge
-on GitHub. **Merge only after every active change on the PR is archived.**
+the scope approver. `ship` commits the archive itself; push that commit, wait for required
+checks, then merge on GitHub. **Merge only after every active change on the PR is archived.**
 
 With archive-first CI (the spec-sync Action's `require-archived` gate as the first job, or this
 repository's own `Archive` job), a pushed tip with any open change fails that gate and runs
 nothing else. The full lane runs once, on the archived tip. If it fails, push a fix commit on
 top with specs kept in sync; a fix that changes the approved scope needs a new change.
 
-`check --commit` and `ship --push` commit edits to files git already tracks, plus the untracked
+`change check --commit` and `change ship --push` commit edits to files git already tracks, plus the untracked
 files the change owns: its workspace and archive package, the canonical specs its deltas write,
 and SpecSync's own ledgers. They never stage any other untracked file, so `git add` a new source
-file yourself before `check --commit`. Every other untracked file stays out of the commit and is
+file yourself before `change check --commit`. Every other untracked file stays out of the commit and is
 listed as a warning, so a stray debug file cannot end up in a pushed commit.
 
 ## 5. Wire CI
@@ -205,7 +205,7 @@ it an export the spec must document. This is the drift check working, not a bug.
 **Recovery depends on the recorded workflow.** `reopen` also supports eligible accepted or
 archived workflow-v2 changes with stale delivery evidence, including interrupted finalization
 after terminal approval. Keep the approved definition unchanged, record the actor and reason,
-then use `reopen` → `check --commit` → human review → `review` → `finalize`. Historical
+then use `reopen` → `change check --commit` → human review → `review` → `finalize`. Historical
 `verify` / `accept` and classification/owner corrections have separate recovery guidance.
 Use `change status <id>` and the [workflow recovery guidance](../site/src/content/docs/workflow.md)
 for the state you actually have. Recovery does not replace finalizing before a normal merge.

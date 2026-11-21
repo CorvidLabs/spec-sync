@@ -379,7 +379,27 @@ Auto-resolve git merge conflicts in spec files. Understands spec structure to ma
 specsync merge                             # resolve conflicts in conflicted specs
 specsync merge --dry-run                   # preview resolutions without writing
 specsync merge --all                       # process all conflicted files
+specsync merge --install                   # register the merge driver for this clone
 ```
+
+`merge --install` registers SpecSync's merge driver for this clone. It adds `merge=specsync`
+rules for `specs/**/*.spec.md` and `specs/**/requirements.md` to `.gitattributes`, and sets
+`merge.specsync.driver` in the repository's Git config to `<this specsync> merge-file %O %A %B
+%P`. Git then merges those files with `specsync merge-file`, which, unlike a conflict hunk, sees
+the common ancestor: a module spec unions `files`, `db_tables`, `depends_on` and Change Log rows
+and counts each side's `version` bump, and a requirements file unions blocks by ID. A block both
+sides edited differently, or other prose both changed differently, stays a conflict. The Git
+config lives in each clone, so run `--install` once per clone.
+
+### `merge-file`
+
+```bash
+specsync merge-file <ancestor> <current> <other> [pathname]   # Git runs this; you do not
+```
+
+The merge driver `merge --install` registers: Git calls it as `specsync merge-file %O %A %B %P`.
+It writes the merge into `<current>` and exits `0` when the contract merged, or `1` when a
+conflict remains (its markers are left in the file) or a side could not be read.
 
 ### `rules`
 
@@ -435,6 +455,7 @@ specsync change audit             # add --archives to also re-walk every archive
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges
+specsync change pr add-passkeys   # archive when ready, push the branch, open or reuse its PR; never merges
 ```
 
 `change answer` checks an answer before it stores anything. An unknown question id is refused

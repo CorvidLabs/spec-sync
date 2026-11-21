@@ -5,7 +5,7 @@ aliases: [docs-6-4-accuracy]
 objective: "The README and every current documentation page, Mermaid diagrams included, say what SpecSync 6.4.0 and 6.4.1 do: the 21 items in defs/docs-6.4-accuracy-definition.md, documentation only, no version or pin wording (the 6.4.1 post-publication PR owns it); scope confirmed by t4c under Leif's standing OK for scope approvals"
 intent_scope: CHANGE
 modules: []
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -19,9 +19,13 @@ files: []
 observations: []
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Leif's review of the 6.4 documentation corrections
+    holds: accept
+    drives: review
+    opened: 2026-11-21T01:11:04Z
 run_consents: []
-next: "Gate \"Scope approval of correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples\" closed (approved); run `chough stage advance` to move on."
+next: Continue accept
 ---
 # The README and every current documentation page, Mermaid diagrams included, say what SpecSync 6.4.0 and 6.4.1 do: the 21 items in defs/docs-6.4-accuracy-definition.md, documentation only, no version or pin wording (the 6.4.1 post-publication PR owns it); scope confirmed by t4c under Leif's standing OK for scope approvals
 
@@ -79,4 +83,37 @@ The README and every current documentation page, Mermaid diagrams included, say 
     - recorded_by: claude-code-t4t
     - native: specsync change approve correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
     - actor: 0xLeif
+  - by: claude-code (hc t81)
+- 2026-11-21T01:11:00Z · direct-native-write · plan → plan · correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples's lifecycle records changed outside Chough: state.json changed, verification.json added, verification-attempts.json added; state approved → verifying ^t-5d22e2
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
+  - direct_write:
+    - change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+    - files:
+      - state.json: changed
+      - verification.json: added
+      - verification-attempts.json: added
+    - before_state: approved
+    - after_state: verifying
+  - by: claude-code (hc t81)
+- 2026-11-21T01:11:00Z · advance · plan → build · native:verifying ^t-c3bcc7
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - gate: native:verifying
+  - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
+  - by: claude-code (hc t81)
+- 2026-11-21T01:11:02Z · advance · build → test · native:verifying ^t-73e140
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - gate: native:verifying
+  - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
+  - by: claude-code (hc t81)
+- 2026-11-21T01:11:04Z · advance · test → accept · native:verifying ^t-64788d
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - gate: native:verifying
+  - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
+  - by: claude-code (hc t81)
+- 2026-11-21T01:11:04Z · gate-opened · accept → accept · Leif's review of the 6.4 documentation corrections ^t-c26453
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t81)

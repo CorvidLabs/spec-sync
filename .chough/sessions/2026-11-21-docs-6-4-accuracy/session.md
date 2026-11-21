@@ -5,7 +5,7 @@ aliases: [docs-6-4-accuracy]
 objective: "The README and every current documentation page, Mermaid diagrams included, say what SpecSync 6.4.0 and 6.4.1 do: the 21 items in defs/docs-6.4-accuracy-definition.md, documentation only, no version or pin wording (the 6.4.1 post-publication PR owns it); scope confirmed by t4c under Leif's standing OK for scope approvals"
 intent_scope: CHANGE
 modules: []
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -21,7 +21,7 @@ bugs: []
 blockers: []
 waiting_on_human: []
 run_consents: []
-next: "Gate \"Leif's review of the 6.4 documentation corrections\" closed (review pass); run `chough change ship correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples` to ship."
+next: Continue done
 ---
 # The README and every current documentation page, Mermaid diagrams included, say what SpecSync 6.4.0 and 6.4.1 do: the 21 items in defs/docs-6.4-accuracy-definition.md, documentation only, no version or pin wording (the 6.4.1 post-publication PR owns it); scope confirmed by t4c under Leif's standing OK for scope approvals
 
@@ -139,4 +139,23 @@ The README and every current documentation page, Mermaid diagrams included, say 
     - recorded_by: claude-code-t4t
     - native: specsync change review correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
     - actor: 0xLeif
+  - by: claude-code (hc t81)
+- 2026-11-21T15:29:37Z · direct-native-write · accept → accept · correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples's lifecycle records changed outside Chough: state.json removed, approvals.json removed, review.json removed, review-attempts.json removed, verification.json removed, verification-attempts.json removed; state verifying → unknown ^t-4eca86
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - revision: 6a1b4bb7194333bb9823164005de4d76f1dbd676
+  - direct_write:
+    - change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+    - files:
+      - state.json: removed
+      - approvals.json: removed
+      - review.json: removed
+      - review-attempts.json: removed
+      - verification.json: removed
+      - verification-attempts.json: removed
+    - before_state: verifying
+  - by: claude-code (hc t81)
+- 2026-11-21T15:29:37Z · advance · accept → done · native:archived ^t-7ddecc
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - gate: native:archived
+  - revision: 6a1b4bb7194333bb9823164005de4d76f1dbd676
   - by: claude-code (hc t81)

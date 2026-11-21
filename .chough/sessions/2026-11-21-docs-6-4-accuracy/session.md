@@ -11,12 +11,12 @@ iteration: 1
 callers: []
 native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
 pr: ""
-criteria: []
+criteria: [DOCS-1, DOCS-2, DOCS-4, DOCS-5]
 requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-21-documentation-only-the-21-items-of-defs-docs-6-4-accuracy]
 bugs: []
 blockers: []
 waiting_on_human:
@@ -39,8 +39,11 @@ The README and every current documentation page, Mermaid diagrams included, say 
 
 - No intent criterion: a documentation-only change that alters no behavior; the confirmed definition proposes none.
 - 0xLeif decided "Scope approval of correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples": "Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)" (Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/docs-6.4-accuracy-definition.md: documentation only, --no-spec-change, no requirement wording, no refusal, the recommended fix for all 21 items) by t4c on 2026-11-21, sent directly from hc t4c while ss-lead t58 was stopped); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples as 0xLeif
+- Correction to the intent-stage note: no new criterion, but existing ones cover this change. DOCS-4 (reference documentation accurate for the current version) and DOCS-5 (diagrams show the states and steps SpecSync uses) are its subject; DOCS-1 (README examples run as written) and DOCS-2 (the documented closeout is finished locally before push) cover items 7, 8 and 17 to 19.
 
 ## What was verified
+
+- [Documentation only, the 21 items of defs/docs-6.4-accuracy-definition.md (audit of main 3f0985e8 with its 6.4.1 build). Command check: every specsync invocation the docs show is valid against --help (80 command paths; only prose or placeholder hits left; the four check --commit hits gone). New samples are real output of the 6.4.1 build: resolve --remote against spec-sync's registry (exit 1), a three-crate Cargo workspace before and after the fixes, init in an empty project. site: bun test 48/48 (Mermaid parse, lifecycle against the code), bun run build 43 pages, lint 0 errors; validate-release-version.py passes; examples sdd-lifecycle, sdd-five-epics, sdd-concurrent-changes pass. Lane at cc4977b2 (3158 unit, 741 integration, 62/62, 100%); change audit --strict exit 0.](evidence/2026-11-21-documentation-only-the-21-items-of-defs-docs-6-4-accuracy.md)
 
 ## Open threads
 

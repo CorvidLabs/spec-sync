@@ -10,7 +10,7 @@ stage_status: active
 iteration: 1
 callers: []
 native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
-pr: ""
+pr: "1141"
 criteria: [DOCS-1, DOCS-2, DOCS-4, DOCS-5]
 requirements: []
 cases: []

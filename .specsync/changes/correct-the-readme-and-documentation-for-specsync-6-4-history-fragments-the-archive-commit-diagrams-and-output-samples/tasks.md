@@ -13,4 +13,4 @@ artifact: tasks
 - [x] Facts about the code: items 14 to 16.
 - [x] Output samples from real runs: items 17 to 19.
 - [x] Missing mentions: items 20 and 21.
-- [ ] Command check, site test and build, release-version check, check --strict, lane.
+- [x] Command check, site test and build, release-version check, check --strict, lane.

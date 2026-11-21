@@ -53,6 +53,13 @@
         "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 22:41Z; hc t4c confirmed on 2026-11-21 that this answer covers the post-publication change's definition, as his 'Yes, both' covered 6.4.0's (#1136). Relayed by hc t4c",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795228977,
+      "digest": "0f92891d69cfb73893f945cfa887ecc294b866ccdb6d5110222ea504b12acecc",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

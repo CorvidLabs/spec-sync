@@ -1,6 +1,6 @@
 ---
 id: advance-the-action-default-and-current-guidance-to-published-specsync-6-4-1
-state: implementing
+state: archived
 type: bug_fix
 base_commit: 3f0985e80acab0fe4559fe322cf929be40057414
 ---

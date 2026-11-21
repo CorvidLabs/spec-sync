@@ -19,13 +19,9 @@ files: []
 observations: [2026-11-21-documentation-only-the-21-items-of-defs-docs-6-4-accuracy]
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Leif's review of the 6.4 documentation corrections
-    holds: accept
-    drives: review
-    opened: 2026-11-21T01:11:04Z
+waiting_on_human: []
 run_consents: []
-next: Continue accept
+next: "Gate \"Leif's review of the 6.4 documentation corrections\" closed (review pass); run `chough change ship correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples` to ship."
 ---
 # The README and every current documentation page, Mermaid diagrams included, say what SpecSync 6.4.0 and 6.4.1 do: the 21 items in defs/docs-6.4-accuracy-definition.md, documentation only, no version or pin wording (the 6.4.1 post-publication PR owns it); scope confirmed by t4c under Leif's standing OK for scope approvals
 
@@ -40,6 +36,7 @@ The README and every current documentation page, Mermaid diagrams included, say 
 - No intent criterion: a documentation-only change that alters no behavior; the confirmed definition proposes none.
 - 0xLeif decided "Scope approval of correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples": "Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)" (Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/docs-6.4-accuracy-definition.md: documentation only, --no-spec-change, no requirement wording, no refusal, the recommended fix for all 21 items) by t4c on 2026-11-21, sent directly from hc t4c while ss-lead t58 was stopped); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change approve correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples as 0xLeif
 - Correction to the intent-stage note: no new criterion, but existing ones cover this change. DOCS-4 (reference documentation accurate for the current version) and DOCS-5 (diagrams show the states and steps SpecSync uses) are its subject; DOCS-1 (README examples run as written) and DOCS-2 (the documented closeout is finished locally before push) cover items 7, 8 and 17 to 19.
+- 0xLeif decided "Leif's review of the 6.4 documentation corrections": "Pass (Recommended)" (a Claude Code question dialog in his planning session hc t4c, on 2026-11-21 at about 15:25Z, to his review of #1141 (the 6.4 documentation PR, put to him from defs/1141-review-request.md at head 8d45da4c); relayed by t4c); recorded by claude-code-t4t; a relayed claim, not authenticated; ran specsync change review correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -119,4 +116,27 @@ The README and every current documentation page, Mermaid diagrams included, say 
   - revision: 590adc48cd186c9ad145bb239de3c6110fdba8b3
   - holds: accept
   - drives: review
+  - by: claude-code (hc t81)
+- 2026-11-21T15:25:45Z · direct-native-write · accept → accept · correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-ccc2d0
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - revision: 8d45da4c1a2dd53294f4252c6fa1fd60d508f8cc
+  - direct_write:
+    - change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t81)
+- 2026-11-21T15:25:45Z · gate-closed · accept → accept · Leif's review of the 6.4 documentation corrections ^t-00a421
+  - native_change: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+  - revision: 8d45da4c1a2dd53294f4252c6fa1fd60d508f8cc
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Pass (Recommended)
+    - where: a Claude Code question dialog in his planning session hc t4c, on 2026-11-21 at about 15:25Z, to his review of #1141 (the 6.4 documentation PR, put to him from defs/1141-review-request.md at head 8d45da4c); relayed by t4c
+    - recorded_by: claude-code-t4t
+    - native: specsync change review correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
+    - actor: 0xLeif
   - by: claude-code (hc t81)

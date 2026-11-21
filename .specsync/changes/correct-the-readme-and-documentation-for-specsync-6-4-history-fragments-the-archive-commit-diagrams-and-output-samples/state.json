@@ -7,10 +7,11 @@
   "title": "Correct the README and documentation for SpecSync 6.4: history fragments, the archive commit, diagrams and output samples",
   "description": "Correct the README and documentation for SpecSync 6.4: history fragments, the archive commit, diagrams and output samples",
   "kind": "documentation",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "3f0985e80acab0fe4559fe322cf929be40057414",
   "created_at": 1795222418,
-  "updated_at": 1795222471,
+  "updated_at": 1795223438,
   "affected_specs": [],
   "affected_paths": [
     "README.md",

@@ -1,6 +1,6 @@
 ---
 id: correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples
-state: approved
+state: implementing
 type: documentation
 base_commit: 3f0985e80acab0fe4559fe322cf929be40057414
 ---

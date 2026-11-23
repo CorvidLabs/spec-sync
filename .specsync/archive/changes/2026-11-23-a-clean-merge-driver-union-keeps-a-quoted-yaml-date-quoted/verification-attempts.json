@@ -128,6 +128,118 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795472448,
+      "commit": "6e8b969d2fa2b4c396c689a603a28bd9de70f00d",
+      "contract_digest": "885d6041cc03f8b2c8ede1b1ad8f26f31d24bac9a57df38948926e7c0e42896a",
+      "execution_digest": "619b2bfe87e4c284d9672a6bb9b2a08d8507817ea4a934ad23023a6749a5aee4",
+      "workspace_digest": "dc318f5337172b4b91a069a7025cd7f4e5b5a01c26eeabb8fc4151d350fc9db1",
+      "acceptance_input_digest": "7a890cea9318c2f66dd626b2cb565158502fc0315687d06141062b8170a41325",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/merge/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3f4be7a2790ab1e3d3e4e113d7d62654130b662870b6bf0ed4e5f4694ede6448",
+            "entry_digest": "b2e05ac18a52f76b000de087f913583ccd4701d136e5aac085dd53117f080172",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "006a57141255e4774e9a4fb1d036fde1dd73367220b35a1cd1e1f983f51ee29b",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "d12d85a62a2de55f6115f9ba2512a304a70e6633e118ec51c6ae4f18303cf5c4",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/merge.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "92fc4e2cea037624ff65c90dbd5b9c635085f217d051dcc40d243a6452d0400a",
+            "entry_digest": "42455d59822084f585a1391f02cccaba6bc145e5ef6620925dd876e8a0f60ad9",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/merge.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7c65bf596c5be1b4d932e7a6f9934e0da628078fc10752c1793242d276ff3160",
+            "entry_digest": "e3c10df54b8e50d28d00e80f1de45ee6afd88e7c838a04b1c567d70e97cb27c2",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "692fddc24f273bef40f664d51142f01ade09e14c2bd9977502aa01aebf76acc1",
+            "entry_digest": "715d9dc1dde5c2dfccfb5b9c931ef68f4c9bf03b05438648a134dcc8b4e422fd",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8d0ce627e4c3db291cc9d5026e51ba645e66ca7e7580fa917206053b50e287c1",
+            "entry_digest": "e5f397564c8e87941dffd6f51ecf2f2ddf31ee62396dbb68d6cb8a9d16126945",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "specs/merge/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f8afefd3425998ec60131c54545b511623b7b88ef8cf49cbe1712406e5a7b105",
+            "entry_digest": "a6a5ff670c4941640fc0dafaf317be1dfba1355e939e7875cc388ff68663e458",
+            "owners": [
+              "merge"
+            ]
+          },
+          {
+            "path": "src/merge_driver.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16f5802b7bc7a4ebfca5eb274b544715ed0ea3bc6794866cb65b5f7df3a35c43",
+            "entry_digest": "f1e25735f6076d51b7364e1a9f47f6e6f024580bad4f67006e717758cbf8b5ab",
+            "owners": [
+              "merge"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec merge",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

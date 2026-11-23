@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted",
+  "implementation_commit": "6e8b969d2fa2b4c396c689a603a28bd9de70f00d",
+  "implementation_tree": "14f43deb50d452d2c41d9a664af8a2b0637b712d",
+  "contract_digest": "885d6041cc03f8b2c8ede1b1ad8f26f31d24bac9a57df38948926e7c0e42896a",
+  "workspace_digest": "dc318f5337172b4b91a069a7025cd7f4e5b5a01c26eeabb8fc4151d350fc9db1",
+  "closing_digest": "65a52ea4cf4a3769904bd9a909fa2c72cbfcf2ae461732f365ed7031d1ccd108",
+  "review_digest": "a28260a2cc742a855f4867f660d8db6f8d29c96be2f119f4e9b12bf1abee2e91",
+  "finalization_digest": "e393da5a1f168553b484efa535f621afa035c3b8cb6439f9b634ff8795390ae6",
+  "timestamp": 1795477939
+}

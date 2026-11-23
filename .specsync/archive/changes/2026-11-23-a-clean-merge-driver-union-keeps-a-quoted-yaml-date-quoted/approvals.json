@@ -39,6 +39,13 @@
         "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:57Z, relayed by claude-code-t370. Asked: 'Four SpecSync bug fixes, each matching what the spec already says, with failing tests written. Approve their scope?' He selected all of \"#1012 quoted dates\", \"#972 escape names\", \"#974 check old reviews\" and \"#968 docs test\".",
         "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795477939,
+      "digest": "65a52ea4cf4a3769904bd9a909fa2c72cbfcf2ae461732f365ed7031d1ccd108",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

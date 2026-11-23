@@ -365,6 +365,8 @@ Every link points inside the test's own temporary directory.
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
 
+REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
+
 ## Verification state and the Markdown summary (REQ-change-check-summary-state-001)
 
 - `review_and_ship_refuse_a_verification_commit_that_lacks_the_work` checks that the first passing check preserves a Markdown handoff note and reports `verifying` in the summary and CLI. It also checks that `check --commit` commits the summary and leaves evidence usable for scoped review.

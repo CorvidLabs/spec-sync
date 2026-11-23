@@ -41,6 +41,13 @@
         "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:37Z, relayed by claude-code-t370. Asked: 'SpecSync bug fix spec-sync#1050: an edit could replace an example inside a code block instead of the real requirement. The fix skips code blocks, which the spec already requires, and adds no new wording. Approve its scope?' Option text: 't38c records it and builds, with a failing test first. The review comes back to you.'",
         "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795401986,
+      "digest": "b1ce95e1f5d5e627bd1758de55f3c140cab82cdbdf0285cb7ce75eb059c2bd6d",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

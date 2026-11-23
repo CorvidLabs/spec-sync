@@ -367,6 +367,13 @@ Every link points inside the test's own temporary directory.
 
 REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
 
+## Verification state and the Markdown summary (REQ-change-check-summary-state-001)
+
+- `review_and_ship_refuse_a_verification_commit_that_lacks_the_work` checks that the first passing check preserves a Markdown handoff note and reports `verifying` in the summary and CLI. It also checks that `check --commit` commits the summary and leaves evidence usable for scoped review.
+- `change_check_fails_when_specs_and_code_drift` checks that a completed failing check publishes both state projections and failed evidence.
+- `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
+- `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.
+
 The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cover an approval that has become stale, a historical sequence owner whose coverage is provisional, and the status shown when the original transition is unproven.
 
 The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.

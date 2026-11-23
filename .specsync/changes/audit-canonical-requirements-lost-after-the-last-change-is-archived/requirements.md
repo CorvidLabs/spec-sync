@@ -9,4 +9,4 @@ A branch can lose a canonical requirement after its last change is archived. CHA
 
 Reuse REQ-change-169 for canonical-file selection, permanent IDs, bounded reads and approved removals. An authorized removal archived on this branch after the comparison base accounts for its own ID. An older archive grants no authority for a later deletion. Moving a requirement between canonical files under the same ID preserves it.
 
-An ordinary `check` continues checking drift. With `--strict`, the shared historical comparison applies on Git branches that can supply a default reference even when the project does not use lifecycle audit. It reports requirement loss without running lifecycle audit or reporting unrelated workspace and archive findings.
+An ordinary `check` continues checking drift. With `--strict`, the shared historical comparison applies to the managed branch even when CI invokes only strict check. It reports requirement loss without running lifecycle audit or reporting unrelated workspace and archive findings. Projects that have never enabled SDD retain their current strict drift checks and need no removal deltas.

@@ -10,7 +10,7 @@
   "state": "draft",
   "base_commit": "5314fb6ae13f7b9cc656cc2aef0fb875a59b2026",
   "created_at": 1795413594,
-  "updated_at": 1795444962,
+  "updated_at": 1795445061,
   "affected_specs": [
     "change",
     "cmd_check"
@@ -26,7 +26,7 @@
   "no_spec_change": false,
   "no_spec_change_rationale": null,
   "acceptance_criteria": [
-    "With no active changes, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. The same commands pass on a separate no-loss control. Removals authorized on the branch and requirements moved under the same ID pass. Both entry points disclose a missing comparison ref and give fetch guidance when the known comparison history is incomplete."
+    "With no active changes on an SDD-enabled Git branch, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. Managed CI may run only strict check. Both commands pass on a separate no-loss control. A Git project that never enabled SDD keeps its usual strict drift checks. Approved branch removals and requirements moved under the same ID pass. A missing comparison ref is disclosed and incomplete comparison history gives fetch guidance."
   ],
   "selected_artifacts": [
     "context",
@@ -38,7 +38,7 @@
   "dependencies": [],
   "answers": {
     "architecture_risk": "no",
-    "constraints": "Reuse REQ-change-169 for selection, removal accounting and bounded reads. Preserve archive-first CI ordering and the existing required Lifecycle gate. Keep ordinary check focused on spec-to-code drift. Strict check shares the historical loss check without importing the rest of lifecycle audit.",
+    "constraints": "Reuse REQ-change-169 for selection, removal accounting and bounded reads. Preserve archive-first CI ordering and the existing required Lifecycle gate. Explicit strict check shares the historical comparison on managed Git branches without importing the rest of lifecycle audit. Keep plain check and projects that never enabled SDD on their existing drift path.",
     "public_contract": "yes"
   }
 }

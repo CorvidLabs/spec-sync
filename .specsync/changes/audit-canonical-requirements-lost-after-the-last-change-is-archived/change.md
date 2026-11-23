@@ -18,7 +18,7 @@ Audit canonical requirements lost after the last change is archived
 
 ## Acceptance Criteria
 
-- With no active changes, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. The same commands pass on a separate no-loss control. Removals authorized on the branch and requirements moved under the same ID pass. Both entry points disclose a missing comparison ref and give fetch guidance when the known comparison history is incomplete.
+- With no active changes on an SDD-enabled Git branch, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. Managed CI may run only strict check. Both commands pass on a separate no-loss control. A Git project that never enabled SDD keeps its usual strict drift checks. Approved branch removals and requirements moved under the same ID pass. A missing comparison ref is disclosed and incomplete comparison history gives fetch guidance.
 
 ## No-spec Rationale
 

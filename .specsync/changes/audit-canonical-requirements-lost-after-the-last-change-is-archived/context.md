@@ -9,4 +9,4 @@ An archive-first CI branch with 442 archived packages and no active workspaces l
 
 The maintainer answered the #1105 interview with “Both `change audit` and `check --strict`, so projects running either command catch the loss”. HI records the answer as CHANGE-17.d under the existing requirement-preservation intent.
 
-The required Lifecycle gate already runs `change audit --strict` on full history after Archive. Projects may instead run only `check --strict`. Both commands should call the same branch comparison and report the same lost IDs and restore guidance.
+The required Lifecycle gate already runs `change audit --strict` on full history after Archive. A project can use the SpecSync lifecycle while running only `check --strict` in CI. Both gates should call the same branch comparison and report the same lost IDs and restore guidance. Projects that have never adopted the lifecycle retain ordinary strict drift checking.

@@ -2,21 +2,21 @@
 
 ### REQUIREMENT REQ-cmd-check-004
 
-The primary check command SHALL provide bidirectional spec-to-code drift validation. With explicit `--strict`, it SHALL also run the shared branch comparison in REQ-change-archived-requirement-loss-001 and account for a loss using approved removals. It SHALL report the historical findings through its supported text and structured validation results. Lifecycle policy compliance, general workspace health and unrelated archive integrity SHALL remain with the lifecycle commands.
+The primary check command SHALL provide bidirectional spec-to-code drift validation. With explicit `--strict` on a Git project that has enabled SDD, it SHALL also run the shared branch comparison in REQ-change-archived-requirement-loss-001 and account for a loss using approved removals. It SHALL report the historical findings through its supported text and structured validation results. Lifecycle policy compliance, general workspace health and unrelated archive integrity SHALL remain with the lifecycle commands.
 
 Acceptance Criteria
 
 - Ordinary `specsync check` reports drift without emitting lifecycle workspace or archive findings.
 - After the last change has been archived, `check --strict` exits unsuccessfully if the branch dropped a canonical requirement without an approved removal. It names the lost ID, the original canonical file, and how to display the original block.
-- A separate check-only fixture with no requirement loss passes. A Git-backed project without SDD audit can use strict check to catch an unexplained loss.
-- With no history comparison to make outside Git, the ordinary spec validation result stands.
+- A separate managed fixture with no requirement loss passes. A managed project can use only strict check in CI and still catch an unexplained loss.
+- A Git project that never enabled SDD retains the ordinary spec validation result, including when a requirement was edited without a removal delta. The same applies outside Git.
 
 ### SPEC SECTION Purpose
 
 Implements deterministic validation of living specifications and code, including a fallible schema
 snapshot, visible ignore suppression, caching, local Markdown auto-fix, structured formats, and
-optional drift issues. Explicit strict validation includes a shared historical guard for unexplained
-canonical requirement loss.
+optional drift issues. For projects using the change lifecycle, explicit strict validation includes a
+shared historical guard for unexplained canonical requirement loss.
 
 ### SPEC SECTION Invariants
 
@@ -31,10 +31,11 @@ canonical requirement loss.
 11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
     replay their stored snapshot, `specs_checked` counts them, and a hash-only cache with no
     snapshot is re-validated rather than reported clean.
-12. Ordinary `check` validates living specs and code. With `--strict`, it also invokes the
-    shared canonical requirement-loss comparison (REQ-change-archived-requirement-loss-001).
-    Approved removal evidence is considered only to account for a lost ID. Lifecycle policy,
-    workspace health and general archive validation stay in `specsync change`.
+12. Ordinary `check` validates living specs and code. With `--strict` on an SDD-enabled Git
+    project, it also invokes the shared canonical requirement-loss comparison
+    (REQ-change-archived-requirement-loss-001). Approved removal evidence is considered only to
+    account for a lost ID. Lifecycle policy compliance, workspace health and general archive
+    validation stay in `specsync change`.
 13. When the hash cache location is refused, because no local state folder can be found or
     what is at `hashes.json` there is a link or not a regular file, `check` prints one
     `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither

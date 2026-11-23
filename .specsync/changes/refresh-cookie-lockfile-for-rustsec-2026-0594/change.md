@@ -1,6 +1,6 @@
 ---
 id: refresh-cookie-lockfile-for-rustsec-2026-0594
-state: draft
+state: approved
 type: bug_fix
 base_commit: 71f1867d7ddcf2b075b49c421d2f87ea0b760be1
 ---

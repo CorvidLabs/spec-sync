@@ -3825,23 +3825,32 @@ fn in_flight_coverer(
 ) -> Option<String> {
     records
         .values()
-        .find(|candidate| {
-            candidate.id != record.id
-                && matches!(
-                    candidate.state,
-                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
-                )
-                && happens_after(candidate, record)
-                && candidate.affected_specs.iter().any(|module| module == owner)
-                && candidate
-                    .affected_paths
-                    .iter()
-                    .any(|scope| path_matches_scope(path, scope))
-                && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
-                    ensure_definition_approval_valid(root, candidate).is_ok()
-                })
-        })
+        .find(|candidate| in_flight_change_covers(root, memo, candidate, record, path, owner))
         .map(|candidate| candidate.id.clone())
+}
+
+fn in_flight_change_covers(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+        && happens_after(candidate, record)
+        && candidate.affected_specs.iter().any(|module| module == owner)
+        && candidate
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(path, scope))
+        && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
+            ensure_definition_approval_valid(root, candidate).is_ok()
+        })
 }
 
 /// The sentence for an accepted change whose changed inputs in-flight changes cover for now.

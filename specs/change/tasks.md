@@ -125,3 +125,4 @@ spec: change.spec.md
 - [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).
 - [x] Use the explicit succession obligation to decide whether an accepted or archived coverer clears the recorded shared-input warning (#657).
+- [x] Check current approval for a recorded in-flight coverer and explicit succession for every signed owner of a permanently covered path (#657).

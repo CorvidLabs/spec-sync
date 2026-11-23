@@ -3045,18 +3045,25 @@ fn archived_provisional_coverage_with_roster(
     if coverage["change_id"].as_str() != Some(record.id.as_str()) {
         return Vec::new();
     }
-    // Most archive reads have no terminal coverer. Open the predecessor manifest and the
-    // recursive validation roster only when a recorded coverer actually claims the input.
+    // Load the signed manifest and change roster at most once per archive, and only when
+    // a recorded covering change can still qualify.
     let signed = std::cell::OnceCell::new();
     let local_roster = std::cell::OnceCell::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    let mut has_succession = |candidate: &ChangeRecord, path: &str| {
-        if !candidate.supersedes.iter().any(|edge| {
-            edge.predecessor_id == record.id && edge.obligations.iter().any(|item| item.path == path)
-        }) {
+    let mut is_standing = |candidate: &ChangeRecord, path: &str| {
+        let terminal = matches!(candidate.state, ChangeState::Accepted | ChangeState::Archived);
+        if terminal
+            && !candidate.supersedes.iter().any(|edge| {
+                edge.predecessor_id == record.id
+                    && edge.obligations.iter().any(|item| item.path == path)
+            })
+        {
             return false;
         }
         let Some(manifest) = signed.get_or_init(|| resolved_acceptance_manifest(root, record).ok()) else {
+            return false;
+        };
+        let Some(expected) = manifest.entries.iter().find(|entry| entry.path == path) else {
             return false;
         };
         let Some(records) = roster.or_else(|| {
@@ -3064,17 +3071,28 @@ fn archived_provisional_coverage_with_roster(
         }) else {
             return false;
         };
-        let Some(expected) = manifest.entries.iter().find(|entry| entry.path == path) else {
-            return false;
-        };
         let mut rejected = BTreeMap::new();
         let mut historical = false;
-        expected.owners.iter().any(|owner| {
+        let mut proves = |owner: &str, covering: &ChangeRecord| {
+            if !terminal && in_flight_change_covers(root, &mut memo, covering, record, path, owner) {
+                return true;
+            }
             successor_covers_input(
-                root, record, records, [candidate], &mut BTreeSet::new(), &mut memo, None,
+                root, record, records, [covering], &mut BTreeSet::new(), &mut memo, None,
                 expected, owner, &mut rejected, &mut historical,
             )
-        })
+        };
+        // The recorded change must still cover part of the input. Other changes can cover
+        // the remaining signed owners, just as they do in the active predecessor walk.
+        let mut recorded_contributes = false;
+        let complete = expected.owners.iter().all(|owner| {
+            if proves(owner, candidate) {
+                recorded_contributes = true;
+                return true;
+            }
+            records.values().any(|other| other.id != candidate.id && proves(owner, other))
+        });
+        recorded_contributes && complete
     };
     coverage["covered_by"]
         .as_array()
@@ -3087,10 +3105,15 @@ fn archived_provisional_coverage_with_roster(
             let change_state = covering.as_ref().map(|record| record.state);
             let warning_reason = match covering {
                 Some(candidate) => match candidate.state {
-                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => None,
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without current approved coverage for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
                     ChangeState::Accepted | ChangeState::Archived => {
-                        (!has_succession(&candidate, &path)).then(|| format!(
-                            "now {} without verified explicit succession for this input",
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without complete verified explicit succession for this input",
                             candidate.state.as_str()
                         ))
                     }

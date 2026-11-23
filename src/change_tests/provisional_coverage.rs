@@ -322,6 +322,10 @@ fn with_no_change_declaring_the_input_it_is_stale_as_before() {
 /// the shared paths and optionally a succession of it, approved and implementing before acceptance. The
 /// later change then edits `src/auth.rs`, committed.
 fn accepted_change_with_successor_in_flight(root: &Path, explicit: bool) -> (ChangeRecord, ChangeRecord) {
+    shared_input_fixture(root, explicit, false)
+}
+
+fn shared_input_fixture(root: &Path, explicit: bool, shared_owner: bool) -> (ChangeRecord, ChangeRecord) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -331,6 +335,15 @@ fn accepted_change_with_successor_in_flight(root: &Path, explicit: bool) -> (Cha
     quiet_git(root, &["commit", "-m", "base"]);
     let delta = "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
     let mut predecessor = completed_section_only_record(root, delta);
+    if shared_owner {
+        fs::create_dir_all(root.join("specs/shared")).unwrap();
+        let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+        fs::write(root.join("specs/shared/shared.spec.md"), spec.replace("module: auth", "module: shared")).unwrap();
+        predecessor.affected_specs.push("shared".into());
+        fs::write(delta_path(root, &predecessor, "shared"), delta).unwrap();
+        save_change(root, &predecessor).unwrap();
+        write_change_markdown(root, &predecessor).unwrap();
+    }
     predecessor = approve_definition(root, &predecessor.id, Some("Reviewer".into()), None).unwrap();
     predecessor = start_implementation(root, &predecessor.id).unwrap();
     verify_change(root, &predecessor.id).unwrap();
@@ -350,6 +363,12 @@ fn accepted_change_with_successor_in_flight(root: &Path, explicit: bool) -> (Cha
         root,
         &delta.replace("remains governed", "is governed by the successor"),
     );
+    if shared_owner {
+        successor.affected_specs.push("shared".into());
+        successor.affected_paths.push("specs/shared/".into());
+        fs::write(delta_path(root, &successor, "shared"),
+            delta.replace("remains governed", "is governed by both modules")).unwrap();
+    }
     successor
         .affected_paths
         .extend(manifest.entries.iter().filter(owned).map(|entry| entry.path.clone()));
@@ -724,4 +743,42 @@ fn an_archived_predecessor_warns_after_a_plain_coverer_closes() {
 #[test]
 fn explicit_succession_clears_the_archived_predecessor_warning() {
     assert_archived_coverer_warning(true);
+}
+
+#[test]
+fn one_explicit_owner_cannot_clear_a_shared_files_warning() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, coverer) = shared_input_fixture(root, true, true);
+    let manifest = resolved_acceptance_manifest(root, &predecessor).unwrap();
+    let shared = manifest.entries.iter().find(|entry| entry.path == "src/auth.rs").unwrap();
+    assert_eq!(shared.owners, ["auth", "shared"]);
+    archive_change(root, &predecessor.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive shared predecessor"]);
+    assert!(verify_change(root, &coverer.id).unwrap().passed);
+    accept_change(root, &coverer.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept succession for auth only"]);
+    let _scope = begin_change_read_scope(root);
+    let archived = load_change(root, &predecessor.id).unwrap();
+    let coverage = archived_provisional_coverage(root, &archived);
+    let entry = coverage.iter().find(|entry| entry.path == "src/auth.rs").unwrap();
+    assert!(entry.warning.is_some(), "{coverage:?}");
+}
+
+#[test]
+fn a_recorded_active_coverer_needs_its_current_approval() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, coverer) = accepted_change_with_moved_input(root, true);
+    let mut coverer = coverer.unwrap();
+    archive_change(root, &predecessor.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive with current covering scope"]);
+    let archived = load_change(root, &predecessor.id).unwrap();
+    assert!(archived_provisional_coverage(root, &archived)[0].warning.is_none());
+    coverer.acceptance_criteria.push("Extra unapproved work".into());
+    save_change(root, &coverer).unwrap();
+    assert!(archived_provisional_coverage(root, &archived)[0].warning.is_some());
 }

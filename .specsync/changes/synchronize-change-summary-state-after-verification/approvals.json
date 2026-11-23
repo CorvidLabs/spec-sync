@@ -1,0 +1,55 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "Requesting maintainer",
+      "timestamp": 1795395529,
+      "digest": "af415c8023a6f0ee4ee5bd8454e48f4e9628a8965d2404051df42e177c5163e8",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "synchronize-change-summary-state-after-verification",
+        "title": "Synchronize change summary state after verification",
+        "description": "Synchronize change summary state after verification",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/workflow.md",
+          "specs/change/change.3md",
+          "src/change/sdd_version.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/semantic_application_resolves_registry_backed_canonical_paths.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A pre-verification refusal preserves the prior lifecycle state, and a failed publication leaves the previous state and evidence together.",
+          "After change check records either a passing verification or a completed failing verification, state.json, change.md, and change status all report verifying.",
+          "Rechecking an active change whose summary still says implementing repairs its summary and keeps its Markdown notes.",
+          "change check --commit records the synchronized summary and leaves passing evidence usable for review."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "A refusal is a result worth recording (#847). Use confined durable project writes and keep the completed attempt and its projections together.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "35883e616ac439c23cc273fdc97320b87800d85f61d624c7984fd86acec61223"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "Requesting maintainer",
+        "words": "continue",
+        "where": "SpecSync Codex session, reply to the explicit #1143 scope approval prompt, relayed by the coordinating Codex agent on 2026-11-22",
+        "recorded_by": "Codex #1143 implementation agent"
+      }
+    }
+  ],
+  "reopenings": []
+}

@@ -3725,10 +3725,9 @@ fn materialize_change_deltas_inner(
         relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
-    prepared.push((
-        change_dir(root, &record.id).join("change.md"),
-        change_markdown_content(&record),
-    ));
+    let summary_path = change_dir(root, &record.id).join("change.md");
+    let summary = change_markdown_with_state(root, &summary_path, &record)?;
+    prepared.push((summary_path, summary));
     write_prepared_files(root, &prepared)?;
     Ok(record)
 }
@@ -3867,7 +3866,7 @@ fn verify_change_locked(
     strict: bool,
     rerun: &str,
 ) -> Result<VerificationRecord, String> {
-    let mut record = load_change(root, id)?;
+    let record = load_change(root, id)?;
     require_state(
         &record,
         &[ChangeState::Implementing, ChangeState::Verifying],
@@ -3967,9 +3966,6 @@ fn verify_change_locked(
         refusal: None,
     };
     record_verification_attempt(root, &record, &verification)?;
-    record.state = ChangeState::Verifying;
-    record.updated_at = now();
-    save_change(root, &record)?;
     if !verification.passed {
         let summary = if findings.is_empty() {
             "specs are out of sync with code".to_string()

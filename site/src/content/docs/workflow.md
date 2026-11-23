@@ -134,6 +134,9 @@ refused it. This does not depend on the configured `enforcement`, which still go
 `passed: false` with an entry naming `specsync change check <id> (effective contract: <module>)`,
 so `change status` points back to `change check`.
 
+A completed check records `verifying` in `change.md`, `state.json`, and `change status`. The
+`passed` field in `verification.json` reports whether the check passed.
+
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,

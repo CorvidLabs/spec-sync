@@ -1073,14 +1073,30 @@ fn record_verification_attempt(
 ) -> Result<(), String> {
     let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
     history.attempts.push(verification.clone());
+    let workspace = change_dir(root, &record.id);
+    let mut record = record.clone();
+    record.state = ChangeState::Verifying;
+    record.updated_at = now();
+    let state_path = workspace.join("state.json");
+    let state = json_content_keeping_unknown_members(
+        root,
+        &state_path,
+        relay_gated_record(root, &workspace, &record).as_ref(),
+    )?;
+    let summary_path = workspace.join("change.md");
+    let summary = change_markdown_with_state(root, &summary_path, &record)?;
+    let attempts = json_content_keeping_unknown_members(root, &history_path, &history)?;
+    // A completed attempt and both projections of its lifecycle state recover together.
     write_prepared_files(
         root,
         &[
             (
-                change_dir(root, &record.id).join("verification.json"),
+                workspace.join("verification.json"),
                 json_content(verification)?,
             ),
-            (json_content_keeping_unknown_members(root, &history_path, &history).map(|content| (history_path, content))?),
+            (history_path, attempts),
+            (state_path, state),
+            (summary_path, summary),
         ],
     )
 }
@@ -2811,6 +2827,55 @@ fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), Strin
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
+/// Update the generated lifecycle field and keep the author's handoff notes in place.
+fn change_markdown_with_state(
+    root: &Path,
+    path: &Path,
+    record: &ChangeRecord,
+) -> Result<String, String> {
+    let mut content = match crate::util::read_project_string(
+        root,
+        path,
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) {
+        Ok(content) => content,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(change_markdown_content(record));
+        }
+        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+    };
+    let body = strip_frontmatter(&content);
+    let state = format!("state: {}", record.state.as_str());
+    if body.len() == content.trim_start_matches('\u{feff}').len() {
+        return Ok(format!("{}\n{body}", change_markdown_frontmatter(record)));
+    }
+    let frontmatter_length = content.len() - body.len();
+    let mut offset = 0;
+    for line in content[..frontmatter_length].split_inclusive('\n') {
+        if line.starts_with("state:") {
+            let end = offset + line.trim_end_matches(['\r', '\n']).len();
+            content.replace_range(offset..end, &state);
+            return Ok(content);
+        }
+        offset += line.len();
+    }
+    let (opening, rest) = content
+        .split_once('\n')
+        .expect("frontmatter has an opening line");
+    let newline = if opening.ends_with('\r') { "\r\n" } else { "\n" };
+    Ok(format!("{opening}\n{state}{newline}{rest}"))
+}
+
+fn change_markdown_frontmatter(record: &ChangeRecord) -> String {
+    format!(
+        "---\nid: {}\nstate: {}\ntype: {}\nbase_commit: {}\n---\n",
+        record.id,
+        record.state.as_str(),
+        record.kind.as_str(),
+        record.base_commit.as_deref().unwrap_or("uncommitted"),
+    )
+}
+
 fn change_markdown_content(record: &ChangeRecord) -> String {
     let criteria = if record.acceptance_criteria.is_empty() {
         "- <!-- TODO: add observable acceptance criteria -->".into()
@@ -2833,11 +2898,8 @@ fn change_markdown_content(record: &ChangeRecord) -> String {
             .join("\n")
     };
     format!(
-        "---\nid: {}\nstate: {}\ntype: {}\nbase_commit: {}\n---\n\n# {}\n\n## Intent\n\n{}\n\n## Affected Canonical Specs\n\n{}\n\n## Acceptance Criteria\n\n{}\n\n## No-spec Rationale\n\n{}\n",
-        record.id,
-        record.state.as_str(),
-        record.kind.as_str(),
-        record.base_commit.as_deref().unwrap_or("uncommitted"),
+        "{}\n# {}\n\n## Intent\n\n{}\n\n## Affected Canonical Specs\n\n{}\n\n## Acceptance Criteria\n\n{}\n\n## No-spec Rationale\n\n{}\n",
+        change_markdown_frontmatter(record),
         record.title,
         record.description,
         specs,

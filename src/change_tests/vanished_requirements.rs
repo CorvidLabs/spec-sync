@@ -878,6 +878,67 @@ fn a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_i
     assert_eq!(restore.stdout, requirements.as_bytes());
 }
 
+#[test]
+fn a_reference_requirement_after_an_indented_fence_marker_is_reported_lost() {
+    let base = format!("    ```\n\n{VANISHED_BASE_REQUIREMENTS}");
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository_with_base(root, &base, ADDED_THIRD, &[]);
+    fs::write(requirements_path(root), drop_block(&base, "REQ-auth-001")).unwrap();
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-auth-001 was lost");
+    assert!(error.contains("REQ-auth-001 (specs/auth/requirements.md)"), "{error}");
+    let command = error.split('`').find(|part| part.starts_with("git show ")).unwrap();
+    let restored = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
+    assert!(restored.status.success(), "{command}: {}", String::from_utf8_lossy(&restored.stderr));
+    assert_eq!(restored.stdout, base.as_bytes());
+}
+
+#[test]
+fn default_tip_keeps_a_requirement_after_an_indented_fence_marker() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::write(requirements_path(root), format!("    ```\n\n{VANISHED_BASE_REQUIREMENTS}")).unwrap();
+    git(&["commit", "-q", "-am", "add an indented code example without removing any requirement"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-auth-001 was lost");
+    assert!(error.contains("REQ-auth-001 (specs/auth/requirements.md)"), "{error}");
+    assert!(error.contains("Restore each block"), "{error}");
+    assert!(!error.contains("origin/main has removed REQ-auth-001 too"), "{error}");
+}
+
+#[test]
+fn requirements_are_read_in_a_project_subdirectory_with_leading_whitespace() {
+    let temp = TempDir::new().unwrap();
+    let repository = temp.path();
+    let git = git_in(repository);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let root = repository.join(" app");
+    fs::create_dir(&root).unwrap();
+    let mut record = completed_section_only_current_record(&root, ADDED_THIRD);
+    fs::write(requirements_path(&root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "seed the project subdirectory"]);
+    record.base_commit = Some(vanished_rev(repository, "HEAD"));
+    fs::write(
+        requirements_path(&root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
+    )
+    .unwrap();
+
+    let error = ensure_no_lost_requirements(&root, &record).expect_err("REQ-auth-001 was lost");
+    assert!(error.contains("REQ-auth-001 (specs/auth/requirements.md)"), "{error}");
+    assert!(error.contains(": app/specs/auth/requirements.md"), "{error}");
+}
+
 /// Codex on #1108 (P2): the working tree is read to the same depth as Git's listing, so a
 /// requirements file twenty directories below the specs directory that still holds its id is
 /// not reported lost.

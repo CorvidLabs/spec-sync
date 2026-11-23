@@ -1,0 +1,1563 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795211651,
+      "commit": "e79f3437bbecef018ae1fba0b560a18a9abbb02a",
+      "contract_digest": "2e6668048769077bbab603bcf11d9a278625f7b5938d0ea13eebaf2149b532fe",
+      "execution_digest": "f9281e741c6404c8d2648449a55bda47134f07e2b15a8fe5027a86c626398d2e",
+      "workspace_digest": "b168542bee2eb33cf149b9a4eaed0ae567e44a48033aebd1e19289b5ce1f3175",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795211658,
+      "commit": "63d2c1aedae3b183a96623a5eff647cd8121df22",
+      "contract_digest": "2e6668048769077bbab603bcf11d9a278625f7b5938d0ea13eebaf2149b532fe",
+      "execution_digest": "f9281e741c6404c8d2648449a55bda47134f07e2b15a8fe5027a86c626398d2e",
+      "workspace_digest": "b168542bee2eb33cf149b9a4eaed0ae567e44a48033aebd1e19289b5ce1f3175",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795213712,
+      "commit": "906230c64ab74e1324c8c978522de988f920b440",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "0cc99447074b82b7ae52a6796d39e5c4a98c290b82fea92a0f28ebd9c5696d59",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_check --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795213728,
+      "commit": "3c0ce791551b9d2977e0212a59bf0464eb5d8de9",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "0cc99447074b82b7ae52a6796d39e5c4a98c290b82fea92a0f28ebd9c5696d59",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_check --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795214873,
+      "commit": "7313dd5d14376a3b2323045e5c351a62abb186c4",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "8a6223c6eac8460fb67267b73ca90068d6452292b7f004300832d06fe70a19b0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_check --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795214879,
+      "commit": "72755e83917ea1983e1e2b1f8690c27289f4c39a",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "8a6223c6eac8460fb67267b73ca90068d6452292b7f004300832d06fe70a19b0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_check --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795214879,
+      "commit": "eac242876ca3c73c12f918c90794e82aeee08cd0",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "8a6223c6eac8460fb67267b73ca90068d6452292b7f004300832d06fe70a19b0",
+      "acceptance_input_digest": "c16e2afa4a6fca7027b61dcec7b462a5bc6211babc5cf6cfe4ec98a71b0e35b5",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/agents/agents.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dcf843eaed3a9f67aa3512b34d0a73b08e63825af8086756e73f14ba76502b4a",
+            "entry_digest": "499f6711f7a9deaac25469c86e44bf18135761d9f7a7abb0bb586237ca3af13c",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/agents.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c2b4d9587cafa3b1984d63cdcf8c66f739fe07611887c15f02b5e33a323a5f9d",
+            "entry_digest": "562c724802f26d449eefe35313d191682703d43ce893992e8e48a775e87b86e9",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ecc86448643f63f2c741582626d695c6291834b19035af63fd4b920a23c165a7",
+            "entry_digest": "9d4f1822f597397715f0e5076605ba03caf18290cf1e73175e5f857dd1a788b3",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "1a5d78acba5779128fe0690f4af46e73dbfe171a99348a61adc72dacb7847735",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "c7fc39d694e50c9f8b06f8aaeb9e555dffac249875ea354d156cc63ebf685c43",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/history/never-write-a-project-file-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "09cea74a3be8117aeb139a39a34bc32fef7172dd702c5921bcfa0282c6cd2d1a",
+            "entry_digest": "4bdc4a464fa20e6bc890aa8623b2497196316357ce315b3a54d0acc41d43d395",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f18ab1aedbef8a22b7c6143e00c55c419580d5f6d44ce3462ecfb06b27e946ff",
+            "entry_digest": "b45d816fd7530ea41e6482ba8e45eb5fe54c163590eed79d212103823865dcda",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e89d5c5cda0841a7c60410990dab4fcc20dc934b5c22ce20d8b5c717657cbb3a",
+            "entry_digest": "28aef90bae28653a0bb0528376cac87fb8d2880d9edbf79259e07a359fce34ad",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/agents/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "26f6089318ea7ab83a34dbbc3ecc64dfa6f1f2aaef3926ed4a5b5b728f50a197",
+            "entry_digest": "c2ab4ddc4e2d4727c42d74f15ae6b80e3e7f2429c6b39a02e878fd45f11a0c98",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "specs/change/change.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "98546193c65d69195825d3bcdfe9659d485be90ede973037448bfeca0831ff4b",
+            "entry_digest": "135315becadd6f81c9a77985bd0c2e78e1771af547db684a1c2abd248f72bfc6",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "895fe1fbd326f89ead936485387287e1277f28dc7b2575d28a4221fffef102cc",
+            "entry_digest": "adf0029304c925545432ee1d123aaa5a08a0aa6341639c5141c0064ccbb1bf47",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fae4260a21c579f63ec3d7252c78c719b100d58c0e3beb8c405792c55dd0a787",
+            "entry_digest": "32b0269934d39dca2ae3e3a38e875ca062da59686f050cc9979aa5e5128714ac",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1246391a182503a23cc52eb4b14ac9e3be9b54d3a7bdce7d62f155541b793e75",
+            "entry_digest": "b4b8b2f07bc84f8657bed122c621c6e450f7d7fbd2c39ccb1a7104a0b7ee09ba",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "3bf1e09779217ca651c0d26c9048404122ecfca5e3540f7bb96fd647cc0e9bd8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/fix-the-four-pr-1086-review-findings-on-history-fragments.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3e309609e8e9003847d1a4c56ab1da06c26acb9e64bb9838c69b406dbf02522c",
+            "entry_digest": "51830e7457bb1b23519164c48c9420c61ec3d2a40b557bf6cf1fc55cc00e7bf8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "a1130c3e8d462bf1b03e61b503b075163d5711075f86806eed290cad74610e2a",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-specsync-s-own-state-only-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8005c7dbd3c2275c20f019667d99b168eb403dc0cdb204ca27ec917c81b81ae0",
+            "entry_digest": "e05579ebfd829e22b491152c72f054a7b209633328ff57a413b3ae33d59c6aa1",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "9a10ff13c20077b389cd7e97db35137f1ce562dcabf497504924f61523113fa8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "5f4acbea9e69ccf5dd04be764330e64b83f107218b214216137169aba431225a",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ca51a2e9609a2d313bf8dfe6092689cfed78a831f876c70e05c8ea90e15baf3f",
+            "entry_digest": "56bc0cb9988e1d0dc4339f2457e71c5957cf76014293ad5efa9c5c24dfba67ca",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "898ed0aba1674fef101a3f8e863550b4d6f7ff507acd79ad9f86a7c5f6f103c8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "ff8e0d7d2824608a78e20ef384bc74b56d90227f696323d66581895546ebaec7",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ec1e8defeae41b861e669fa7c5d078e808d2f372385f1245ebc80885bcaebf1f",
+            "entry_digest": "2fdb4aa5ce4f2564ec27032475edc0c3ec7efbec191cfb7d7b4f944abb057dfd",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "77b6b14465dc7e5033ecbd7fa7d782f303da7dd625ae3e8ee0c0064c19b20694",
+            "entry_digest": "e9561779b7c8962c4ea975c877e8b21ff9f76ab89e84350c2b9c27c29fb909df",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "73999e53832bcf4bf060ee02fc55b49d65cfca479f6b4761de2d4f22774239cb",
+            "entry_digest": "db0e044a857bebef726de55162a4c3b2f21f9ecb5ae4b3fe312dce186ae0a1a6",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/cmd_check.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "abbd3e85216cb953d6c8e876aafae473e92a0fe692acb26ff4a26715175173ec",
+            "entry_digest": "41ab11821464e08a4ffecdc359e62a882d8ea90fa1c89aff184463c417809450",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/cmd_check.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bbe4d83ce8d26fa5bf29a9ae7736bdb07ee97d9b8626978c9c4a530fb37d1f84",
+            "entry_digest": "1fdd74a4e041c20382f7062200db018c1185f021437680d5ddcf796e46a9803b",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12f591631a6ec23781d51e722907d5f1b5013884aa34426989fcbc2ce2e0f172",
+            "entry_digest": "11180c83e7d876ae95e761dfa2c5aa28effc5a476e93726d5d8bdba937237059",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "f19ba64dcbf8a48ba7efe5ba7746fd1bde4da3e8195fc1089f3116f6c1c6facf",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "5d409a6d8299a28956cee03bd11c3ab17b2de8ddb31e024b219146f74be81969",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-specsync-s-own-state-only-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8005c7dbd3c2275c20f019667d99b168eb403dc0cdb204ca27ec917c81b81ae0",
+            "entry_digest": "3953360bf6acc2ca75081642c1dd3e897ea46d470f85237daed361ab398be4bc",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "f95a0fc61578a755e1ac02dee8f9210eba08dcac8c26d5606410a3831799bf44",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "6acd1ddce1cbb62cc45521bf0c3beb271580f3f82426e26c52e3e9836cd80b94",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/never-read-or-write-the-hash-cache-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "60e77938b73360b3f11773d7795d4fa99770c5dbf63bf8be52468ca01847aba9",
+            "entry_digest": "99e29bb1c175ee22515a5d9f4cfebd245f01fdfc013a04afb19bccaec8be9dd2",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "1f50a2c776df666bc1c0e61c31b3ed72ba126300af3e3f3cebf71bf7deb41752",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b6ba5e2e6606b1976392b7d710006220b73bc748fcf33093f9ad7080cc9caf2c",
+            "entry_digest": "275e11c9bc9ae2c0d6eb9ac16545bd9d06e2ba24b9067deb8c6bc0624c15229e",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "104fabd9a23554d14e46de40582148cc3845139a7eb372881f54ab9d2fd8fc23",
+            "entry_digest": "59cc73b6451527c4f937e93a449ac4221f51520ad1d18d97a9e29012988ab0eb",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1fb0c56818e0bbb1c69837b66714abecdda89affdd8786d083eeca5c76242442",
+            "entry_digest": "e60e66726c0a3f2371bcd99c104deb203d7fa3580e50c9ff298f274e987534fe",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/cmd_comment.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e01be1a7eafb7ee05f9cf0166a507ae07e7053547e5dff07ab7524136d6dc15e",
+            "entry_digest": "ceb9f544509f48e5eb9b550c365fa1438d1bfebdea3cd6de704c96cdd64c3538",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/cmd_comment.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1a9a1b59901f7b23e19b0c8fdd34240459a3692071c4e329c59744be2c3b6cfb",
+            "entry_digest": "2f69c3e7289469e96b13a7819bddde242e722327580e239c8598bdf61b4de14c",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "89e618687b9278bcf609266a7a663d6d819e37ae539f48e05bf3b4859bfdafcf",
+            "entry_digest": "7917e65b138aec0c88567a93da75428f95eebcc79a66d81179e138206ec2f683",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a705203cf4e63aaab1ac309d5ece19f6ef5cbaa7cb1c3c71f9fefb2f0fa9c4e0",
+            "entry_digest": "5cdf7a1ec272d664f9bb38bc5e2619f418c983b242ec5aeab6976c94d61f1df7",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2ef6f2077efdbee0dbecd481b32a50d536ba1ce99a5e8ff6a0f1f20626dcb6da",
+            "entry_digest": "4806d37f97f82e79e6c7266022f3c5a57fc03ce53895e70b77194ea4492fa4ce",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_comment/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "79a93329e7e982c65f4c6574696f87184a1785252dacc9601137d83205802917",
+            "entry_digest": "66a55a9c6ade86c1251b91dc8aa9ae1322c2446ff325ae9532e70523e5383705",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/cmd_import.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2a1e3374425889a7fc8376bb225391068c0046144f26a003fe12551cbffaa389",
+            "entry_digest": "69d4bc9fa60d87533f8fca08cb233cc825ab6c9ee2d90b44091b36266572403a",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/cmd_import.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5975edf7ef645f97a4f104d83279e12777c7962ff40723f68480a773ac8b20ba",
+            "entry_digest": "4423d5d14075f6447485bb5b68ab90cd795f79bbbe68b7ae3d631a54903cb784",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ece5b8158bc3993e2463474f2a163174bc4fe68e1b34c6d9101e23ada8afcbd9",
+            "entry_digest": "f37cd3826e8fde90a07bcac833cf333d621ea620a8ef78500498a71eb0234acf",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "1a973418c9bb821b46cf7da6187fb28f2822f8eb8ab18476752b4569cb03f53a",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/history/never-write-a-project-file-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "09cea74a3be8117aeb139a39a34bc32fef7172dd702c5921bcfa0282c6cd2d1a",
+            "entry_digest": "e877c747448ef460b6e67e21dc2fdfe8aec40cf87dfc690a028da9a93bf4266e",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7ad5d08df6047d948c50811f941f7ee5d716a1bf2b59ecaed1b75a8f8b68e63f",
+            "entry_digest": "e8363ba23c9b36e5e6d97031b56bf1104abd9b9b562cc00297ec070d286ea92a",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ff7350502f52cb1605ad7e0ceea47bf5bc47d3eb8c435f596c3f5144e8efd5cd",
+            "entry_digest": "8587c01eb2e82be9c600028ab1991f1ccd194d48296af6de5295ea23baa4a405",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_import/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9c82d0c2e629b80443443f59fc61e861fc5ed6109a4a752087097b6ee9946579",
+            "entry_digest": "82d52647e4ed1f6b1f5c49188854eaf829307305185d948c570d1c72d1d41bb0",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/cmd_merge.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c09ab7325da8fed573b1079e6dddae9e44e91884ff337148a1f787970c8b7f5e",
+            "entry_digest": "c0e82f4bcaad916bf2b0cd8ce8cd8d84a0c8848876995439f3100cf40e54c160",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/cmd_merge.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7a82248d01d21266146c0fffd15aa774676a284a8417cf09db283bcd723116cc",
+            "entry_digest": "4c997b2839e1d02be10209b663168ca898351a8742067dff85fa0fbb961b259c",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "06108f1ea9ada79307ec8f615abfaf6ee67a635998f6df7f2028911150f9c85f",
+            "entry_digest": "78c25a31370f467dfe4b2801ba0d2fdfc429e8af32cce4ee733a0c2450498e62",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "8c34d5de5a94739dad4658abdab1341d22f1c77b37105d10a79b9a1fcc36142f",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "8e4aa54f87adf822e08ffad7c2eebc2d0e286a5d68fe3d1ef97b81347a97c227",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ab566adeb6298ac3149a6cc56eac7737870b228aad866dab7eadfa70bea3868c",
+            "entry_digest": "4f7bd409a9317225cfb6aaf7b6b713f58172b6420fd0f535838567ac89b7f110",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e4d06fda9a0da82d40f93ca641af2b3609271db6ad1130f5c797cbac97ddc169",
+            "entry_digest": "87ef9cf9291dfa747e5ad4dcddfcbf2ee8c062b364483379c6ea936a315f92b9",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_merge/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1e5cb37e97f4aeea17d4b9c35d4ae0c49b999fc430452466a6331a51d2124e73",
+            "entry_digest": "dc1e4cac2a628ea179e816af0f5e964bb9bcc68bf2b0634184ce2a209d686c9f",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/cmd_migrate.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "60593970aed4a20b3d7b5c5840ac985291424f0a7bc0d135d715b9486253137d",
+            "entry_digest": "172cf98cb6505d69dcdff55b0f047273de00b1b6901fc0e436784464db2d53a5",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/cmd_migrate.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bede111632a199d2ea4553b1c99c049fc8fbe2ada025aa6cc7cef6a7e924adf5",
+            "entry_digest": "e2c803a4ed295be430a930b6a9c3a182746917ed11584717b08d899a076421ed",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8bbf60b8d4d7ad1e4924709c7afec4b302fffb1c6dfdbe8b5b444ba6966affc2",
+            "entry_digest": "05e51c9bb16e4d089f19fda05bf8015bdb49e64d7035347a9ed8969ce7c7a843",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "7cf03c2a189799a5f925ca737728a201c82d23baa1323cf32ae1a388811c39ee",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "f19757715960d69b536cba3d20a2f6833204d871ea894ca9ab8828d0afec7594",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/history/never-write-a-project-file-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "09cea74a3be8117aeb139a39a34bc32fef7172dd702c5921bcfa0282c6cd2d1a",
+            "entry_digest": "b5880317af34b7ee1cdde40559b1de60c22b3630ea8fb8c521622ab459b27220",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f445806485ffcfdde13854d07b52a6493aac4cdac6bdc408651b857f6a5dc835",
+            "entry_digest": "e24ae6581de5a246e9256fb174fec8771677803bce259932b83c1113f8c55a11",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2d5670ae42e8ae88d391ad06321f734c7865b2d1e1e4d3c49f77ace95a198e4c",
+            "entry_digest": "9621829533da6b69f30cdce3c11ee45687270ce59f44ffcbb6155a5498dab052",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/cmd_migrate/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "707a5e72d197773f149cc45c265a27e5e9bc0eb28663b6340406a2cc90d40bc4",
+            "entry_digest": "318320020153856eb37c23e373e599a646d74937962187eac51283dda4a034a4",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "specs/config/config.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b70939062c925b8fa6b054f33e958315367946c4059d59e3dc5667f33533796d",
+            "entry_digest": "808752455d55e66385488291321475aea458eeb3a6bf7546315d683ee6657152",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/config.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2796302ec0edc228983d6ce96735dc18dc158fe8f2154db3c7e90d9f0d04f864",
+            "entry_digest": "cbd6d4d1da2ef8e6c7f1c43197b93e57e09c6ff37bb95430bb3e29da82d54592",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "86e8fcf5ad34f8ac91713fb8eb6b1d4231f8cf6c203155fb7e0ceafc63363dff",
+            "entry_digest": "35338f90b476299c8d2c4341c9d6d2317a9691fa1834aa1ccaf12c5ed01a6bbf",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "a56b4ee6f43ce0d3ae842c8d71f1e88be4757f0df4456da15e45860e2892f4b0",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "0bcd0e1d3cd720c04c0d75a7efd0c4e1c6d727304801357c3a4b891fe16f3aed",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "98f9ad9fcaf342cd79af717d252a8e319d3b8c399765ae550cdfb62cb56cf001",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1a656fad4fddf6c664c603887637a92eda88944e7521d1889becfd742b22bae6",
+            "entry_digest": "c2b8cb51d9b3be3a8f5779142464a95d57b26344a3b0648207f09bba6acc460c",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0d50bf3c318a13db058e881fc764dfd1fcdf5419e1b6cc7fdd3d2f7caee72130",
+            "entry_digest": "cfa47eb1ed45e808cf95a14910d700a195b2580f226f10af5e49f0aa7bb82839",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/config/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0c714d3f5d5a7d4fd31dfa4255541d603020c3d09b6bc3f2d3c3306cb760c3de",
+            "entry_digest": "3ea4cd3b08286aded525407d3850abc695d692ae1794543b8992bc22ea7faa52",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "specs/generator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2e9c875311035342187880e6bfd7691ce4fc8d206bbc4d2a7252945e75cdcc8b",
+            "entry_digest": "966ee807159edd8c354a79acf7a6ea7926694c965a6ea3013981a01e0527b566",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/generator.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8671931f93c49a84387634aadf973509d22aa596451caa080da911b7aa955d70",
+            "entry_digest": "05f1b1592ecdf5f7d75061f13e8c096e8caa1bebb668a5d314ab663f8d54b3a3",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/generator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "630f0e32e88bdfd412086da0e2ba5845865ef517a714247e789c193a31c8346f",
+            "entry_digest": "5a9c70429e1cdaadc7ad883cc6b1ba192380f85cb5b7de0f117bbcf919f669ab",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "d488b7a719a407912ca1eb9342aa3ebc8af4c05c023baebf89603747b920ed61",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "57b5696ea2c10fe6fdb9ce945fbce711cae8490c68358837414799adaa830a5d",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/history/never-write-a-project-file-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "09cea74a3be8117aeb139a39a34bc32fef7172dd702c5921bcfa0282c6cd2d1a",
+            "entry_digest": "c63fccfccc34bbd830d433baafaa1c3a2b2254a0f879f1ce06b5c63a1ef5b94b",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3579d687bd0aaea45145c46262820b35c090e85494a3433f524f693c3afa6629",
+            "entry_digest": "5b670973689d18393ff2c92e9802cb73e47c95bee4ee550cb76a5dface83645f",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0c861a19363697c494cdca0d03b58fb1391181a5e58ac0fc06245257afb87874",
+            "entry_digest": "6fecf47fcfb218d576045d8c694fe1c8ac45b0ecbfddf52f1139b608b8c2791b",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/generator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d5bf530f7103c86bd876067c51ca6214b53f1e9829669ef06e96272d9acd1315",
+            "entry_digest": "c13287f6a68640a146f530560c686151a79ee727b9605416e44e292aa5ab9174",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "specs/github/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "56b2f63c4cd47aed196a117e398c483fd6fb334992aff18b4726caf5cd6ca857",
+            "entry_digest": "5fef5be52688097bfb0b8aac23be0290131aba130877efc66218dbe1210fb34c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f7fec66ce1e262355f93f0583340722dcd6daf6cbf864d5ec0b2b14b129e9a09",
+            "entry_digest": "eab4a1c6bf2676279619941df85509fe42ce0d0f1b56ec0652f2bae976d42080",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/github.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "743d5462c17dbc6d7acc191ef9d2525f6accd1b97ed1078052b413e9f9dd4405",
+            "entry_digest": "2bfdc97888856405ea6735450352704864140f453007c99c4da97d738f1da760",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "803af237e76f10dc0fa148996bd92711f971cd5da86035961f164eaccea59a31",
+            "entry_digest": "adf36a2d5d103f46e2ab88d262f49426180d86f42244c02c11e36a2884912a90",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "04ed256d52f1253151cdd03ba11336d7f4abe83ef23772ef44d6db6f4828d868",
+            "entry_digest": "d1489eab9373e7973963d5a73e79f6f4fd99d2b8ea17cfc2f5d6cd4dab1bc05c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/github/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3dcad9d02417ae18f8f185d166a109be5f672e4f25b397725b0e2b22ba0995aa",
+            "entry_digest": "af797a00fa39cce53306d7fceb922e66dc0cdcaded166a93d4cec95ad4a5ec9c",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "specs/importer/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "03ba390acc11a2227c4ac4acd6760e454591f1fa9c3b842b43c393f2eadb86d4",
+            "entry_digest": "6f2e391270a392efc608715f79cef578719527e7186d2a738b87bbcbd582765f",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/importer.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d609aaad117840e75dd9872a568e0672270d1b40994d373b2e7870cdcd3dc215",
+            "entry_digest": "cb6e33dbab1ccffd4cae8b7b86587da2c9c1477a4062f9abe33b73006ccd1e77",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/importer.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "08e0c51e53babfa51c6ee198df877bac2e834da5bd657450859f06215ee11681",
+            "entry_digest": "2048181350eb96f972757d98a4aaf0bc9f49b374b1508ab59b3cfff77ad42fc6",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9b748c088e99e9b324e0d83ccbe405c71ce3d9eb4977f84fdd402986fe91aac8",
+            "entry_digest": "a9845dd30397557b089869074dc9f673878749a1f26080ab4282e13238550f61",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "edd1d3054f8ee12dcda2c6a70c5af9b3182fe1cc3f617a9b296e0f1dad9cca76",
+            "entry_digest": "d6a6c6dff381ebdb5ef3c10554372199a67908a6fbfbc7a8bd6e68ed916cf187",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/importer/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d52e2bd330e8e64fd25ae35fd42a2429b7ac3582f8720a797c68e0b8b76b0c7c",
+            "entry_digest": "2de4e5663f133fa09c8a057deca200fb879a598f50e0778af8dc2d3b8af84f8c",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "specs/mcp/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "67a7c2be554dca59ead002c6de6e5d59304abee321a05984c30089262c11964e",
+            "entry_digest": "dfadf6bca7134a5431f228d4711fde17f8eed27ed63255c9908f10783dd17c34",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "8f51b93cbac855a4e4768691e75084ff16ecb400c76a5210bed01ee581638596",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "cea41cd7399d72e8441b4e10c025adee54629e994d4278cf3aabdcaba86a829e",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/history/never-write-a-project-file-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "09cea74a3be8117aeb139a39a34bc32fef7172dd702c5921bcfa0282c6cd2d1a",
+            "entry_digest": "05a0d02b40f833b382f92a1270eabc63cdce4ca31b0d6fd192d6f985dc80438d",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "d2b8522ae40cebadfd0e4d70c19b219a482cdb85a9fb9e8b41a9d53d703b5013",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/mcp.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a5c5f427a68360d986f12b902194176a80007d5797f6fd2fbadc10d32f83797d",
+            "entry_digest": "7201443f0e330539cf051e1935e5c1371cc3d2806fb1f2a432ec15e33764f7df",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/mcp.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "afbedf61f59785cdd3ae8d5b32cbd60f7e237b4b3b76caa23b32eb64539d011f",
+            "entry_digest": "51067b3147aa54d74ea397c8ad0a79f7e1b9995356b703c913ba53ac93d5c617",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3bb835c7dd100071e7c6cee6b0a16a9561d07b1265ba6397d78815baa2025305",
+            "entry_digest": "8fc1bd3b9a0abc3c8c31d381b89c217b43c9af4946e3360ebde5ab5aee50f9d8",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "af2bed3a442b9ad1d5d6e1a2f3b7379ce364e27694922ee644986f9d77663730",
+            "entry_digest": "464f3f95fec7a4934cb7f0fb3e3ce2ee1d5a2217dafb2917eda2c4738af49b3c",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/mcp/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "366925780211e7e04964365e505a182651379ad2b4e7bfec049259a2ed909069",
+            "entry_digest": "07c1732ef59db89d30686c9f09b1abbf994796e7ab60a2075b83bc4c9fec6701",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "specs/validator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "36e3089688e3b9b867f39652b90df2304c0166dcd3a7caabcde4c813556329a5",
+            "entry_digest": "e937e4d80126e3943fc5f3be31f9ff32195d2ada2b7f101551a3d1fa8d5e8e98",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "11182bf8d0d03fb12203342004d44b04e8f8714dd707db2836d0f66a32466419",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "155726ffd9dc0007b333f07a5221193fe69763339dfb344d776ff87d53ba1331",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "a080c8b9e5aed3ad992e7210c693fecace94e0bd2d4226dd9764e961a6d6a260",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "532a6c6323cdfc1222a2a0bfe1405883f8ebc849d3a56e828bbeefd3fa44c1e4",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "f6acd0b365e379ecc1a3084dca8280e328c7b134a0324273a4a4bc342eaf357d",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "e094723b3db6b95b8cb2b289036bebf8fd2b8dc28ee0075d72e27eeccdf321e9",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "496250223fd34ff3f3499fbb4943d21bb0037270bbc4d93dd7adc8ffa97cf9a6",
+            "entry_digest": "7f05724097a3eea6677bdd60cef82f6093dd05e96ef89321719b328839e82807",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "34460602de7ace7af0160f0d5ae5b8534d4e34ccb7ed279cdd39427cd1f5e7ef",
+            "entry_digest": "b2788e1eb1db93f4539f95c945e1bcae94567a9bf055a4a5e7351345ed36708e",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "85d8645cc2969a269361378254bc8dcc60df0b44cf13ace946cc6a0058bc8c0c",
+            "entry_digest": "e892b5f3a21dd7ae100716d5892a7172067cf11d8e979ad0d4e078f05420e21c",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "56624f404d2b916693d74820b1d67c1541c76e87c05554fdd19aed8f4a817699",
+            "entry_digest": "9bf76061600e074057a23ec48d8f4421319e390a733f3c22769e95c2844a2b40",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "149da0062abc41617c4bc0e29bc4e7542a41692227b1dfafa551e17919a17365",
+            "entry_digest": "997261dd7f63f16080c79629923b8bc2f232c7f4a20e76fe0ab27846b19785b9",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/watch/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4f50073d861a80515464ed800d4af0426e84746cc93281e2ef71a4bcf00e678a",
+            "entry_digest": "07f6f5a94b18b70e65ea485e578f7ec4f358626ad73a82b00255acf0311603f4",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "specs/watch/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e61fe666549f947f06f378096b58dc8b54d7d697f229e5a5e8e56d6fae0470d2",
+            "entry_digest": "7093f084ca9a6229ef3e769db45f503372315e8570dcaffccee6a2a7c7039179",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "specs/watch/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e81dab162fffad32d3dc9cfb5aadb3e4432230b7e3fa71e10bac5a2920053bdd",
+            "entry_digest": "b71f090fd32a6b5e307bcbb992bb45f75a73424492cdaa8096434422860f5ebf",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "specs/watch/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c12b6dff0ad4b6b5a0414a1f6cd5ae61a2a3b627684514054c466f9c607c31ad",
+            "entry_digest": "8cdee515c9e64c8a9da16e5e7323f46084cea94465bd0b5dea21f3bbeb562f92",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "specs/watch/watch.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7408264b6ff00a57f1bccfcef364447df3397ed3c0f8e29431d1f38d542a429b",
+            "entry_digest": "d3681ea03f9fdce85447800af5d54714ceb1343bdb08c095ca3cffb9a48a95e2",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "specs/watch/watch.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ae70d60fc9b99a9c219295d9489aa45e16215275685c9d2e516ab4ecb1c993fa",
+            "entry_digest": "550aa7cd0a0bfaf9b4ee778d9beaf6ac5f1e73e1e4ec53d8ccfc1d05c6d992aa",
+            "owners": [
+              "watch"
+            ]
+          },
+          {
+            "path": "src/agents.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "23ce74f2c6283ef009f37944ae9eadd108451023aa96b721cab8e84e0585c2f8",
+            "entry_digest": "1cbc607d502939280a9d5930b2e52abb64a7f7862d3b28242a41a6bd816904e9",
+            "owners": [
+              "agents"
+            ]
+          },
+          {
+            "path": "src/change/consider_accepted_evidence_anchor.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3655a67ae132ef4be16ac6b95783b7a93c3cf6f37697d15c2da1bb1c24a99b51",
+            "entry_digest": "c8a4cc022bbda36b12c119b63df2790468b9387a8f8e0aed75c65e2296f4959e",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change/doctor.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "39cbd4f000ae962b5960cbbc3572d66b92eab5b4362e3ca8c6d92601affd2400",
+            "entry_digest": "0bff19d35180319b9917974603cf8743d5272da9e9a5513eb4ef21147e29318e",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change/historical_definition_digest_matches.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2ed88581fe5754df3c3e3051e6630a1c60ecb4c474af79ce944a562e69b91dee",
+            "entry_digest": "762da128ef32425244679c958dd15ff20c5cf12234fec87ae14c5d4117cc0f48",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change/spec_history.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e3d52e714519315dc612ff1991e0f3225a82cd82fe90b27a9b1079a97092bff7",
+            "entry_digest": "f59b998972757f4edef2adda2ccbc3834799ce186f57d35dd8de3a922de14ef3",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/commands/check.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d4cf57a69f0f519df27bdf45817192718be28fd8f9a3b97871786688ae7dd73b",
+            "entry_digest": "a131d9268c5574320119078121843cd1c98bc0a757583654ac8581c70afd00b9",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "src/commands/comment.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5efa637971148a2e591a89dcadb81ecf4b33253a31cd649925372e8848697320",
+            "entry_digest": "21dce956123549ce7760dc0ec9022bf38acbc7f1ad31c36818fa105825fc46af",
+            "owners": [
+              "cmd_comment"
+            ]
+          },
+          {
+            "path": "src/commands/import.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c1897555dfe8b690d91b90a317404b4cedf603ff48232d039050827bfd898c18",
+            "entry_digest": "c127c700c3a67d132d9c35564ac3c2917087cca3544470420c5853e1b4d30d81",
+            "owners": [
+              "cmd_import"
+            ]
+          },
+          {
+            "path": "src/commands/merge.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fcd362cf37de0415935eb3cc931a54773965dc337bb23606ce9e37017dde90d6",
+            "entry_digest": "44d9e21207ebf23ad65a9d38bc6e62dbb402bb175f095ce25bde4aba1495b53a",
+            "owners": [
+              "cmd_merge"
+            ]
+          },
+          {
+            "path": "src/commands/migrate.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0ed8fe1d4998881b6e3c523666adcfc958c333a02463e08df1c4447702388ea9",
+            "entry_digest": "26bf5e19e13fe0961561d677405e10205ccb40a531a1e026bde3cd51f6dfb7e1",
+            "owners": [
+              "cmd_migrate"
+            ]
+          },
+          {
+            "path": "src/config.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1d1c8620a15e1cbbceae3b1f05e9d5da06fd814a20476ea61097536d0e653402",
+            "entry_digest": "4763a6b49ee08e83abb4d24a60cc2ac0994663597bbd29554416a00a892fecdc",
+            "owners": [
+              "config"
+            ]
+          },
+          {
+            "path": "src/generator.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ccdc2f02b62307e61ea1d8e94964be8d251a5ee9307f360cf6e34f591a028601",
+            "entry_digest": "87fe41dd5ce95a8aa90ddbda5783d065432db232366a1dcb0e1af21560735826",
+            "owners": [
+              "generator"
+            ]
+          },
+          {
+            "path": "src/github.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1bd70222c9465d6e578905a7560f2843aea8cdcffeaa5108315764706f6510a4",
+            "entry_digest": "ba4d830806919a59346b2e0ac47686d92cb8945028731ad92de383208620e546",
+            "owners": [
+              "github"
+            ]
+          },
+          {
+            "path": "src/importer.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "99645d2ce0a0b84d9f4acfe32fc7d71dcd9970fe40525f8ec5b8ea3fee37008c",
+            "entry_digest": "beede57e3f46134eb4c474c36f8c7c6e3e46a0770a855e2b34938174b068f3ce",
+            "owners": [
+              "importer"
+            ]
+          },
+          {
+            "path": "src/mcp/preflight.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5407c7f913c28db03e690c715bf43459bd1125971634072a6ee21315af8d8630",
+            "entry_digest": "0650f83f4ae6d586de4cab168825366172143a14e63983e2ec3382fcc6f50b5e",
+            "owners": [
+              "mcp"
+            ]
+          },
+          {
+            "path": "src/validator/consumed_by_re.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f708596abc49e2923a2ad472b939ad4fe82348546c302bd2cea7194c84e93956",
+            "entry_digest": "3063f9dd79674336fcc6f21a3faa1d83cd4a4aa4dd0f8951bb2920ef2c20700c",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "src/watch.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "cc8e63a991dbbe98de159802c7f64be8ddb052b2bcd9f21771b21bd517350e76",
+            "entry_digest": "098c2e9a348134a524c4362b702d35d6ab0ed2e6b526c5158e2d829c7351d5a4",
+            "owners": [
+              "watch"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec agents --spec change --spec cmd_check --spec cmd_comment --spec cmd_import --spec cmd_merge --spec cmd_migrate --spec config --spec generator --spec github --spec importer --spec mcp --spec validator --spec watch",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

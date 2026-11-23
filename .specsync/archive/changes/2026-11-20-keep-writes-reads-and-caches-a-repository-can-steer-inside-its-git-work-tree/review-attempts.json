@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "e843776af1169b66c685462d0da85972a0079f46",
+      "contract_digest": "74dc146734aa28cebefac9d2487f06dc904ef05798ffa0e39b02aa1374025cc5",
+      "execution_digest": "4024ea94ea31a67354544c8bb040e252f95989bc7e09eeb510b39dd4be58b206",
+      "workspace_digest": "d0eed15bd5e34b9e27f5b0aff34b4184604e6ee2f59225d661c1f04dcc44e697",
+      "timestamp": 1795154782,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Pass (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a; this change's own lines are unchanged since. Relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

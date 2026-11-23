@@ -4,6 +4,25 @@
 mod tests {
     use super::*;
 
+    /// Verifies REQ-validator-053. A spec's `files:` entry is the repository's text, so the
+    /// folder a missing file's suggestion is looked for in follows the project rule: `..` out of
+    /// the project lists nothing there.
+    #[test]
+    fn a_missing_file_suggestion_never_lists_a_folder_outside_the_project() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(temp.path().join("outside/data")).unwrap();
+        std::fs::write(temp.path().join("outside/data/report.ts"), "x\n").unwrap();
+
+        let suggestion = suggest_similar_file(&root, "../outside/data/reprt.ts");
+
+        assert_eq!(
+            suggestion, None,
+            "a folder outside the project was listed for a suggestion"
+        );
+    }
+
     #[test]
     fn test_compute_coverage_double_star_exclude_no_panic() {
         // Regression: a `**/**` exclude pattern used to panic in the glob matcher
@@ -1966,13 +1985,13 @@ mod tests {
     #[test]
     fn test_find_spec_files_empty_dir() {
         let tmp = tempfile::tempdir().unwrap();
-        let files = find_spec_files(tmp.path());
+        let files = find_spec_files(tmp.path(), tmp.path());
         assert!(files.is_empty());
     }
 
     #[test]
     fn test_find_spec_files_nonexistent() {
-        let files = find_spec_files(Path::new("/nonexistent/path"));
+        let files = find_spec_files(Path::new("/nonexistent/path"), Path::new("/nonexistent/path"));
         assert!(files.is_empty());
     }
 
@@ -1984,7 +2003,7 @@ mod tests {
         fs::write(spec_dir.join("auth.spec.md"), "---\nmodule: auth\n---\n").unwrap();
         fs::write(spec_dir.join("not-a-spec.md"), "other").unwrap();
 
-        let files = find_spec_files(tmp.path());
+        let files = find_spec_files(tmp.path(), tmp.path());
         assert_eq!(files.len(), 1);
         assert!(files[0].ends_with("auth.spec.md"));
     }
@@ -3449,7 +3468,13 @@ pub fn compute_coverage_checked(
     // `--require-coverage 100` from passing vacuously over broken references.
     let mut missing_files: Vec<String> = Vec::new();
     for spec_file in &retained_spec_files {
-        let Ok(content) = std::fs::read_to_string(root.join(&spec_file.relative_path)) else {
+        // Bounded and confined like every other spec read (REQ-validator-052); a refused read is
+        // skipped as a missing spec is.
+        let Ok(content) = crate::util::read_project_string(
+            root,
+            &root.join(&spec_file.relative_path),
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");

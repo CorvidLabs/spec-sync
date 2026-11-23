@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-ship-status-exits-1-when-it-reports-a-blocker",
+  "implementation_commit": "762adcaf141279f9c483ae018634dbb4a2fead1d",
+  "implementation_tree": "07d19013d944649f403b0edb5f91e8652f8aad94",
+  "contract_digest": "68eb69de01e412d0854ffdc10dadfef76892a788d2f7aa8551dcbe2542209186",
+  "workspace_digest": "e7a4d1487056258f524f4ddecbaab1ed3618df1ebc2fff61cae5dcc4df76eb07",
+  "closing_digest": "5c7ff2a39897b84dee011624f1e203ee0b193b33887fb7df4403f259a8aac571",
+  "review_digest": "5d2de4d621608cb5db590d36e4d977a5237b263d107ab9acbc97cacb47e54874",
+  "finalization_digest": "68210de5659820cd062394e5fba6f07b8900ebc3a5dfe530124af06857a7cbe4",
+  "timestamp": 1795098911
+}

@@ -834,16 +834,20 @@ fn validate_snapshot_configuration(
         }
         validate_json_snapshot_path_selectors(relative, &value)?;
     }
-    parse_config_content_checked(&destination_root.join(relative), content, destination_root)
-        .map(|_| ())
-        .map_err(|error| {
+    let config =
+        parse_config_content_checked(&destination_root.join(relative), content, destination_root)
+            .map_err(|error| {
             let format = if relative.ends_with(".toml") {
                 "TOML"
             } else {
                 "JSON"
             };
             format!("Selected MCP configuration {relative} is malformed {format}: {error}")
-        })
+        })?;
+    // The directory rule the ambient loader applies (REQ-config-017), refused here for this one
+    // request, so the loader the tools call next never exits the server over it.
+    crate::config::validate_config_directories(&config)
+        .map_err(|error| format!("Selected MCP configuration {relative}: {error}"))
 }
 
 fn validate_json_snapshot_path_selectors(relative: &str, config: &Value) -> Result<(), String> {

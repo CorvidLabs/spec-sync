@@ -54,24 +54,26 @@ specsync init
 
 This creates `.specsync/config.toml` and `.specsync/sdd.json` with `enabled: false`. `specsync check` works immediately. The `change` commands below run either way; `specsync change adopt` sets `enabled: true`, which is what makes `specsync change audit` enforce the workflow in CI. Agent skills are installed separately with `specsync agents install`.
 
+In a project with no source folder yet, the `config.toml` it writes is:
+
 ```toml
+# spec-sync configuration
+# Docs: https://github.com/CorvidLabs/spec-sync
+
 specs_dir = "specs"
 source_dirs = ["src"]
-required_sections = [
-    "Purpose",
-    "Public API",
-    "Invariants",
-    "Behavioral Examples",
-    "Error Cases",
-    "Dependencies",
-    "Change Log",
-]
+exclude_dirs = ["__tests__"]
+exclude_patterns = ["**/__tests__/**", "**/*.test.ts", "**/*.spec.ts"]
+required_sections = ["Purpose", "Public API", "Invariants", "Behavioral Examples", "Error Cases", "Dependencies", "Change Log"]
+enforcement = "strict"
 ```
 
 **Key settings:**
 - `specs_dir` — where spec files live (default: `specs/`)
-- `source_dirs` — where your source code lives (auto-detected from package manifests)
+- `source_dirs` — where your source code lives (auto-detected from package manifests; `src` when nothing is found)
+- `exclude_dirs`, `exclude_patterns` — folders and globs left out of source discovery (test code by default)
 - `required_sections` — what every spec must contain
+- `enforcement` — `strict` exits 1 on any validation error
 
 See [Configuration](configuration.md) for all options.
 
@@ -271,9 +273,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.3.0
+      - uses: CorvidLabs/spec-sync@v6.4.1
         with:
-          version: '6.3.0'
+          version: '6.4.1'
           strict: true
           require-coverage: 80
 ```

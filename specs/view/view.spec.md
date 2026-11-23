@@ -8,6 +8,7 @@ db_tables: []
 tracks: [94]
 depends_on:
   - specs/parser/parser.spec.md
+  - specs/util/util.spec.md
 ---
 
 # View
@@ -22,7 +23,7 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `view_spec` | `spec_path: &Path, role: &str` | `Result<String, String>` | Read a spec file and return filtered markdown containing only role-relevant sections |
+| `view_spec` | `root: &Path, spec_path: &Path, role: &str` | `Result<String, String>` | Read a spec file and return filtered markdown containing only role-relevant sections |
 | `valid_roles` | — | `&'static [&'static str]` | Returns the list of valid role names: `["dev", "qa", "product", "agent"]` |
 
 ### Role → Section Visibility
@@ -45,6 +46,7 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 7. Section matching is based on `## ` heading prefixes
 8. A CRLF-authored spec renders exactly as its LF twin does. `view_spec` reads the file with no normalization of its own, so a Windows clone with `core.autocrlf=true` used to fail with "Cannot parse frontmatter" on every spec in the project — on Windows, for which SpecSync then published a binary that no ordinary CI job ever exercised. SpecSync 6.0 publishes no Windows binary, and the tolerance is unaffected by that: a CRLF checkout reaches a Linux or macOS reader through any teammate who authored on Windows. The tolerance belongs to `parser::parse_frontmatter`, and this module states the outcome it depends on rather than re-implementing it.
 9. This module owns no frontmatter stripper. The companion `requirements.md` is stripped with `parser::strip_frontmatter`, the single canonical implementation. A local copy is how `view` and `change` came to disagree about CRLF and about a closing delimiter at end of file, with no error raised in either direction.
+10. Every read of a project file here, spec and requirements files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-view-002).
 
 ## Behavioral Examples
 
@@ -81,6 +83,7 @@ Filters spec content to show only sections relevant to a specific role (dev, qa,
 | Frontmatter absent or unterminated | Returns `Err` with parse error |
 | CRLF line endings | Not an error condition — the spec and its companion render as they would on LF |
 | Companion `requirements.md` missing or empty after stripping | Omitted; the rest of the view still renders |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

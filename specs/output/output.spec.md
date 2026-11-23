@@ -10,6 +10,7 @@ depends_on:
   - specs/types/types.spec.md
   - specs/parser/parser.spec.md
   - specs/exports/exports.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Output
@@ -60,6 +61,7 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
    traversed, and manifests that were degraded rather than allowed to abort the command. A
    degraded manifest still declared modules, so the module counts beside it were measured
    over less than the tree holds. Text, markdown, and JSON all carry them.
+7. Every read of a project file here, the spec files it reads (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-output-007).
 
 ## Behavioral Examples
 
@@ -88,6 +90,7 @@ Renders terminal and markdown output for spec-sync commands. Provides colored te
 | Empty spec list | `print_summary` shows "0 passed, 0 failed" |
 | Coverage report with no unspecced files | Shows "✓ All source files referenced by specs" |
 | Diff with changed files not in any spec | Lists them under "Changed files not covered by any spec" |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

@@ -6,15 +6,15 @@
 //
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
-// 2. A persistent cache of archived workflow-version history verdicts, stored under the Git
-//    common directory so every worktree shares it (never in the working tree, so it is never a
-//    project input). An entry is reused only when its content digest still matches the archived
+// 2. A persistent cache of archived workflow-version history verdicts, keyed by the Git
+//    common directory so every worktree shares it, in the user's cache folder (never in the
+//    working tree or the Git directory, so no repository or archive of one can bring it). An entry is reused only when its content digest still matches the archived
 //    `state.json` bytes, the commit it was computed at is an ancestor of the scope's `HEAD`, and
 //    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
 const READ_CACHE_SCHEMA: u32 = 1;
-const READ_CACHE_FILE: &str = "specsync/read-cache-v1.json";
+const READ_CACHE_FILE: &str = "read-cache-v1.json";
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct PersistentReadCache {
@@ -59,6 +59,9 @@ struct WorkflowHistoryCacheEntry {
 #[derive(Debug, Default)]
 struct PersistentReadCacheFrame {
     path: Option<PathBuf>,
+    /// The project root and the canonical Git common directory the cache folder is opened by,
+    /// through the local state handles (REQ-util-009).
+    folder: Option<(PathBuf, PathBuf)>,
     loaded: Option<PersistentReadCache>,
     dirty: bool,
     /// Commit to the set of lifecycle state paths touched in `commit..HEAD`, or `None` when that
@@ -83,13 +86,13 @@ fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
 /// `find_change_dir` matches them (unreadable or unparsable state never matches).
 fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     let mut index: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;
             }
             let state = entry.path().join("state.json");
-            if let Some(record) = fs::read(&state)
+            if let Some(record) = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
             {
@@ -116,7 +119,21 @@ fn read_cache_build_identity() -> String {
 /// a shallow repository (deepening it could reveal history a verdict never saw), replace refs or
 /// grafts (they rewrite parents and trees without moving `HEAD`), and a partial clone (a missing
 /// blob could make a verdict depend on what happened to be fetched).
+#[cfg(test)]
 fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
+    let common_dir = persistent_read_cache_common_dir(root)?;
+    // Keyed by the common directory, not the worktree: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`. Kept in
+    // the user's cache folder, never in the Git directory, which an archive of a working copy
+    // carries whole (REQ-util-009, REQ-change-164).
+    crate::util::local_state::repository_state_dir(root, &common_dir)
+        .ok()
+        .map(|folder| folder.join(READ_CACHE_FILE))
+}
+
+/// The canonical Git common directory the read cache is kept for, or `None` when the cache is
+/// disabled for this repository.
+fn persistent_read_cache_common_dir(root: &Path) -> Option<PathBuf> {
     let probe = git_output(
         root,
         &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
@@ -163,9 +180,18 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     if promisor.status.code() != Some(1) {
         return None;
     }
-    // The common directory, not the per-worktree one: worktrees share one object graph, and an
-    // entry is only reused after proving it against the reading worktree's own `HEAD`.
-    Some(common_dir.join(READ_CACHE_FILE))
+    Some(common_dir)
+}
+
+/// The read cache's folder, opened through the local state handles: no link is followed into
+/// it, and nothing there is waited on or read past the bound (REQ-util-009).
+fn read_cache_folder(
+    folder: &(PathBuf, PathBuf),
+    create: bool,
+) -> Option<crate::util::local_state::LocalState> {
+    crate::util::local_state::LocalState::open_repository(&folder.0, &folder.1, create)
+        .ok()
+        .flatten()
 }
 
 thread_local! {
@@ -459,7 +485,17 @@ fn with_persistent_read_cache<Value>(
 ) -> Option<Value> {
     let (in_read_scope, mut frame) = take_persistent_cache_frame(root)?;
     if frame.loaded.is_none() {
-        frame.path = persistent_read_cache_path(root);
+        let common_dir = persistent_read_cache_common_dir(root);
+        frame.path = common_dir.as_ref().and_then(|common_dir| {
+            crate::util::local_state::repository_state_dir(root, common_dir)
+                .ok()
+                .map(|folder| folder.join(READ_CACHE_FILE))
+        });
+        frame.folder = frame
+            .path
+            .as_ref()
+            .and(common_dir)
+            .map(|common_dir| (root.to_path_buf(), common_dir));
         frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
         let prefix = git_repo_prefix(root).unwrap_or_default();
         let fresh = PersistentReadCache {
@@ -472,9 +508,11 @@ fn with_persistent_read_cache<Value>(
             workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
-            .path
+            .folder
             .as_ref()
-            .and_then(|path| fs::read(path).ok())
+            .and_then(|folder| read_cache_folder(folder, false))
+            // not a project file read: the read cache in SpecSync's own folder in the user cache, read through its no-follow, bounded handle (REQ-util-009)
+            .and_then(|state| state.read_file(READ_CACHE_FILE, crate::util::MAX_PROJECT_INPUT_BYTES).ok().flatten())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
                 cache.schema == fresh.schema
@@ -548,7 +586,7 @@ fn path_is_state_candidate(path: &str, changes_root: &str, archive_root: &str, i
 fn archived_state_cache_key(root: &Path, record: &ChangeRecord) -> Option<(String, String)> {
     let workspace = find_change_dir(root, &record.id).ok()?;
     let state = workspace.join("state.json");
-    let bytes = fs::read(&state).ok()?;
+    let bytes = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES).ok()?;
     if serde_json::from_slice::<ChangeRecord>(&bytes).ok().as_ref() != Some(record) {
         return None;
     }
@@ -711,27 +749,17 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     if !frame.dirty {
         return;
     }
-    let (Some(path), Some(cache)) = (frame.path.as_ref(), frame.loaded.as_ref()) else {
+    let (Some(folder), Some(cache)) = (frame.folder.as_ref(), frame.loaded.as_ref()) else {
         return;
     };
     let Ok(bytes) = serde_json::to_vec(cache) else {
         return;
     };
-    if let Some(parent) = path.parent()
-        && fs::create_dir_all(parent).is_err()
-    {
-        return;
-    }
-    // Unique per process and per flush, so concurrent writers (threads or processes) never share
-    // a temporary file; the rename stays atomic.
-    static FLUSH_NONCE: AtomicU64 = AtomicU64::new(0);
-    let temporary = path.with_extension(format!(
-        "tmp-{}-{}",
-        std::process::id(),
-        FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
-        let _ = fs::remove_file(&temporary);
+    // The local state handle stages a new file there and renames it over the name, so a link at
+    // the name is replaced, never written through, and concurrent writers never share a
+    // temporary file (REQ-util-009).
+    if let Some(state) = read_cache_folder(folder, true) {
+        let _ = state.write_file(READ_CACHE_FILE, &bytes, false);
     }
 }
 
@@ -936,7 +964,7 @@ fn archive_introductions_from_listing(
 /// about to need and the persistent cache cannot answer, several at a time, and memoizes them in
 /// the scope. The walk still visits every archive in order and returns the same first error; this
 /// only moves independent Git reads off the critical path. Outside a read scope it does nothing.
-fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<fs::DirEntry>]) {
+fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<crate::util::ProjectDirEntry>]) {
     let in_history_scope = HISTORY_CACHE_SCOPES.with(|scopes| {
         scopes
             .borrow()
@@ -948,7 +976,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     }
     let mut pending = Vec::new();
     for entry in entries.iter().flatten() {
-        let Ok(content) = fs::read_to_string(entry.path().join("state.json")) else {
+        let Ok(content) = crate::util::read_project_string(root, &entry.path().join("state.json"), crate::util::MAX_STATE_FILE_BYTES) else {
             continue;
         };
         let Ok(record) = serde_json::from_str::<ChangeRecord>(&content) else {

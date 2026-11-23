@@ -876,12 +876,13 @@ fn a_cache_hit_moves_its_entry_forward_to_the_current_head() {
 #[test]
 fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
     let temp = TempDir::new().unwrap();
-    let path = temp.path().join("specsync").join("read-cache-v1.json");
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    // Another thread of this process is mid-write: the bare per-process name is taken.
-    fs::create_dir_all(path.with_extension(format!("tmp-{}", std::process::id()))).unwrap();
-    let frame = PersistentReadCacheFrame {
-        path: Some(path.clone()),
+    let root = temp.path().to_path_buf();
+    let common_dir = root.join(".git");
+    fs::create_dir_all(&common_dir).unwrap();
+    let folder = (root.clone(), common_dir.canonicalize().unwrap());
+    let frame = || PersistentReadCacheFrame {
+        path: Some(root.join("read-cache-v1.json")),
+        folder: Some(folder.clone()),
         loaded: Some(PersistentReadCache {
             schema: READ_CACHE_SCHEMA,
             ..PersistentReadCache::default()
@@ -889,7 +890,17 @@ fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
         dirty: true,
         ..PersistentReadCacheFrame::default()
     };
-    flush_persistent_read_cache(&frame);
+    // Writers at once: each stages its own temporary file in the local state folder, and the
+    // rename publishes one whole cache (REQ-util-009).
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| flush_persistent_read_cache(&frame()));
+        }
+    });
+    let state = crate::util::local_state::LocalState::open_repository(&folder.0, &folder.1, false)
+        .unwrap()
+        .expect("the read cache folder was made");
+    let path = state.file_path(READ_CACHE_FILE);
     let written: PersistentReadCache =
         serde_json::from_slice(&fs::read(&path).expect("the cache was not written")).unwrap();
     assert_eq!(written.schema, READ_CACHE_SCHEMA);
@@ -897,7 +908,7 @@ fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
         .unwrap()
         .flatten()
         .map(|entry| entry.file_name())
-        .filter(|name| name.to_string_lossy().contains(".tmp-") && !name.to_string_lossy().ends_with(&std::process::id().to_string()))
+        .filter(|name| name.to_string_lossy() != READ_CACHE_FILE)
         .collect();
     assert!(leftovers.is_empty(), "temporary files left behind: {leftovers:?}");
 }
@@ -908,7 +919,11 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
     let root = temp.path();
     fast_read_repository(root);
     let records: Vec<ChangeRecord> = (0..4).map(|_| finalized_archived_change(root)).collect();
-    let archives = || fs::read_dir(root.join(ARCHIVE_PATH)).unwrap().collect::<Vec<_>>();
+    let archives = || {
+        crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH))
+            .unwrap()
+            .collect::<Vec<_>>()
+    };
     // Workers run only when the lifecycle-state history index cannot answer (REQ-change-141), so
     // both halves turn it off to compare the per-archive work with the workers' count of it.
     without_lifecycle_state_history(|| {
@@ -1971,5 +1986,21 @@ fn a_never_committed_baseline_is_not_read_as_deleted_in_a_pathspec_magic_project
     assert!(
         read_workflow_v2_baseline(&root).is_ok_and(|baseline| baseline.is_none()),
         "a missing, never-committed baseline is absent, not deleted"
+    );
+}
+
+/// Verifies REQ-change-164. A tarball of a working copy carries its `.git`, so passing verdicts
+/// kept in the Git common directory could come with an archive. The read cache lives in the
+/// user's cache folder instead.
+#[test]
+fn the_read_cache_never_lives_in_the_git_directory() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let path = persistent_read_cache_path(root).expect("the read cache is enabled");
+    assert!(
+        !path.starts_with(root.canonicalize().unwrap()),
+        "the read cache is inside the clone: {}",
+        path.display()
     );
 }

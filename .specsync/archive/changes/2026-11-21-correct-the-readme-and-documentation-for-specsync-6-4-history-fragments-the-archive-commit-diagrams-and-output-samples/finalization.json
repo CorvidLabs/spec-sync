@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples",
+  "implementation_commit": "8d45da4c1a2dd53294f4252c6fa1fd60d508f8cc",
+  "implementation_tree": "022d5b02b68f102319fcc8f8524070b47ed7f08e",
+  "contract_digest": "52b091e402a6e60810982562c2bb2464f1e4d2405ae07eecb34542b468563272",
+  "workspace_digest": "3d9de480fc37e3eb24386a814a553e3dacf97bbd7f0fc74f42e1a0a12bab25b9",
+  "closing_digest": "9fe8de0d4e2bd00c545aba9fe9eaa542230ebd445f85743b112c57a45c4ed686",
+  "review_digest": "06933762e6588cfe1f4bbdc14d3476b604ae40d97f62496f462a491c5c8d52ec",
+  "finalization_digest": "0b2df6941478024fdb653ddbaa5247a754ae6fabcc0d39c6ce15a20f24b26c08",
+  "timestamp": 1795274774
+}

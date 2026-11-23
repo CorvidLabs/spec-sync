@@ -16,6 +16,15 @@
 //! production code paths reference them, so they are not test code that merely
 //! lives near production code.
 
+/// Where the transaction journal of the project at `root` is kept: SpecSync's own state folder
+/// outside the work tree (REQ-change-162). The folder is made, so a test can plant a journal.
+fn transaction_journal_path(root: &Path) -> PathBuf {
+    crate::util::local_state::LocalState::open_journal(root, true)
+        .unwrap()
+        .unwrap()
+        .file_path(TRANSACTION_FILE)
+}
+
 include!("change_tests/substantive_plan.rs");
 include!("change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs");
 include!("change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs");
@@ -27,6 +36,8 @@ include!("change_tests/approved_delta_requirements.rs");
 include!("change_tests/recorded_review_recovery.rs");
 
 include!("change_tests/historical_reconciliation.rs");
+
+include!("change_tests/approval_dry_run.rs");
 
 include!("change_tests/fast_archived_reads.rs");
 include!("change_tests/literal_guidance.rs");
@@ -49,3 +60,5 @@ include!("change_tests/bounded_failure_output.rs");
 include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");
 include!("change_tests/unknown_members.rs");
+include!("change_tests/journal_replay_targets.rs");
+include!("change_tests/hardening_641.rs");

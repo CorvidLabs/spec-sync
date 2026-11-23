@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "eac242876ca3c73c12f918c90794e82aeee08cd0",
+      "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+      "execution_digest": "7330678969756790766d1b866b13ab1893f4a56df79156cf8b2162382620fd9c",
+      "workspace_digest": "8a6223c6eac8460fb67267b73ca90068d6452292b7f004300832d06fe70a19b0",
+      "timestamp": 1795214910,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Pass (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 22:41Z: 'Pass (Recommended)' to his one review of 6.4.1, both changes at 25bbd814 (the 14 fixes, N2, the 5 clause removals, the re-check items of security/review2/recheck-6.4.1.md, and the covering change). His one review covers both changes, as he chose ('Yes, two changes (Recommended)', about 21:52Z). Relayed by t4c over hc to t5r; a relayed claim, not authenticated",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

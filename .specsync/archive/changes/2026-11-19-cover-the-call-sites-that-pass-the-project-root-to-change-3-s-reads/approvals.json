@@ -1,0 +1,61 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795103567,
+      "digest": "9616b5b60ad32574a477cf496ef2fe8ef22810123c616f9376743332ed72d73c",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads\": \"yes\" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r). Relayed and recorded by claude-code-t5r at 2026-11-19T15:52:43Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads",
+        "title": "Cover the call sites that pass the project root to change 3's reads",
+        "description": "Cover the call sites that pass the project root to change 3's reads",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_init_registry",
+          "cmd_issues",
+          "cmd_score",
+          "cmd_view",
+          "mcp"
+        ],
+        "affected_paths": [
+          "src/commands/init_registry.rs",
+          "src/commands/issues.rs",
+          "src/commands/score.rs",
+          "src/commands/view.rs",
+          "src/mcp/confinement.rs",
+          "src/mcp/tools.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Each of the six files only passes the new project root argument to a function change 3 gave one (validate_config_file, schema_read_errors, filter_by_status, view_spec, read_config_file, build_schema). The code was committed and reviewed with change 3; no contract changes.",
+        "acceptance_criteria": [
+          "specsync change audit reports no meaningful changed path that no change covers, with the six call-site files declared here; the files are unchanged by this change; the full test suite still passes"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "util.3md lesson from change 3: every project file read goes through the bounded project read; these call sites only pass the root that requires",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes",
+        "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795103696,
+      "digest": "84a898fd07d34fd49830409de024147ffd2bc53d90a9fee1afd61a02770562c6",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

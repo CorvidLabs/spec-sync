@@ -15,6 +15,7 @@
 
 const MAX_VERIFICATION_IGNORED_PATHS: usize = 8;
 const MAX_VERIFICATION_IGNORED_PATH_BYTES: usize = 128;
+const MAX_EXCLUSION_PARENT_ENTRIES: usize = 100_000;
 const VERIFICATION_IGNORED_PATTERN_CHARACTERS: [char; 7] = ['*', '?', '[', ']', '{', '}', '!'];
 const VERIFICATION_IGNORED_REFUSAL: &str = "invalid SDD policy: verification_ignored_paths";
 
@@ -144,14 +145,34 @@ fn validate_verification_ignored_paths(
     let config = crate::config::load_config(root);
     let protected = verification_ignored_protected_scopes(root, policy, &config);
     for entry in entries {
+        let mut excluded_depth = None;
         for (scope, label, source) in &protected {
-            if *source && verification_ignored_entry_is_excluded_source(entry, scope, &config.exclude_dirs)
-            {
+            if !verification_ignored_scopes_overlap(entry, scope) {
                 continue;
             }
-            if verification_ignored_scopes_overlap(entry, scope) {
-                return Err(refuse(entry, format!("overlaps {label}")));
+            if *source {
+                let depth = match excluded_depth {
+                    Some(depth) => depth,
+                    None => {
+                        let depth =
+                            verification_ignored_excluded_depth(root, entry, &config.exclude_dirs)
+                                .map_err(|rule| refuse(entry, rule))?;
+                        excluded_depth = Some(depth);
+                        depth
+                    }
+                };
+                let source_depth = if scope == "." {
+                    0
+                } else {
+                    scope.split('/').count()
+                };
+                // An overlapping source with fewer components is an ancestor of the entry.
+                // The exclusion must be strictly below the source, where the walk applies it.
+                if depth > source_depth {
+                    continue;
+                }
             }
+            return Err(refuse(entry, format!("overlaps {label}")));
         }
         verification_ignored_symlink_free(root, entry).map_err(|rule| refuse(entry, rule))?;
     }
@@ -333,37 +354,59 @@ fn verification_ignored_overlap_scope(path: &str) -> String {
     }
 }
 
-/// Whether `entry` lies below the `source_dirs` scope `source` with a component below it that is
-/// exactly an `exclude_dirs` name (#1083, REQ-change-115). The coverage source walk never enters
-/// such a directory: it compares names exactly (`coverage_name_is_excluded`) and only while
-/// descending below a `source_dirs` root, so nothing under the entry is source. The prefix up to
-/// the root is compared ignoring ASCII case, as the overlap test compares it; the excluded name is
-/// not, so `.Chough/` stays source when `.chough` is excluded, and an excluded name at or above the
-/// root (`source_dirs = [".chough/tools"]`) excludes nothing below it.
-fn verification_ignored_entry_is_excluded_source(
+/// Depth of the deepest excluded component of an ignored path, or zero when none match.
+/// The source walk compares names read from the directory exactly. On a case-insensitive
+/// filesystem a lookup can find a different spelling than the walk sees, so use the containing
+/// directory to confirm the exact spelling of an existing component. An absent path has no
+/// alias and can be reserved for future tool output.
+fn verification_ignored_excluded_depth(
+    root: &Path,
     entry: &str,
-    source: &str,
     exclude_dirs: &[String],
-) -> bool {
-    let entry: Vec<&str> = entry
-        .trim_end_matches('/')
-        .split('/')
-        .filter(|component| !component.is_empty())
-        .collect();
-    let source = verification_ignored_overlap_scope(source);
-    let root: Vec<&str> = if source == "." {
-        Vec::new()
-    } else {
-        source.split('/').collect()
-    };
-    entry.len() > root.len()
-        && entry
-            .iter()
-            .zip(&root)
-            .all(|(component, root)| component.eq_ignore_ascii_case(root))
-        && entry[root.len()..]
-            .iter()
-            .any(|component| exclude_dirs.iter().any(|excluded| excluded == component))
+) -> Result<usize, String> {
+    let components: Vec<_> = entry.trim_end_matches('/').split('/').collect();
+    let candidates = components
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, component)| exclude_dirs.iter().any(|excluded| excluded == **component));
+    let mut candidates = candidates.peekable();
+    if candidates.peek().is_none() {
+        return Ok(0);
+    }
+    let project = cap_std::fs::Dir::open_ambient_dir(root, cap_std::ambient_authority())
+        .map_err(|error| format!("could not inspect excluded directories ({error})"))?;
+    for (index, component) in candidates {
+        let path: PathBuf = components[..=index].iter().collect();
+        let inspect_error = |error| {
+            format!(
+                "could not inspect excluded directory `{}` ({error})",
+                path.display()
+            )
+        };
+        match project.symlink_metadata(&path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(index + 1),
+            Err(error) => return Err(inspect_error(error)),
+        }
+        let parent = if index == 0 {
+            Path::new(".")
+        } else {
+            path.parent().unwrap_or(Path::new("."))
+        };
+        for (count, candidate) in project.read_dir(parent).map_err(inspect_error)?.enumerate() {
+            if count == MAX_EXCLUSION_PARENT_ENTRIES {
+                return Err(format!(
+                    "could not confirm excluded directory `{}` after {MAX_EXCLUSION_PARENT_ENTRIES} entries",
+                    path.display()
+                ));
+            }
+            if candidate.map_err(inspect_error)?.file_name() == std::ffi::OsStr::new(component) {
+                return Ok(index + 1);
+            }
+        }
+    }
+    Ok(0)
 }
 
 /// Whether the entry equals, contains, or lies inside `scope`.

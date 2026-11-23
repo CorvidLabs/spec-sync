@@ -1026,6 +1026,40 @@ fn an_entry_under_an_excluded_directory_does_not_overlap_source_dirs() {
     );
 }
 
+// The source walk sees the name on disk, while a case-insensitive lookup can still open the old
+// spelling that Git has in its index after a worktree-only case rename.
+#[test]
+fn a_case_alias_does_not_turn_source_into_an_ignored_path() {
+    let temp = vip_validation_fixture();
+    let root = temp.path();
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\nexclude_dirs = [\".chough\", \"excluded\"]\n",
+    );
+    vip_write(root, ".chough/sessions/tool.rs", "fn tool() {}\n");
+    vip_set_list(root, &[".chough/sessions/"]);
+    project_input_digest(root).expect("the actual directory spelling is excluded");
+
+    fs::rename(root.join(".chough"), root.join("case-rename")).unwrap();
+    fs::rename(root.join("case-rename"), root.join(".Chough")).unwrap();
+    if root.join(".chough").exists() {
+        vip_assert_refused(
+            root,
+            &[".chough/sessions/"],
+            ".chough/sessions/",
+            "source_dirs `.`",
+        );
+    } else {
+        project_input_digest(root)
+            .expect("a nonexistent differently cased path does not alias the actual source");
+    }
+
+    vip_write(root, ".Chough/excluded/tool.rs", "fn tool() {}\n");
+    vip_set_list(root, &[".chough/excluded/"]);
+    project_input_digest(root).expect("the actual inner directory spelling is excluded");
+}
+
 // #1083: only the `source_dirs` overlap changes. Every other protected scope still refuses an
 // entry under an excluded name, each naming its own rule.
 // Verifies REQ-change-115.

@@ -122,3 +122,5 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+
+- [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).

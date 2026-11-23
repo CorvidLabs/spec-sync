@@ -498,18 +498,44 @@ fn an_upstream_rename_of_an_archive_head_already_contains_is_not_reported() {
     );
 }
 
+// Copies of the state bytes outside an archived package's state.json do not make
+// the branch an ancestor of an archive found only on the remote default.
+#[test]
+fn a_copy_of_archive_state_in_notes_does_not_hide_a_remote_only_archive() {
+    let temp = TempDir::new().unwrap();
+    let (root, base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let state = fs::read(root.join(format!("{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id))).unwrap();
+    publish_and_branch_from(&temp, &root, &base);
+
+    let notes = root.join(ARCHIVE_PATH).join("notes");
+    fs::create_dir_all(notes.join("copies")).unwrap();
+    fs::write(notes.join("backup.json"), &state).unwrap();
+    fs::write(notes.join("copies/state.json"), &state).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "save reference copies in archive notes"]);
+
+    let mut active = archived;
+    active.state = ChangeState::Verifying;
+    assert!(matches!(
+        upstream_archive_of(&root, &active),
+        Some(UpstreamArchive::Archived { .. })
+    ));
+}
+
 // #961 (REQ-change-129, REQ-change-142). An unrelated archive package whose directory name is not
 // UTF-8 must not stop the lookup: this change's own upstream archive is still found. Built in
 // Git's index, because some filesystems refuse a non-UTF-8 name.
 #[cfg(unix)]
-#[test]
-fn an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup() {
+fn lookup_with_non_utf8_upstream_package(same_id: bool) -> Option<UpstreamArchive> {
     use std::os::unix::ffi::OsStrExt;
     let temp = TempDir::new().unwrap();
     let (root, base) = seeded_repository(&temp);
     let archived = archived_workflow_record(&root);
     let mut other = archived.clone();
-    other.id = "another-change".into();
+    if !same_id {
+        other.id = "another-change".into();
+    }
     let blob_source = root.join("other-state.json");
     write_json(&blob_source, &other).unwrap();
     let blob = quiet_git(&root, &["hash-object", "-w", "other-state.json"])
@@ -529,17 +555,32 @@ fn an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup() {
         .status()
         .unwrap();
     assert!(status.success());
-    quiet_git(&root, &["commit", "-m", "an unrelated package with a non-UTF-8 name"]);
+    quiet_git(&root, &["commit", "-m", "add a package with a non-UTF-8 name"]);
     // The branch switch drops the index-only entry; nothing writes the name to disk.
     publish_and_branch_from(&temp, &root, &base);
 
     let mut unarchived = archived.clone();
     unarchived.state = ChangeState::Verifying;
-    let upstream = upstream_archive_of(&root, &unarchived);
+    upstream_archive_of(&root, &unarchived)
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup() {
+    let upstream = lookup_with_non_utf8_upstream_package(false);
     assert!(
         matches!(&upstream, Some(UpstreamArchive::Archived { reference, .. }) if reference == "origin/main"),
         "{upstream:?}"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_matching_non_utf8_archive_package_reports_that_git_cannot_tell() {
+    assert!(matches!(
+        lookup_with_non_utf8_upstream_package(true),
+        Some(UpstreamArchive::CannotTell { .. })
+    ));
 }
 
 /// #945, the tester's real flow on f740d0a2, through the lifecycle functions the commands call

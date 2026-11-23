@@ -5427,12 +5427,12 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
     unreadable.then(cannot_tell)
 }
 
-/// Whether a commit reachable from `HEAD` added or removed the blob `object` under
-/// `archive_root`: `HEAD`'s history then held that archived record, whatever happened to its path
-/// since. `None` when Git cannot say, which the caller reads as "cannot tell" (REQ-change-142).
+/// Whether a commit reachable from `HEAD` held this blob as an archived package's state.
+/// The package may have changed names. Copies in other files do not establish containment.
+/// `None` means Git could not determine the answer (REQ-change-142).
 fn archive_object_in_head_history(root: &Path, archive_root: &str, object: &str) -> Option<bool> {
     let find_object = format!("--find-object={object}");
-    let pathspec = format!(":(top,literal){archive_root}");
+    let pathspec = format!(":(top,glob){}/*/state.json", escape_glob_pathspec(archive_root));
     let found = git_output_allow_empty(
         root,
         &[

@@ -790,3 +790,6 @@ verified. The transaction journal exists to put back the person's own interrupte
 
 @plane z=60 label="Publish the summary with verification evidence (#1143)"
 Once verification runs, publish its attempt, latest evidence, `state.json`, and the `change.md` state in one recoverable transaction. Materialization and verification update the generated `state` field in `change.md` and preserve its authored body. Approval, send-back, reopen, and archival regenerate the summary from the stored change record. A refusal before verification records its reason in the attempts ledger and keeps the current state.
+
+@plane z=61 label="Recognizing a reopened archive after a remote rename"
+A reopen moves the package out of the archive. The remote default can later rename its copy. Check whether this exact state blob occupied an archive package’s state.json in HEAD history. The same bytes in a backup or nested notes directory do not establish that the branch held the archive.

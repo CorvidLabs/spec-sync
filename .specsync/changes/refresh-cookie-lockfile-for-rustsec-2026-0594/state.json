@@ -7,10 +7,11 @@
   "title": "Refresh cookie lockfile for RUSTSEC-2026-0594",
   "description": "Refresh cookie lockfile for RUSTSEC-2026-0594",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "71f1867d7ddcf2b075b49c421d2f87ea0b760be1",
   "created_at": 1795446188,
-  "updated_at": 1795447660,
+  "updated_at": 1795448472,
   "affected_specs": [],
   "affected_paths": [
     "Cargo.lock"

@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795447681,
+      "commit": "0632a630e990509020128a0385b29fea6c0b2dc3",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 3 open tasks in `.specsync/changes/refresh-cookie-lockfile-for-rustsec-2026-0594/tasks.md` (line 8: \"Resolve cookie 0.18.3 and verify the lockfile diff contains only its version and...\"; line 9: \"Verify the feature graph and audit policy are preserved and the advisory clears.\"; line 10: \"Run the existing verification lanes and record the exact revision's evidence.\") and mark each one `[x]`, then re-run `specsync change check refresh-cookie-lockfile-for-rustsec-2026-0594 --strict --commit`"
+    },
+    {
+      "timestamp": 1795448471,
+      "commit": "0632a630e990509020128a0385b29fea6c0b2dc3",
+      "contract_digest": "8dc7c7024aa220c5d9581b746d8589caffdfe611d87c824b166149ce27581899",
+      "execution_digest": "21911fa36449811a57a0cdbcb97e51139b705b72955deaebaa50fb79812de416",
+      "workspace_digest": "a4fe3d99a7372f32b69ac3f8d1348da42c2412c557633ff68337fcbc5984ffac",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

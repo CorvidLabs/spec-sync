@@ -1,6 +1,6 @@
 ---
 id: pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: c076583c09ff9acbe529426922a3e225eed42f56
 ---

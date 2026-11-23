@@ -714,8 +714,10 @@ fn a_present_invalid_archive_coverage_receipt_is_reported_without_changing_authe
     wrong_id["change_id"] = serde_json::json!("another-change");
     let mut unsupported = valid.clone();
     unsupported["schema_version"] = serde_json::json!(2);
-    let mut unsafe_entry = valid;
+    let mut unsafe_entry = valid.clone();
     unsafe_entry["covered_by"][0]["path"] = serde_json::json!("../outside");
+    let mut blank_entry = valid;
+    blank_entry["covered_by"][0]["path"] = serde_json::json!("");
     let mut oversized = original;
     oversized.resize(crate::util::MAX_STATE_FILE_BYTES as usize + 1, b' ');
     let cases = [
@@ -724,6 +726,7 @@ fn a_present_invalid_archive_coverage_receipt_is_reported_without_changing_authe
         ("wrong ID", Some(serde_json::to_vec(&wrong_id).unwrap())),
         ("unsupported schema", Some(serde_json::to_vec(&unsupported).unwrap())),
         ("unsafe entry", Some(serde_json::to_vec(&unsafe_entry).unwrap())),
+        ("empty path", Some(serde_json::to_vec(&blank_entry).unwrap())),
         ("oversized", Some(oversized)),
     ];
     let mut missing_diagnostics = Vec::new();

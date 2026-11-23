@@ -3049,7 +3049,8 @@ fn read_archive_coverage(
     }
     let mut entries = BTreeSet::new();
     for entry in &receipt.covered_by {
-        if normalize_project_path(&entry.path).as_deref() != Ok(entry.path.as_str())
+        if entry.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&entry.path).as_deref() != Ok(entry.path.as_str())
             || validate_change_id(&entry.change).is_err()
             || entry.change == id
             || !entries.insert((&entry.path, &entry.change))

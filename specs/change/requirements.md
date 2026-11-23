@@ -2300,4 +2300,3 @@ Acceptance Criteria
 - Both command families accept an ID moved between tracked canonical files and a removal approved on this branch. A historical archive that already existed at the comparison base cannot justify a later deletion.
 - A managed Git project running only strict check in CI reports the loss with the same restoration detail. A project that has never enabled SDD keeps its strict drift behavior, with no requirement for a removal delta. Ordinary check keeps its drift behavior.
 - A known default ref without enough history to find the merge base produces a refusal with fetch guidance. A checkout without a usable default ref reports a skipped comparison.
-

@@ -365,6 +365,8 @@ Every link points inside the test's own temporary directory.
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
 
+REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
+
 The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cover an approval that has become stale, a historical sequence owner whose coverage is provisional, and the status shown when the original transition is unproven.
 
 The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.

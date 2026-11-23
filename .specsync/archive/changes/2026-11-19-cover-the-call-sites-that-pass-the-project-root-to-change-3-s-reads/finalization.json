@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads",
+  "implementation_commit": "ac7effc65541e706d01147b172cc10da5c386f73",
+  "implementation_tree": "ac51e4b28c2bc990bdaa70de40068022d68647d0",
+  "contract_digest": "9616b5b60ad32574a477cf496ef2fe8ef22810123c616f9376743332ed72d73c",
+  "workspace_digest": "eeae6ad6761c83679bf6b4f49c46e70f99fd652b4cf85e539a4ebf9d7cacce78",
+  "closing_digest": "84a898fd07d34fd49830409de024147ffd2bc53d90a9fee1afd61a02770562c6",
+  "review_digest": "e185adc8bbf0b04189fba2ccb4d62042c127ee0ef9cf5c4307cf46f5de73627e",
+  "finalization_digest": "e61b9243d1da3a912e0516875764fe491514af251a9eb5dbdcab49268319d97c",
+  "timestamp": 1795103697
+}

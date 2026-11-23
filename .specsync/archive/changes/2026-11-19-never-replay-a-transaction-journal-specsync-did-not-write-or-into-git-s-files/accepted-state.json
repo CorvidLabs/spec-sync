@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files",
+  "slug": "never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files",
+  "title": "Never replay a transaction journal SpecSync did not write, or into Git's files",
+  "description": "Never replay a transaction journal SpecSync did not write, or into Git's files",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "cf5284076db2b692d8e8df8953eb6525d5952690",
+  "created_at": 1795103972,
+  "updated_at": 1795117643,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/",
+    "src/change.rs",
+    "src/change_tests/",
+    "src/change_tests.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "hi/setup.md",
+    "INTENT.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A journal at .specsync/change-transaction.json that Git tracks, in the index or in HEAD, is never replayed: the writing change command refuses and names the git rm fix. A journal entry with a .git component in any letter case, or with trailing dots or spaces, or naming a file outside .specsync/, the configured specs_dir and the registry-mapped spec files with their requirements.md and history fragments, refuses the whole journal and replays nothing. A bare-array journal is refused with the invalid-journal recovery. The person's own interrupted write is still recovered. The new tests fail on cf528407 and pass with the fix"
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "change.3md: a refusal is a result worth recording and names its recovery (#433, #847); the existing invalid-journal message and its .broken recovery are reused. util.3md lesson: stay inside the root by construction, and enforce the same rule where a path is written and where it is replayed.",
+    "public_contract": "yes"
+  }
+}

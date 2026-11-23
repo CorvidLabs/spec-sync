@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree",
+  "implementation_commit": "e843776af1169b66c685462d0da85972a0079f46",
+  "implementation_tree": "912304fecf3b6b786b095d46e0a90b9ca605904c",
+  "contract_digest": "74dc146734aa28cebefac9d2487f06dc904ef05798ffa0e39b02aa1374025cc5",
+  "workspace_digest": "d0eed15bd5e34b9e27f5b0aff34b4184604e6ee2f59225d661c1f04dcc44e697",
+  "closing_digest": "0abe73edf894b18a48369b1bce56be30ceb53fa1dcf20b2121fd0c6ff846b071",
+  "review_digest": "22c4bcc7b6f24a2b6d5649c95d582577510aa518aadd7b8760bb5cb17e84f36d",
+  "finalization_digest": "e04471e0209a041b4e25da04dbe86c686e568f61d685c0286b5aeec390cddc98",
+  "timestamp": 1795155011
+}

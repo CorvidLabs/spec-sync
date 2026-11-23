@@ -25,6 +25,7 @@ depends_on:
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
   - specs/view/view.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Commands
@@ -46,7 +47,7 @@ suppression, exit handling, and GitHub drift diagnostics.
 | `validate_module_name` | `module_name: &str` | `Result<(), String>` | Validate a user-supplied module name as one portable path segment: reject traversal/control/Windows-invalid characters, trailing spaces/dots, Windows reserved device basenames (including before extensions), and names whose `<name>.spec.md` filename exceeds 255 UTF-8 bytes |
 | `is_reserved_module_name` | `lower: &str` | `bool` | Whether a lowercased name cannot be a directory component on a host platform, whether or not SpecSync publishes a binary for it: Windows device basenames (`con`, `prn`, `aux`, `nul`, `com1`-`com9`, `lpt1`-`lpt9`) plus names that collide with the workspace layout (`change`, `changes`, `spec`, `specs`). Shared with `change::slugify`, which mints directory names from free text; defined once so the two cannot disagree about whether a name is legal |
 | `filter_specs` | `root: &Path, spec_files: &[PathBuf], filters: &[String]` | `Vec<PathBuf>` | Filter spec files by user-provided names/paths (exact path, relative path, filename, module name); returns all if filters is empty |
-| `filter_by_status` | `spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
+| `filter_by_status` | `root: &Path, spec_files: &[PathBuf], exclude: &[String], only: &[String]` | `Vec<PathBuf>` | Filter spec files by their frontmatter status field; supports exclude-list and allow-list modes |
 | `build_schema_columns` | `root: &Path, config: &SpecSyncConfig` | `HashMap<String, SchemaTable>` | Compatibility column-map wrapper; checked command validation uses one fallible snapshot internally |
 | `run_validation` | `root: &Path, spec_files: &[PathBuf], ownership_spec_files: &[PathBuf], config: &types::SpecSyncConfig, collect: bool, explain: bool, ignore_rules: &IgnoreRules` | `(usize, usize, usize, usize, Vec<String>, Vec<String>, Vec<String>)` | Validate all selected specs from one checked schema input and return error/warning/pass counts plus rendered diagnostics/notices |
 | `compute_exit_code` | `total_errors, total_warnings, strict, enforcement, coverage, require_coverage` | `i32` | Compute exit code without printing or exiting based on enforcement mode |
@@ -110,6 +111,8 @@ suppression, exit handling, and GitHub drift diagnostics.
 8. `validate_module_name` is platform-independent: every host rejects Windows-invalid characters,
    reserved device basenames, trailing spaces/dots, and module names longer than 247 UTF-8 bytes so
    generated spec filenames remain portable 255-byte path components.
+9. Every read of a project file here, the spec files read for frontmatter, ownership and inline ignores (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-commands-014).
+10. `check_case_collision` takes the project root and lists the specs folder only through `util::read_project_dir`; a specs folder that leads out of the project is nothing to collide with (REQ-commands-016).
 
 ## Behavioral Examples
 
@@ -149,6 +152,7 @@ suppression, exit handling, and GitHub drift diagnostics.
 | GitHub repo unresolvable for drift issues | Prints a sanitized error and returns without creating issues |
 | `gh` CLI fails to create issue | Prints a sanitized per-spec error and continues with remaining specs |
 | Module name is non-portable, reserved, or too long | Returns an actionable `Err` before any output path is joined or created |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

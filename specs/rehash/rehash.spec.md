@@ -16,7 +16,7 @@ depends_on:
 
 ## Purpose
 
-Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json` cache for all discovered spec files. Useful after `git pull`, branch switches, or when hashes.json is gitignored and needs rebuilding.
+Implements the `specsync rehash` command. Regenerates the hash cache, kept in the project's local state folder outside the work tree, for all discovered spec files. Useful after `git pull` or branch switches.
 
 ## Public API
 
@@ -32,8 +32,8 @@ Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json
    `validator::find_spec_files`
 2. Filters underscore-prefixed template specs and exits successfully with generation guidance when no specs exist
 3. Builds a fresh `HashCache` from scratch (not incremental)
-4. Saves cache to `.specsync/hashes.json`
-5. Exits with code 1 if cache save fails
+4. Saves the cache to `hashes.json` in the project's local state folder and prints that path; never writes `.specsync/hashes.json` in the work tree (REQ-rehash-003)
+5. Exits with code 1 if cache save fails, including when no local state folder can be found
 
 ## Behavioral Examples
 
@@ -41,11 +41,11 @@ Implements the `specsync rehash` command. Regenerates the `.specsync/hashes.json
 
 - **Given** a valid specsync project with specs
 - **When** `cmd_rehash(root)` runs
-- **Then** writes fresh hashes.json and prints spec count
+- **Then** writes a fresh cache in the local state folder and prints the spec count and the path
 
 ### Scenario: Save failure
 
-- **Given** .specsync directory is not writable
+- **Given** the local state folder cannot be made or written
 - **When** `cmd_rehash(root)` runs
 - **Then** prints error and exits with code 1
 

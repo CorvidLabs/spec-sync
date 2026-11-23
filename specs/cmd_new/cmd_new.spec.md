@@ -10,6 +10,7 @@ depends_on:
   - specs/config/config.spec.md
   - specs/exports/exports.spec.md
   - specs/generator/generator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd New
@@ -34,6 +35,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 4. Emits the same seven-section skeleton as `add-spec` / `generate`; Change Log dates come from the shared generator, not a private `chrono_lite_today()` helper
 5. Will not overwrite existing spec
 6. Module names are refused under the same rules as `scaffold` (`validate_scaffold_module_name` plus case-collision)
+7. `new` creates the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so a spec path that is a dangling link, or a spec directory that leaves the project through a link, exits 1 with an error naming the path and creates nothing there (REQ-cmd-new-006).
 
 ## Behavioral Examples
 
@@ -58,6 +60,7 @@ Implements the `specsync new` command. Quick-creates a minimal spec with auto-de
 | Dir creation fails | Exits 1 |
 | Invalid module name (path separator, `.`/`..`, absolute/drive-relative, control chars, reserved names, leading dashes, spaces) | Refused via `validate_scaffold_module_name` before any write; prints `invalid module name …` and exits 1 (no path traversal) |
 | Case-fold collision with an existing spec directory | Refused via `check_case_collision` before any write |
+| The spec path is a dangling link, or the spec directory leaves the project through a link | Exits 1 naming the path; nothing is created at the link's target |
 
 ## Dependencies
 

@@ -447,14 +447,14 @@ fn list_all_change_metadata(
         records.insert(record.id.clone(), record);
     }
     let archive = root.join(ARCHIVE_PATH);
-    let entries = match fs::read_dir(&archive) {
+    let entries = match crate::util::read_project_dir_entries(root, &archive) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(records);
         },
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
     };
-    let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    let entries: Vec<std::io::Result<crate::util::ProjectDirEntry>> = entries.collect();
     if walk_archived_history {
         prefetch_archived_workflow_histories(root, &entries);
     }
@@ -470,12 +470,12 @@ fn list_all_change_metadata(
             continue;
         }
         let path = entry.path().join("state.json");
-        let content = match fs::read_to_string(&path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound
-                    && (is_positive_legacy_tombstone(&entry.path())
-                        || is_untrackable_husk(&entry.path())) =>
+                    && (is_positive_legacy_tombstone(root, &entry.path())
+                        || is_untrackable_husk(root, &entry.path())) =>
             {
                 continue;
             }
@@ -512,8 +512,8 @@ fn list_all_change_metadata(
 /// A directory that does hold files but no `state.json` is damaged, not a husk,
 /// and its caller still refuses it: this predicate cannot be satisfied by
 /// ignoring corruption.
-fn is_untrackable_husk(path: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(path) else {
+fn is_untrackable_husk(root: &Path, path: &Path) -> bool {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, path) else {
         return false;
     };
     for entry in entries.flatten() {
@@ -521,7 +521,7 @@ fn is_untrackable_husk(path: &Path) -> bool {
             return false;
         };
         if kind.is_dir() {
-            if !is_untrackable_husk(&entry.path()) {
+            if !is_untrackable_husk(root, &entry.path()) {
                 return false;
             }
         } else {
@@ -546,13 +546,13 @@ fn name_carries_a_lifecycle_ordinal(name: &str) -> bool {
 ///
 /// No depth counter: archive packages are a handful of levels, and a symlink loop cannot occur
 /// because `read_dir` reports a symlink as neither file nor directory here.
-fn directory_holds_a_regular_file(path: &Path) -> bool {
-    let Ok(entries) = fs::read_dir(path) else {
+fn directory_holds_a_regular_file(root: &Path, path: &Path) -> bool {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, path) else {
         return false;
     };
     entries.flatten().any(|entry| match entry.file_type() {
         Ok(kind) if kind.is_file() => true,
-        Ok(kind) if kind.is_dir() => directory_holds_a_regular_file(&entry.path()),
+        Ok(kind) if kind.is_dir() => directory_holds_a_regular_file(root, &entry.path()),
         _ => false,
     })
 }
@@ -582,12 +582,12 @@ fn directory_holds_a_regular_file(path: &Path) -> bool {
 /// today *only* because of its name. Retiring the ordinal therefore needs a provenance signal
 /// to take signal 3's place — git history of the package's `state.json` is the obvious
 /// candidate. That is a decision for the identity migration, not something to quietly drop here.
-fn is_positive_legacy_tombstone(path: &Path) -> bool {
-    let holds_a_file_outside_deltas = fs::read_dir(path).is_ok_and(|entries| {
+fn is_positive_legacy_tombstone(root: &Path, path: &Path) -> bool {
+    let holds_a_file_outside_deltas = crate::util::read_project_dir_entries(root, path).is_ok_and(|entries| {
         entries.flatten().any(|entry| match entry.file_type() {
             Ok(kind) if kind.is_file() => true,
             Ok(kind) if kind.is_dir() && entry.file_name() != "deltas" => {
-                directory_holds_a_regular_file(&entry.path())
+                directory_holds_a_regular_file(root, &entry.path())
             }
             _ => false,
         })
@@ -610,7 +610,7 @@ fn is_positive_legacy_tombstone(path: &Path) -> bool {
         return false;
     }
     let deltas = path.join("deltas");
-    let Ok(entries) = fs::read_dir(deltas) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, &deltas) else {
         return false;
     };
     entries.flatten().any(|entry| {
@@ -635,6 +635,9 @@ fn append_approval(
     append_approval_with_relay(root, record, gate, actor, digest, note, None)
 }
 
+/// Both halves of an approval record in one call, as the approval makes them: the tests' way to
+/// append a record without the checks that come before it.
+#[cfg(test)]
 fn append_approval_with_relay(
     root: &Path,
     record: &ChangeRecord,
@@ -644,6 +647,27 @@ fn append_approval_with_relay(
     note: Option<String>,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
+    let parts = approval_record_parts(root, record, gate)?;
+    let actor = resolve_actor(root, actor)?;
+    write_approval_record(root, record, gate, parts, actor, digest, note, relayed_by)
+}
+
+/// What an approval record holds besides its actor and digest: the ledger it is appended to, the
+/// scope and the delta wording it approves. Reading these can refuse; nothing is written until
+/// [`write_approval_record`], so `change approve --dry-run` builds them too (REQ-change-163).
+struct ApprovalRecordParts {
+    ledger: ApprovalLedger,
+    approved_scope: Option<ApprovedScopeV1>,
+    approved_delta_digests: Option<BTreeMap<String, String>>,
+    approved_delta_bases: Option<BTreeMap<String, String>>,
+}
+
+/// The read-only half of [`append_approval_with_relay`], in the order it always ran.
+fn approval_record_parts(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+) -> Result<ApprovalRecordParts, String> {
     let mut ledger = load_approvals(root, record)?;
     let approved_scope = (gate == "definition" && record.workflow_version >= 2)
         .then(|| approved_scope(root, record))
@@ -663,9 +687,35 @@ fn append_approval_with_relay(
     let approved_delta_bases = (gate == "definition")
         .then(|| approval_delta_bases(root, record, &ledger))
         .transpose()?;
+    Ok(ApprovalRecordParts {
+        ledger,
+        approved_scope,
+        approved_delta_digests,
+        approved_delta_bases,
+    })
+}
+
+/// The writing half of [`append_approval_with_relay`]: append the record and save the ledger.
+#[allow(clippy::too_many_arguments)]
+fn write_approval_record(
+    root: &Path,
+    record: &ChangeRecord,
+    gate: &str,
+    parts: ApprovalRecordParts,
+    actor: String,
+    digest: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<(), String> {
+    let ApprovalRecordParts {
+        mut ledger,
+        approved_scope,
+        approved_delta_digests,
+        approved_delta_bases,
+    } = parts;
     ledger.approvals.push(ApprovalRecord {
         gate: gate.into(),
-        actor: resolve_actor(root, actor)?,
+        actor,
         timestamp: now(),
         digest,
         note,
@@ -676,7 +726,7 @@ fn append_approval_with_relay(
         approved_delta_bases,
         relayed_by,
     });
-    write_json_keeping_unknown_members(
+    write_json_keeping_unknown_members(root, 
         &change_dir(root, &record.id).join("approvals.json"),
         &ledger,
     )
@@ -692,6 +742,8 @@ fn append_portable_definition_approval_v501(
     append_portable_definition_approval_v501_with_relay(root, record, actor, note, None)
 }
 
+/// Both halves of the portable approval pair in one call, for the tests.
+#[cfg(test)]
 fn append_portable_definition_approval_v501_with_relay(
     root: &Path,
     record: &ChangeRecord,
@@ -699,6 +751,26 @@ fn append_portable_definition_approval_v501_with_relay(
     note: Option<String>,
     relayed_by: Option<RelayedDecision>,
 ) -> Result<(), String> {
+    let parts = portable_definition_approval_parts(root, record)?;
+    let actor = resolve_actor(root, actor)?;
+    write_portable_definition_approval(root, record, parts, actor, note, relayed_by)
+}
+
+/// What the portable 5.0.1 approval pair holds besides its actor. Reading these can refuse;
+/// nothing is written until [`write_portable_definition_approval`] (REQ-change-163).
+struct PortableApprovalParts {
+    current_digest: String,
+    legacy_digest: String,
+    correction_prefix_digest: String,
+    approved_delta_digests: Option<BTreeMap<String, String>>,
+    approved_delta_bases: Option<BTreeMap<String, String>>,
+}
+
+/// The read-only half of the portable approval, in the order it always ran.
+fn portable_definition_approval_parts(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<PortableApprovalParts, String> {
     let (current_digest, legacy_digest, correction_prefix_digest) =
         portable_definition_digest_pair_v501(root, record)?;
     // A portable approval is still a DEFINITION approval, and a definition approval records the
@@ -724,10 +796,34 @@ fn append_portable_definition_approval_v501_with_relay(
         record,
         &load_approvals(root, record)?,
     )?);
-    let actor = resolve_actor(root, actor)?;
+    Ok(PortableApprovalParts {
+        current_digest,
+        legacy_digest,
+        correction_prefix_digest,
+        approved_delta_digests,
+        approved_delta_bases,
+    })
+}
+
+/// The writing half of the portable approval: append the pair and save the ledger.
+fn write_portable_definition_approval(
+    root: &Path,
+    record: &ChangeRecord,
+    parts: PortableApprovalParts,
+    actor: String,
+    note: Option<String>,
+    relayed_by: Option<RelayedDecision>,
+) -> Result<(), String> {
+    let PortableApprovalParts {
+        current_digest,
+        legacy_digest,
+        correction_prefix_digest,
+        approved_delta_digests,
+        approved_delta_bases,
+    } = parts;
     let timestamp = now();
     let path = change_dir(root, &record.id).join("approvals.json");
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", path.display()))?;
     let mut document: serde_json::Value = serde_json::from_str(&content)
         .map_err(|error| format!("invalid approval ledger {}: {error}", path.display()))?;
@@ -873,6 +969,7 @@ fn actor_character_is_refused(c: char) -> bool {
 
 fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
     let explicit = actor.is_some();
+    // git writes no project file: reads the configured author name; `config` with one key only reads
     let actor = actor
         .or_else(|| git_output(root, &["config", "user.name"]))
         .or_else(|| std::env::var("USER").ok())
@@ -889,7 +986,7 @@ fn resolve_actor(root: &Path, actor: Option<String>) -> Result<String, String> {
 
 fn load_approvals(root: &Path, record: &ChangeRecord) -> Result<ApprovalLedger, String> {
     let path = find_change_dir(root, &record.id)?.join("approvals.json");
-    let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| error.to_string())?;
     let ledger: ApprovalLedger = serde_json::from_str(&content).map_err(|error| {
         let message = error.to_string();
         if message.contains("missing field `stale_acceptance_input_digest`")
@@ -933,7 +1030,7 @@ pub fn acceptance_entries(root: &Path, record: &ChangeRecord) -> Vec<AcceptanceI
 fn load_verification(root: &Path, record: &ChangeRecord) -> Result<VerificationRecord, String> {
     let path = find_change_dir(root, &record.id)?.join("verification.json");
     let content =
-        fs::read_to_string(&path).map_err(|_| "verification evidence is missing".to_string())?;
+        crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|_| "verification evidence is missing".to_string())?;
     serde_json::from_str(&content)
         .map_err(|error| format!("invalid verification evidence: {error}"))
 }
@@ -944,7 +1041,7 @@ fn load_verification_attempt_ledger(
 ) -> Result<(std::path::PathBuf, VerificationAttemptLedger), String> {
     let history_path = change_dir(root, &record.id).join("verification-attempts.json");
     let history = if history_path.exists() {
-        let content = fs::read_to_string(&history_path)
+        let content = crate::util::read_project_string(root, &history_path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
         let history: VerificationAttemptLedger = serde_json::from_str(&content)
             .map_err(|error| format!("invalid verification attempt history: {error}"))?;
@@ -983,7 +1080,7 @@ fn record_verification_attempt(
                 change_dir(root, &record.id).join("verification.json"),
                 json_content(verification)?,
             ),
-            (json_content_keeping_unknown_members(&history_path, &history).map(|content| (history_path, content))?),
+            (json_content_keeping_unknown_members(root, &history_path, &history).map(|content| (history_path, content))?),
         ],
     )
 }
@@ -1162,7 +1259,7 @@ fn archived_records_in_delivery(
         if !state_path.is_file() {
             continue;
         }
-        let content = fs::read_to_string(&state_path).map_err(|error| {
+        let content = crate::util::read_project_string(root, &state_path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| {
             format!(
                 "failed to read delivery archive state {}: {error}",
                 state_path.display()
@@ -1479,7 +1576,16 @@ fn cargo_config_moves_build_directory(root: &Path, environment: &CargoBuildEnvir
     for directory in candidates {
         for name in ["config.toml", "config"] {
             let path = directory.join(name);
-            let Ok(content) = fs::read_to_string(&path) else {
+            // The project's own `.cargo/config.toml` goes through the bounded project read. The
+            // ones Cargo also reads above the project and in `CARGO_HOME` belong to the person
+            // running the command, not to the repository, and are read as Cargo reads them.
+            let content = if directory.starts_with(root) {
+                crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
+            } else {
+                // not a project file read: a Cargo config above the project or in CARGO_HOME
+                fs::read_to_string(&path)
+            };
+            let Ok(content) = content else {
                 continue;
             };
             let Ok(value) = toml::from_str::<toml::Value>(&content) else {
@@ -1716,11 +1822,26 @@ fn cargo_build_lock_path(
 /// the whole point, because a "probably wedged" heuristic would be one more
 /// signal that stopped carrying information while still looking like one.
 fn cargo_build_lock_is_held(path: &Path) -> bool {
-    let Ok(file) = OpenOptions::new().read(true).write(true).open(path) else {
+    // The lock is under the project's `target/`, which a repository can commit, so it is opened
+    // without following a link or blocking on a FIFO, and only a regular file counts.
+    let mut options = OpenOptions::new();
+    // not a project file write: opens Cargo's build lock without create, link or blocking, only to test whether it is held; nothing is written
+    // not a project file read: opens Cargo's build lock only to test whether it is held; nothing is read
+    options.read(true).write(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.custom_flags(libc::O_NOFOLLOW | libc::O_NONBLOCK);
+    }
+    // not a project file read: Cargo's build lock, opened with the options set just above only to test it
+    let Ok(file) = options.open(path) else {
         // The file is created by Cargo when it takes the lock; absent or
         // unreadable means there is nothing this run can prove.
         return false;
     };
+    if !file.metadata().is_ok_and(|metadata| metadata.is_file()) {
+        return false;
+    }
     match file.try_lock_exclusive() {
         // Acquired, so nothing held it. Dropping `file` releases it again.
         Ok(()) => false,
@@ -1783,6 +1904,7 @@ fn cargo_build_lock_holders(path: &Path) -> Vec<u32> {
     let Ok(metadata) = fs::metadata(path) else {
         return Vec::new();
     };
+    // not a project file read: an operating system file, not in the project
     let Ok(contents) = fs::read_to_string("/proc/locks") else {
         return Vec::new();
     };
@@ -2024,6 +2146,7 @@ fn run_configured_command(
     {
         eprintln!("{notice}");
     }
+    // spawned command writes no project file: runs a verification command the project's own policy names, by design and only when the person asks for it, as `change pr` runs the pre-push lane
     let mut command = Command::new(program);
     command
         .args(args)
@@ -2165,7 +2288,7 @@ fn cargo_run_targets_specsync(root: &Path, args: &[String]) -> Result<bool, Stri
     if let Some(selected_target) = selected_target {
         return Ok(selected_target);
     }
-    let Ok(manifest) = fs::read_to_string(manifest_path) else {
+    let Ok(manifest) = crate::util::read_project_string(root, &manifest_path, crate::util::MAX_STATE_FILE_BYTES) else {
         return Ok(false);
     };
     Ok(cargo_package_value(&manifest, "default-run")
@@ -2373,7 +2496,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                     ));
                 }
                 Ok(metadata) if metadata.is_file() => {
-                    let content = fs::read_to_string(&constitution)
+                    let content = crate::util::read_project_string(root, &constitution, crate::util::MAX_SPEC_FILE_BYTES)
                         .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
                     prepared.push((import_root.join("constitution.md"), content));
                 }
@@ -2412,6 +2535,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
         Err(error) => return Err(error.to_string()),
     }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
     let mut entries = fs::read_dir(source_changes)
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -2571,6 +2695,7 @@ fn prepare_markdown_files(
             source.display()
         ));
     }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
     let mut entries = fs::read_dir(source)
         .map_err(|error| error.to_string())?
         .collect::<Result<Vec<_>, _>>()
@@ -2595,7 +2720,7 @@ fn prepare_markdown_files(
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
-            let content = fs::read_to_string(&path)
+            let content = crate::util::read_project_string(project_root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                 .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
             prepared.push((destination.join(entry.file_name()), content));
         }
@@ -2631,6 +2756,7 @@ fn reject_symlink_components_for(
 }
 
 fn validate_foreign_tree(root: &Path) -> Result<(), String> {
+    // not a project file read: walks the foreign tree with follow_links(false), refusing every link it finds
     for entry in walkdir::WalkDir::new(root).follow_links(false) {
         let entry = entry.map_err(|error| error.to_string())?;
         if entry.file_type().is_symlink() {
@@ -2647,16 +2773,42 @@ fn save_change(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     let workspace = change_dir(root, &record.id);
     // A change whose ledgers hold a relayed decision is written at the relay-gated version
     // (REQ-change-158), whichever command rewrites it.
-    let record = relay_gated_record(&workspace, record);
-    write_json_keeping_unknown_members(&workspace.join("state.json"), record.as_ref())
+    let record = relay_gated_record(root, &workspace, record);
+    write_json_keeping_unknown_members(root, &workspace.join("state.json"), record.as_ref())
+}
+
+/// Refuse, before anything is written, a change whose record files the save would write through
+/// a link out of the repository or into the Git directory: `state.json`, `change.md`,
+/// `approvals.json` and each selected artifact (REQ-change-165). A committed change can carry any
+/// of them as a link, and a refusal half way would leave the change half saved.
+fn ensure_change_files_writable(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    let workspace = change_dir(root, &record.id);
+    let mut files = vec![
+        workspace.join("state.json"),
+        workspace.join("change.md"),
+        workspace.join("approvals.json"),
+    ];
+    files.extend(
+        record
+            .selected_artifacts
+            .iter()
+            .map(|artifact| workspace.join(artifact.file_name())),
+    );
+    for file in files {
+        if let Some(reason) = crate::util::project_path_refusal(root, &file) {
+            return Err(format!(
+                "refused to write change `{}`: {reason}; restore the file as a plain file",
+                record.id
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn write_change_markdown(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    fs::write(
-        change_dir(root, &record.id).join("change.md"),
-        change_markdown_content(record),
-    )
-    .map_err(|error| error.to_string())
+    let path = change_dir(root, &record.id).join("change.md");
+    crate::util::write_project_file(root, &path, change_markdown_content(record).as_bytes())
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 fn change_markdown_content(record: &ChangeRecord) -> String {
@@ -2701,10 +2853,14 @@ fn ensure_artifact_files(root: &Path, record: &ChangeRecord) -> Result<(), Strin
     let dir = change_dir(root, &record.id);
     for artifact in &record.selected_artifacts {
         let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(path, artifact_template(root, artifact, record))
-                .map_err(|error| error.to_string())?;
-        }
+        // An exclusive create: an artifact already there is kept, and a dangling link is refused
+        // instead of being created through (REQ-change-165).
+        crate::util::create_project_file(
+            root,
+            &path,
+            artifact_template(root, artifact, record).as_bytes(),
+        )
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
     }
     Ok(())
 }
@@ -2714,7 +2870,7 @@ fn artifact_template(root: &Path, artifact: &ArtifactKind, record: &ChangeRecord
         && let Some(policy) = load_policy(root)
         && let Some(template) = policy.custom_artifacts.get(name)
         && let Ok(path) = safe_project_path(root, template)
-        && let Ok(content) = fs::read_to_string(path)
+        && let Ok(content) = crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES)
     {
         return content
             .replace("{{change_id}}", &record.id)
@@ -2792,13 +2948,13 @@ pub fn find_change_dir(root: &Path, id: &str) -> Result<PathBuf, String> {
     let archive = root.join(ARCHIVE_PATH);
     if let Some(archived) = archive_index_in_scope(root, id) {
         matches.extend(archived);
-    } else if let Ok(entries) = fs::read_dir(archive) {
+    } else if let Ok(entries) = crate::util::read_project_dir_entries(root, &archive) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;
             }
             let state = entry.path().join("state.json");
-            let matches_id = fs::read(&state)
+            let matches_id = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
                 .is_some_and(|record| record.id == id);
@@ -3144,7 +3300,7 @@ fn read_workflow_v2_baseline(root: &Path) -> Result<Option<(WorkflowV2Baseline, 
         ));
     }
     let bytes =
-        fs::read(&path).map_err(|error| format!("failed to read workflow-v2 baseline: {error}"))?;
+        crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| format!("failed to read workflow-v2 baseline: {error}"))?;
     let baseline: WorkflowV2Baseline = serde_json::from_slice(&bytes)
         .map_err(|error| format!("invalid workflow-v2 baseline: {error}"))?;
     if baseline.schema_version != 1 || baseline.domain != "specsync.workflow-v2-baseline.v1" {
@@ -4305,7 +4461,7 @@ fn mint_change_slug(description: &str) -> Result<String, String> {
 /// exclusive `create_dir` is still what serializes two processes sharing one volume.
 fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf), String> {
     let changes = root.join(CHANGES_PATH);
-    fs::create_dir_all(&changes).map_err(|error| {
+    crate::util::create_project_dir(root, &changes).map_err(|error| {
         format!(
             "failed to create active changes directory {}: {error}",
             changes.display()
@@ -4322,7 +4478,7 @@ fn allocate_change_workspace(root: &Path, slug: &str) -> Result<(String, PathBuf
         return Err(change_name_taken_error(root, &id));
     }
     let dir = change_dir(root, &id);
-    match fs::create_dir(&dir) {
+    match crate::util::create_new_project_dir(root, &dir) {
         Ok(()) => Ok((id, dir)),
         Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
             Err(change_name_taken_error(root, &id))
@@ -4544,6 +4700,18 @@ fn git_repo_prefix(root: &Path) -> Result<String, String> {
     Ok(prefix)
 }
 
+/// Write a change workflow record through the confined project write (REQ-change-165).
+fn write_record_json<Value: Serialize>(
+    root: &Path,
+    path: &Path,
+    value: &Value,
+) -> Result<(), String> {
+    crate::util::write_project_file(root, path, json_content(value)?.as_bytes())
+        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+}
+
+/// A test fixture writer: tests lay records out directly, links and all.
+#[cfg(test)]
 fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| error.to_string())?;
@@ -4552,17 +4720,22 @@ fn write_json<Value: Serialize>(path: &Path, value: &Value) -> Result<(), String
         .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
-/// `write_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
+/// `write_record_json` for a lifecycle record or ledger rewritten in place: members a newer SpecSync
 /// wrote that this one does not know are kept (#1043, #434).
-fn write_json_keeping_unknown_members<Record>(path: &Path, value: &Record) -> Result<(), String>
+fn write_json_keeping_unknown_members<Record>(
+    root: &Path,
+    path: &Path,
+    value: &Record,
+) -> Result<(), String>
 where
     Record: Serialize + serde::de::DeserializeOwned,
 {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
-    fs::write(path, json_content_keeping_unknown_members(path, value)?)
-        .map_err(|error| format!("failed to write {}: {error}", path.display()))
+    crate::util::write_project_file(
+        root,
+        path,
+        json_content_keeping_unknown_members(root, path, value)?.as_bytes(),
+    )
+    .map_err(|error| format!("failed to write {}: {error}", path.display()))
 }
 
 fn bytes_match_canonical_json(on_disk: &[u8], canonical: &[u8]) -> bool {

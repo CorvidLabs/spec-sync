@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "correct-the-readme-and-documentation-for-specsync-6-4-history-fragments-the-archive-commit-diagrams-and-output-samples",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "8d45da4c1a2dd53294f4252c6fa1fd60d508f8cc",
+      "contract_digest": "52b091e402a6e60810982562c2bb2464f1e4d2405ae07eecb34542b468563272",
+      "execution_digest": "4e1fae1f72a6c68ff478193b32d382b3930bc9f4255ddacb487b10e79659ed6f",
+      "workspace_digest": "3d9de480fc37e3eb24386a814a553e3dacf97bbd7f0fc74f42e1a0a12bab25b9",
+      "timestamp": 1795274748,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Pass (Recommended)",
+        "where": "a Claude Code question dialog in his planning session hc t4c, on 2026-11-21 at about 15:25Z, to his review of #1141 (the 6.4 documentation PR, put to him from defs/1141-review-request.md at head 8d45da4c); relayed by t4c",
+        "recorded_by": "claude-code-t4t"
+      }
+    }
+  ]
+}

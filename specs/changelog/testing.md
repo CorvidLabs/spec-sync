@@ -38,3 +38,11 @@ spec: changelog.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## Blob bound (REQ-changelog-002)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A spec blob in history over 8 MiB | Skipped at that ref with one warning; the rest prints | `tests/integration/repository_inputs.rs`: `changelog_skips_a_spec_blob_over_the_bound` |

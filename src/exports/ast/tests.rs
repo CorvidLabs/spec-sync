@@ -376,7 +376,12 @@ mod dispatch_fallback {
             "test assumes the regex backend is fooled by the template string: {regex_result:?}"
         );
 
-        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        let scan = scan_exported_symbols_full(
+            file.parent().unwrap(),
+            &file,
+            ExportLevel::Member,
+            ParseMode::Ast,
+        );
         assert_eq!(scan, ExportScan::Parsed(vec!["real".to_string()]));
     }
 
@@ -416,7 +421,12 @@ mod dispatch_fallback {
             "test assumes the regex backend is fooled by the macro body text"
         );
 
-        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        let scan = scan_exported_symbols_full(
+            file.parent().unwrap(),
+            &file,
+            ExportLevel::Member,
+            ParseMode::Ast,
+        );
         assert_eq!(scan, ExportScan::Parsed(vec!["generated".to_string()]));
     }
 
@@ -436,7 +446,12 @@ mod dispatch_fallback {
         )
         .unwrap();
 
-        let scan = scan_exported_symbols_full(&file, ExportLevel::Member, ParseMode::Ast);
+        let scan = scan_exported_symbols_full(
+            file.parent().unwrap(),
+            &file,
+            ExportLevel::Member,
+            ParseMode::Ast,
+        );
         match scan {
             ExportScan::Parsed(symbols) => {
                 // tree-sitter's error recovery still locates the real pub fn

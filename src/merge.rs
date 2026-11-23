@@ -1,6 +1,5 @@
 use colored::Colorize;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::path::Path;
 use std::sync::{LazyLock, Mutex};
 
@@ -40,14 +39,17 @@ pub fn merge_specs(
 ) -> Vec<MergeResult> {
     let conflicted = if all_files {
         // Scan all spec files for conflict markers
-        let spec_files = find_spec_files(specs_dir);
+        let spec_files = find_spec_files(root, specs_dir);
         spec_files
             .into_iter()
-            .filter(|path| match fs::read_to_string(path) {
-                Ok(content) => has_conflict_markers(&content),
-                // Keep unreadable candidates so the main loop emits an explicit
-                // Manual result instead of silently dropping them.
-                Err(_) => true,
+            .filter(|path| {
+                match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES)
+                {
+                    Ok(content) => has_conflict_markers(&content),
+                    // Keep unreadable candidates so the main loop emits an explicit
+                    // Manual result instead of silently dropping them.
+                    Err(_) => true,
+                }
             })
             .collect::<Vec<_>>()
     } else {
@@ -74,7 +76,11 @@ pub fn merge_specs(
     let mut results = Vec::new();
 
     for spec_path in &conflicted {
-        let content = match fs::read_to_string(spec_path) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(e) => {
                 results.push(MergeResult {
@@ -92,7 +98,7 @@ pub fn merge_specs(
         // Preserve all-or-nothing writes: an ambiguous hunk leaves the complete
         // original file untouched, even when other hunks are auto-resolvable.
         if !dry_run && should_write {
-            if let Err(e) = fs::write(spec_path, &resolved) {
+            if let Err(e) = crate::util::write_project_file(root, spec_path, resolved.as_bytes()) {
                 results.push(MergeResult {
                     spec_path: rel_path(root, spec_path),
                     status: MergeStatus::Manual,
@@ -1222,6 +1228,7 @@ pub fn results_to_json(results: &[MergeResult]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn test_has_conflict_markers() {

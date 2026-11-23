@@ -140,7 +140,7 @@ fn applied_delta_items(
         else {
             continue;
         };
-        let Ok(spec) = fs::read_to_string(&spec_path) else {
+        let Ok(spec) = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         if !module_records_change(&spec_path, &spec, &record.id) {
@@ -150,8 +150,8 @@ fn applied_delta_items(
         if !delta_path.exists() {
             continue;
         }
-        let delta = read_bounded_change_text(&delta_path, "semantic delta")?;
-        let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+        let delta = read_bounded_change_text(root, &delta_path, "semantic delta")?;
+        let requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         for item in parse_delta(&delta)? {
             if !delta_item_is_applied(&spec, &requirements, &item) {
                 continue;
@@ -324,15 +324,15 @@ pub fn send_back_change(
         &[
             {
                 let path = change_dir(root, &record.id).join("approvals.json");
-                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                let content = json_content_keeping_unknown_members(root, &path, &ledger)?;
                 (path, content)
             },
             {
                 let workspace = change_dir(root, &record.id);
                 let path = workspace.join("state.json");
-                let content = json_content_keeping_unknown_members(
+                let content = json_content_keeping_unknown_members(root, 
                     &path,
-                    relay_gated_record(&workspace, &record).as_ref(),
+                    relay_gated_record(root, &workspace, &record).as_ref(),
                 )?;
                 (path, content)
             },
@@ -475,7 +475,7 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
     for module in &record.affected_specs {
         let delta_path = delta_path_checked(root, record, module)?;
         if delta_path.exists() {
-            let delta = read_bounded_change_text(&delta_path, "semantic delta")?;
+            let delta = read_bounded_change_text(root, &delta_path, "semantic delta")?;
             declared.insert(module.clone(), parse_delta(&delta)?);
         }
     }
@@ -494,8 +494,8 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
         else {
             continue;
         };
-        let spec = fs::read_to_string(&spec_path).unwrap_or_default();
-        let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+        let spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
+        let requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         if !delta_item_is_applied(&spec, &requirements, &item.as_delta_item()) {
             continue;
         }
@@ -528,7 +528,7 @@ fn ensure_no_orphaned_applied_text(root: &Path, record: &ChangeRecord) -> Result
         let Ok((spec_path, _)) = canonical_module_paths(root, &specs_dir, module) else {
             continue;
         };
-        let spec = fs::read_to_string(&spec_path).unwrap_or_default();
+        let spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         let fragment = history_fragment_path(&spec_path, &record.id);
         let advice = if fs::symlink_metadata(&fragment).is_ok() {
             format!(

@@ -4,6 +4,7 @@ version: 234
 status: active
 files:
   - src/change.rs
+  - src/change/approval_checks.rs
   - src/change/collect_requirement_ids.rs
   - src/change/consider_accepted_evidence_anchor.rs
   - src/change/retirement.rs
@@ -20,6 +21,7 @@ files:
   - src/change/validate_loaded_change.rs
   - src/change/verification_ignored_paths.rs
   - src/change_tests.rs
+  - src/change_tests/approval_dry_run.rs
   - src/change_tests/approve_ownership_names_the_spec.rs
   - src/change_tests/approve_refusal_hints.rs
   - src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs
@@ -45,6 +47,8 @@ files:
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs
+  - src/change_tests/journal_replay_targets.rs
+  - src/change_tests/hardening_641.rs
   - src/change_tests/upstream_archive.rs
   - src/change_tests/verification_ignored_paths.rs
   - src/lifecycle-validation-limits.json
@@ -52,6 +56,7 @@ db_tables: []
 tracks: []
 depends_on:
   - specs/hash_cache/hash_cache.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Change
@@ -188,6 +193,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `DoctorRequest` | What `specsync doctor` was asked to do: `fix`, `dry_run`, the IDs (or `all`) to close late, and the actor and reason a late close needs (REQ-cmd-change-035) |
 | `HistoryFragment` | One change's record in a module's history: change id, `YYYY-MM-DD` date and one-line summary (REQ-change-160) |
 | `SpecHistory` | A module's whole history for `specsync history`: module, spec path, frozen `version:`, the Change Log table header and rows as written, and the fragments in date then change-id order (REQ-cmd-change-037) |
+| `ApprovalDryRun` | What `change approve --dry-run` found: the change id, `dry_run: true`, `would_approve`, and one `ApprovalCheckReport` per check in approval order. Nothing was written to produce it (REQ-change-163) |
+| `ApprovalCheckReport` | One check of an approval dry run: its stable `check` name, its `result`, the `message` of a refused check in `change approve`'s own words, the `skipped_because` check of a skipped one, and for a refused `definition` or `ownership` check whose message names the command that fixes it, that command as `fix`, which may hold a placeholder (REQ-change-163, REQ-cmd-change-040) |
+| `ApprovalCheckResult` | How one check of an approval dry run ended: `Passed`, `Refused` or `Skipped`, serialized in lower case (REQ-change-163) |
 | `DoctorReport` | Every finding, whether it was a dry run, and the actions `--fix` applied, would apply, skipped or failed; `is_clean` is false when an action failed |
 | `DoctorFinding` | One problem doctor found: its kind, change (or none for the project), location, reason and fix |
 | `DoctorFix` | A finding's fix: its class, the exact command or what to edit, and an optional alternative a person may choose |
@@ -245,8 +253,9 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `approval_current_for_guidance` | `root, record` | `bool` | Whether an approved, implementing, or verifying change's definition approval still covers its approved scope and the semantic delta bodies it recorded — the predicate behind `ChangeSummary.approval_valid` — for human next-action guidance without printing a digest |
 | `approved_delta_summaries` | `root, record` | `Vec<ApprovedDeltaSummary>` | Per-module approved delta declarations for an approved, implementing or verifying change whose scope approval is current, read from the same bytes the delta-binding comparison digests, shared with `ChangeSummary` within one read scope; empty in every other state |
 | `approve_definition` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Validate and record an ordinary mandatory definition approval |
+| `approve_definition_dry_run` | `root, id, actor, note, portable_v501, relay` | `ApprovalDryRun` | Say whether `change approve` would accept the change, and write nothing: walk the approval's own ordered checks, report the first problem from each one that can run, and name each skipped check with the refused check it waits on. `relay` is the relayed decision or the refusal of its flags. It takes no lifecycle lock and recovers no interrupted write; the baseline binding and a relayed decision's version raise stay in memory (REQ-change-163) |
 | `approve_definition_portable_v501` | `root, id, actor, note` | `Result<ChangeRecord, String>` | Atomically record the marked current/5.0.1 portable definition pair |
-| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written |
+| `approve_definition_with_relay` | `root, id, actor, note, portable_v501, relayed_by` | `Result<ChangeRecord, String>` | Record a definition approval (or the portable pair) carrying an optional relayed decision; a relay whose `decided_by` is not the explicit `--actor` is refused before anything is written. It walks the ordered checks `approve_definition_dry_run` walks, returns the first refusal, then writes (REQ-change-163) |
 | `archive_change` | `root, id` | `Result<PathBuf, String>` | Move an accepted workspace into the dated archive |
 | `artifacts_complete_for_guidance` | `root, record` | `bool` | Lightweight selected-artifact completeness for human next-action guidance without digest loaders |
 | `audit_project` | `root: &Path` | `SddCheckReport` | Active workspaces + living policy/spec coherence only — does not rewalk archived terminal evidence. A duplicated requirement ID in a living `requirements.md` is an error and is named |
@@ -395,6 +404,10 @@ Acceptance Criteria
 59. After definition approval, the guided next action for an approved or implementing change names `specsync change check <id> --commit`. `change review` and `change ship` refuse when the recorded verification commit does not contain the change's own work — the current contents of its `affected_paths` and any canonical specs it materialized — and they do not record a review bound to such a commit. Uncommitted files under `.specsync/` alone do not trigger that refusal (#535, REQ-change-156, REQ-change-157).
 60. A change that holds a relayed decision is recorded at workflow version 3, the gated form of workflow v2, so SpecSync 6.2.0 and older refuse it with "was written by a newer SpecSync" rather than rewrite it and drop `relayed_by` (REQ-change-158). Approve and review write version 3 before the relay, and every other `state.json` write raises a version-2 change whose ledgers hold a relay and never writes 2 over a file already at 3. The origin anchor stays 2; the workflow-version history accepts only the 2-to-3 raise and refuses 3 back to 2; every digest reads 3 as 2, so the raise stales nothing. A workflow-v1 change, which a `--portable-5-0-1` pair requires, keeps version 1, and approve and review print a note that its relay is not gated.
 61. A change's record in a module's history is its own file, `history/<change-id>.md` beside the spec, so two changes to one module never edit the same line of its spec and merge without a merge driver (#1084, MERGE-1). A Change Log table written before this is frozen as it is: no row is rewritten, and `specsync check` refuses a change recorded both by a fragment and by a row.
+62. Every read of a project file here, `.specsync/sdd.json` and every change record (4 MiB), the transaction journal and a delivery file whose digest it compares (64 MiB), and the spec, requirements, companion, history and lesson files it reads (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-change-161).
+63. The transaction journal is written, replayed and removed only as `change-transaction.json` in the project's local state folder outside the work tree (`util::local_state`), and replayed only into files the change workflow writes. A `.specsync/change-transaction.json` in the work tree, of any kind and tracked or not, is never opened or replayed, and nor is a journal under a Git directory, which an archive can ship: every command that takes the lifecycle lock refuses while one is in the work tree, naming it and how to clear it. An entry is judged after backslashes become separators, as the write does. It is replayed only under `.specsync/`, as a spec file, `requirements.md` or `history/*.md` under `specs_dir` (so a `specs_dir` of `.` opens nothing else), or as a registry-mapped spec whose mapped path ends in `.spec.md`, the `requirements.md` beside it or a file in its `history/`; a registry entry naming any other file, such as `.env`, opens nothing. A `.git` component is refused in any letter case and with trailing dots or spaces. One refused entry refuses the whole journal before any entry is applied, and the bare-array 5.x form is refused. Every transaction passes the same rule before it is journaled (REQ-change-162).
+64. The change workflow writes `change.md`, its selected artifacts, `state.json`, `approvals.json` and its other JSON records, and creates its workspaces, only through `util`'s confined project write functions; an artifact is created with an exclusive create. Before `change answer`, `depend`, `supersede`, `approve` and `start` write anything, `ensure_change_files_writable` refuses a change whose records or selected artifacts lead out of the repository, dangle, or lead into the Git directory, so a committed link can neither carry the record's text outside nor replace a Git hook. The durable writers behind transactions, archive, retirement and late-close moves refuse every symbolic link component of what they write, remove or rename (REQ-change-165).
+65. `change adopt`'s requirement ID proposals find `requirements.md` under `specs_dir` only through `find_files_named`, and the persistent read cache of archived history verdicts lives in the user's cache folder (`util::local_state::repository_state_dir`), never in the Git common directory an archive can ship (REQ-change-164).
 
 ## Behavioral Examples
 
@@ -507,6 +520,10 @@ Acceptance Criteria
 | The mismatched package is modified, unanchored, not active v2, or has any other invalid finalization digest | Recovery refuses without changing lifecycle or evidence bytes |
 | The exactly recorded mismatched old review also has an inconsistent review hash | Reopen-only recovery preserves both as untrusted at the same anchor; finalization self-digest and all non-review checks remain strict, and a pure review-hash mismatch remains refused |
 | A workflow-version downgrade is committed and then restored, including when the project root is a subdirectory of the Git repository | Load, status, and a warm read cache refuse with `workflow-version history changed immutable identity`, and a downgrade that exists only on an earlier dated archive path is still seen after reopen and rearchive |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
+| A `.specsync/change-transaction.json` is in the work tree (left by SpecSync 6.3 or earlier, or put there by a repository) | The writing command refuses before it starts, never opens the file, names it, and says to check the files it lists and delete it |
+| The journal in the local state folder names a `.git` file or a file outside what the workflow writes, or is the bare-array form | The writing command refuses before it starts and replays nothing; the message names the journal, the entry where there is one, and the `.broken` set-aside |
+| A change's `change.md`, record or selected artifact leads out of the repository, dangles, or leads into the Git directory | `refused to write change `<id>`: <reason>; restore the file as a plain file`, before anything is written |
 
 ## Dependencies
 

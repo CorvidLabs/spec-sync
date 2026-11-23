@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "never-write-a-project-file-through-a-symbolic-link",
+  "implementation_commit": "b8e3558621e94aaa50cdd8f668b8cc7856fc60aa",
+  "implementation_tree": "d0c2338490ea32521abd6fa7e61abd733e537fa4",
+  "contract_digest": "9b8710ab478c336ea5f18f4907a5c45fd7c2197585f949b578cf7151ceefa30c",
+  "workspace_digest": "fd86ee8fe25ae137fe35d4ba955723ce8235226b769b649b744abafbdc281c53",
+  "closing_digest": "3fe436220f3e6d59477af826f7889e6554b3f0f84d57967698f1f0499d7f248b",
+  "review_digest": "372b141e812d3923e51ccef443c41785a04a3778399ec4216c39882fbaa469a9",
+  "finalization_digest": "01045c5fc6447de1959f30aea1f1d4096a183e719934c7698f4f61bcd2058862",
+  "timestamp": 1795097268
+}

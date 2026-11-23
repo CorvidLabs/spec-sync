@@ -98,3 +98,26 @@ Acceptance Criteria
 - A module whose candidates are all owned takes the existing no-files path: the spec is written with `files: []` and the empty-files warning, and no owned file is ever listed.
 - Explicit `config.modules` mappings are not filtered — the config is the author's explicit ownership declaration.
 
+### REQ-generator-010
+
+`generate_companion_files_for_spec` and `generate_companion_files_from_template` SHALL create each companion file only through `create_project_file` of `util` (REQ-util-002). A companion that already exists SHALL be left as it is. A companion whose path is a dangling link, or leaves the project through a link, SHALL be refused with an error on stderr that names the path, without stopping the other companions, and nothing SHALL be created outside the project.
+
+Acceptance Criteria
+- A dangling link at `specs/<module>/tasks.md` to a path outside the project: nothing is created at its target, the other companions are created, and stderr names `specs/<module>/tasks.md`.
+- The spec directory linked to a directory outside the project: no companion is created there.
+- An existing companion keeps its content.
+
+### REQ-generator-011
+
+Generation SHALL read the spec files it reads and the templates in the project only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-generator-012
+
+Spec generation SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). It SHALL create a generated spec with the exclusive create of the confined project write, so a dangling or outward link at the spec is refused. It SHALL find spec files only through the confined, budgeted walk of `validator` (REQ-validator-050), so a `specs` link that leaves the repository, or a tree past the walk's budget, stops it with the reason instead of being walked.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+

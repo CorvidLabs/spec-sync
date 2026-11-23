@@ -24,11 +24,16 @@ changes. Changes archived before the journal began are in [.specsync/archive/cha
 
 Newest posts:
 
-- [Text change status names a sequence-ledger freeze before the…](journal/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the.md) (2026-11-19, shipped)
-- [ship-status reports an archived change's review as done by finalize…](journal/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by.md) (2026-11-19, shipped)
-- [change ship-status exits 1 when it reports a blocker](journal/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker.md) (2026-11-19, shipped)
-- [Fix the four #1086 review findings on history fragments](journal/2026-11-19-fix-the-four-1086-review-findings-on-history-fragments.md) (2026-11-19, shipped)
-- [At ship SpecSync writes specs/\<module\>/history/\<change-id\>.md…](journal/2026-11-19-at-ship-specsync-writes-specs-module-history-change-id-md.md) (2026-11-19, shipped)
+- [Cover, as a second no-spec-change change in the 6.4.1 PR](journal/2026-11-20-cover-as-a-second-no-spec-change-change-in-the-6-4-1-pr.md) (2026-11-20, shipped)
+- [6.4.1: close the 14 low items left after GHSA-7q5v-8jcc-rx54](journal/2026-11-20-6-4-1-close-the-14-low-items-left-after-ghsa-7q5v-8jcc-rx54.md) (2026-11-20, shipped)
+- [hooks install, uninstall and status name the path and reason when a…](journal/2026-11-20-hooks-install-uninstall-and-status-name-the-path-and-reason.md) (2026-11-20, shipped)
+- [Every walk of a configured folder goes through the confined walk](journal/2026-11-20-every-walk-of-a-configured-folder-goes-through-the-confined.md) (2026-11-20, shipped)
+- [SpecSync keeps its cache](journal/2026-11-20-specsync-keeps-its-cache.md) (2026-11-20, shipped)
+- [SpecSync's hash cache](journal/2026-11-20-specsync-s-hash-cache.md) (2026-11-20, shipped)
+- [Writes, reads and caches a repository can steer stay inside its Git…](journal/2026-11-20-writes-reads-and-caches-a-repository-can-steer-stay-inside-its.md) (2026-11-20, shipped)
+- [SpecSync 6.4.0 release preparation on main](journal/2026-11-20-specsync-6-4-0-release-preparation-on-main.md) (2026-11-20, shipped)
+- [Journals SpecSync did not write are never replayed](journal/2026-11-19-journals-specsync-did-not-write-are-never-replayed.md) (2026-11-19, shipped)
+- [specsync change approve \<id\> --dry-run runs the approval's own checks](journal/2026-11-19-specsync-change-approve-id-dry-run-runs-the-approval-s-own.md) (2026-11-19, shipped)
 
 ## Where things live
 
@@ -183,7 +188,7 @@ Each module's lessons stay in its lesson source:
 - agents: [specs/agents/agents.3md](../specs/agents/agents.3md), 7 lessons
 - ai: [specs/ai/ai.3md](../specs/ai/ai.3md), 3 lessons
 - archive: [specs/archive/archive.3md](../specs/archive/archive.3md), 3 lessons
-- change: [specs/change/change.3md](../specs/change/change.3md), 54 lessons
+- change: [specs/change/change.3md](../specs/change/change.3md), 56 lessons
 - changelog: [specs/changelog/changelog.3md](../specs/changelog/changelog.3md), 3 lessons
 - cli: [specs/cli/cli.3md](../specs/cli/cli.3md), 8 lessons
 - cli_args: [specs/cli_args/cli_args.3md](../specs/cli_args/cli_args.3md), 7 lessons
@@ -191,7 +196,7 @@ Each module's lessons stay in its lesson source:
 - cmd_archive_tasks: [specs/cmd_archive_tasks/cmd_archive_tasks.3md](../specs/cmd_archive_tasks/cmd_archive_tasks.3md), 4 lessons
 - cmd_change: [specs/cmd_change/cmd_change.3md](../specs/cmd_change/cmd_change.3md), 15 lessons
 - cmd_changelog: [specs/cmd_changelog/cmd_changelog.3md](../specs/cmd_changelog/cmd_changelog.3md), 4 lessons
-- cmd_check: [specs/cmd_check/cmd_check.3md](../specs/cmd_check/cmd_check.3md), 5 lessons
+- cmd_check: [specs/cmd_check/cmd_check.3md](../specs/cmd_check/cmd_check.3md), 6 lessons
 - cmd_comment: [specs/cmd_comment/cmd_comment.3md](../specs/cmd_comment/cmd_comment.3md), 5 lessons
 - cmd_compact: [specs/cmd_compact/cmd_compact.3md](../specs/cmd_compact/cmd_compact.3md), 4 lessons
 - cmd_coverage: [specs/cmd_coverage/cmd_coverage.3md](../specs/cmd_coverage/cmd_coverage.3md), 4 lessons
@@ -224,8 +229,8 @@ Each module's lessons stay in its lesson source:
 - generator: [specs/generator/generator.3md](../specs/generator/generator.3md), 9 lessons
 - git_utils: [specs/git_utils/git_utils.3md](../specs/git_utils/git_utils.3md), 6 lessons
 - github: [specs/github/github.3md](../specs/github/github.3md), 12 lessons
-- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 5 lessons
-- hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 6 lessons
+- hash_cache: [specs/hash_cache/hash_cache.3md](../specs/hash_cache/hash_cache.3md), 6 lessons
+- hooks: [specs/hooks/hooks.3md](../specs/hooks/hooks.3md), 7 lessons
 - ignore: [specs/ignore/ignore.3md](../specs/ignore/ignore.3md), 4 lessons
 - importer: [specs/importer/importer.3md](../specs/importer/importer.3md), 5 lessons
 - manifest: [specs/manifest/manifest.3md](../specs/manifest/manifest.3md), 13 lessons
@@ -238,7 +243,7 @@ Each module's lessons stay in its lesson source:
 - schema: [specs/schema/schema.3md](../specs/schema/schema.3md), 4 lessons
 - scoring: [specs/scoring/scoring.3md](../specs/scoring/scoring.3md), 4 lessons
 - types: [specs/types/types.3md](../specs/types/types.3md), 4 lessons
-- util: [specs/util/util.3md](../specs/util/util.3md), 4 lessons
+- util: [specs/util/util.3md](../specs/util/util.3md), 9 lessons
 - validator: [specs/validator/validator.3md](../specs/validator/validator.3md), 11 lessons
 - view: [specs/view/view.3md](../specs/view/view.3md), 4 lessons
 - watch: [specs/watch/watch.3md](../specs/watch/watch.3md), 7 lessons
@@ -249,9 +254,9 @@ Lessons that span projects:
 
 Lesson bundles of the newest 3 archived changes:
 
-- [text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair](../.specsync/archive/changes/2026-11-19-text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair/lesson-bundle.md), Text change status names a sequence-ledger freeze before the verification_ignored_paths repair
-- [ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only](../.specsync/archive/changes/2026-11-19-ship-status-reports-an-archived-change-s-review-as-done-by-finalize-and-classifies-its-re-archive-tip-as-archive-only/lesson-bundle.md), Ship-status reports an archived change's review as done by finalize and classifies its re-archive tip as archive-only
-- [change-ship-status-exits-1-when-it-reports-a-blocker](../.specsync/archive/changes/2026-11-19-change-ship-status-exits-1-when-it-reports-a-blocker/lesson-bundle.md), Change ship-status exits 1 when it reports a blocker
+- [route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths](../.specsync/archive/changes/2026-11-20-route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths/lesson-bundle.md), Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths
+- [close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first](../.specsync/archive/changes/2026-11-20-close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first/lesson-bundle.md), Close the low items left after the hash-cache advisory, red tests first
+- [advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0](../.specsync/archive/changes/2026-11-20-advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0/lesson-bundle.md), Advance the Action default and current guidance to published SpecSync 6.4.0
 
 ## Snapshots and briefs
 

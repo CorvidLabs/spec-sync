@@ -532,6 +532,25 @@
         "REQ-change-166",
         "REQ-cmd-change-committed-ledger-001"
       ]
+    },
+    {
+      "timestamp": 1795478379,
+      "commit": "5099f27ddb3252ef466a25b0341c8c0594bd4085",
+      "contract_digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "execution_digest": "be131db98cad350cedc012ee05fb2a27417a2404422be3df3855ce9279859db7",
+      "workspace_digest": "bc5aef60109908f9b408e41d44c6d440614642d84f00f7aa2c48c09a9975c241",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-166",
+        "REQ-cmd-change-committed-ledger-001"
+      ]
     }
   ]
 }

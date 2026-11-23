@@ -1,0 +1,66 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795062529,
+      "digest": "97ad086a3daca40ce717abbbefc2a2ff3a3db89473468d4a959591171eb58c6d",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of never-read-or-write-the-hash-cache-through-a-symbolic-link\": \"Approve\" (Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 04:25Z. t4c gave him the scope in plain words (load reads a linked or non-regular cache as empty; save refuses when .specsync or .specsync/hashes.json is a symlink or not a regular file, else writes a temp file in .specsync and renames it; check skips the cache with one stderr warning and keeps its verdict and exit code; rehash exits 1; the listed paths) and asked him to approve; relayed by t4c over hc to t5r). Relayed and recorded by claude-code-t5r at 2026-11-19T04:28:49Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "never-read-or-write-the-hash-cache-through-a-symbolic-link",
+        "title": "Never read or write the hash cache through a symbolic link",
+        "description": "Never read or write the hash cache through a symbolic link",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "hash_cache"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "docs/HLD.md",
+          "hi/check.md",
+          "site/src/content/docs/cli.md",
+          "specs/cmd_check/",
+          "specs/hash_cache/",
+          "src/commands/check.rs",
+          "src/hash_cache.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "With .specsync/hashes.json, or .specsync itself, as a symbolic link to a path outside the repository, specsync check and specsync rehash leave the link's target byte for byte unchanged and create nothing through it; check keeps its verdict and exit code and prints one stderr warning that the hash cache was not saved; rehash exits 1 and names the link; load returns an empty cache without reading through a link; a regular cache is replaced by a temp file in .specsync renamed over it; the new tests fail on 3bebe8b0 and pass with the fix"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "hash_cache.3md 'Conservative on uncertainty': an unusable cache may only cause more validation, so a cache location that is a link or not a regular file reads as an empty cache. cmd_check.3md: the cache is persisted only with zero errors and a skip is never a claim that nothing was wrong, so a cache that was not saved is said on stderr and never changes the verdict.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "fb0e85aea547131410f9e30a5e3c909d9a590d6db07b318162fab291e6f1a9b7",
+        "hash_cache": "8355fd3b244e847b3b63fb56879cc13958e7d5e98dac57761f90fb5ac0adcc3a"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 04:25Z. t4c gave him the scope in plain words (load reads a linked or non-regular cache as empty; save refuses when .specsync or .specsync/hashes.json is a symlink or not a regular file, else writes a temp file in .specsync and renames it; check skips the cache with one stderr warning and keeps its verdict and exit code; rehash exits 1; the listed paths) and asked him to approve; relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097121,
+      "digest": "3a0a1bf2a5378d8ef46258975980dfb7d5aeb7bd70e9ce64c7a8e60041a9c8c8",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

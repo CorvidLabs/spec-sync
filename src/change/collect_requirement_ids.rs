@@ -22,7 +22,7 @@ fn project_path_is_absent_at(root: &Path, commit: &str, path: &str) -> bool {
 }
 
 fn project_path_matches_digest(root: &Path, path: &str, digest: &str) -> bool {
-    let Ok(content) = fs::read(root.join(path)) else {
+    let Ok(content) = crate::util::read_project_bytes(root, &root.join(path), crate::util::MAX_PROJECT_INPUT_BYTES) else {
         return false;
     };
     if bootstrap_digest(path, &content) == digest || content_digest(&content) == digest {
@@ -73,17 +73,12 @@ fn content_digest(content: &[u8]) -> String {
 fn requirement_id_proposals(root: &Path) -> Vec<serde_json::Value> {
     let mut proposals = Vec::new();
     let specs = root.join(crate::config::load_config(root).specs_dir);
-    for entry in walkdir::WalkDir::new(specs)
-        .into_iter()
-        .filter_map(Result::ok)
-    {
-        let path = entry.path();
-        if !entry.file_type().is_file()
-            || path.file_name().and_then(|name| name.to_str()) != Some("requirements.md")
-        {
-            continue;
-        }
-        let content = fs::read_to_string(path).unwrap_or_default();
+    // Only through the confined walk: a `specs` folder that leads out of the project proposes
+    // nothing (REQ-change-164).
+    let found = crate::validator::find_files_named(root, &specs, "requirements.md").unwrap_or_default();
+    for path in &found {
+        let path = path.as_path();
+        let content = crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
         if content.contains("### REQ-") {
             continue;
         }
@@ -166,7 +161,36 @@ fn add_artifact(record: &mut ChangeRecord, artifact: ArtifactKind) {
     }
 }
 
+/// A refusal and, when its message names the one command that fixes it, that command as plain
+/// text. The command is built by the same code that writes it into the message, never read back
+/// out of the message (REQ-cmd-change-040's `fix`).
+struct RefusalWithFix {
+    message: String,
+    fix: Option<String>,
+}
+
+impl From<String> for RefusalWithFix {
+    fn from(message: String) -> Self {
+        Self { message, fix: None }
+    }
+}
+
+impl From<&str> for RefusalWithFix {
+    fn from(message: &str) -> Self {
+        Self {
+            message: message.to_string(),
+            fix: None,
+        }
+    }
+}
+
 fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    validate_definition_with_fix(root, record).map_err(|refusal| refusal.message)
+}
+
+/// `validate_definition`, with the `change answer` command a draft's refusal for an unanswered
+/// question names, for the approval dry run's `fix` (REQ-cmd-change-040).
+fn validate_definition_with_fix(root: &Path, record: &ChangeRecord) -> Result<(), RefusalWithFix> {
     let effective = effective_change_definition(root, record)?;
     historical_reconciliation_anchor(record)?;
     validate_acceptance_owner_correction_records(record)?;
@@ -242,16 +266,17 @@ fn validate_definition(root: &Path, record: &ChangeRecord) -> Result<(), String>
         && let Some(principles) = policy.principles_file
     {
         let path = safe_project_path(root, &principles)?;
-        let content = fs::read_to_string(&path)
+        let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|_| format!("configured principles file is missing: {}", path.display()))?;
         if content.trim().is_empty() {
             return Err(format!(
                 "configured principles file is empty: {}",
                 path.display()
-            ));
+            )
+            .into());
         }
     }
-    validate_artifacts(root, record)
+    Ok(validate_artifacts(root, record)?)
 }
 
 const INTERVIEW_INCOMPLETE: &str = "the deterministic interview is incomplete";
@@ -263,20 +288,23 @@ fn unfinished_definition_refusal(
     record: &ChangeRecord,
     condition: &str,
     question: &str,
-) -> String {
+) -> RefusalWithFix {
     if record.state == ChangeState::Draft {
-        format!(
-            "{condition}; run {}",
-            answer_command_hint(&record.id, question, &[])
-        )
+        RefusalWithFix {
+            message: format!(
+                "{condition}; run {}",
+                answer_command_hint(&record.id, question, &[])
+            ),
+            fix: Some(answer_command(&record.id, question, &[])),
+        }
     } else {
-        condition.to_string()
+        condition.into()
     }
 }
 
 /// A draft's refusal for an unfinished interview: every question still open, and the
 /// `change answer` command for the first one (REQ-change-133).
-fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> String {
+fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> RefusalWithFix {
     let open = remaining
         .iter()
         .map(|question| format!("`{}`", question.id))
@@ -285,10 +313,13 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
     let Some(first) = remaining.first() else {
         return INTERVIEW_INCOMPLETE.into();
     };
-    format!(
-        "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
-        answer_command_hint(id, &first.id, &first.choices)
-    )
+    RefusalWithFix {
+        message: format!(
+            "{INTERVIEW_INCOMPLETE} (still to answer: {open}); run {}",
+            answer_command_hint(id, &first.id, &first.choices)
+        ),
+        fix: Some(answer_command(id, &first.id, &first.choices)),
+    }
 }
 
 /// The `change answer` command for one open interview question, shared by approve's refusal
@@ -299,6 +330,18 @@ fn interview_incomplete_refusal(id: &str, remaining: &[InterviewQuestion]) -> St
 /// hint also says the lessons that apply can be named instead. No choice takes free text, with
 /// the scope questions keeping their established placeholders.
 pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String]) -> String {
+    let command = format!("`{}`", answer_command(id, question_id, choices));
+    if question_id == "constraints" && choices.len() == 1 {
+        format!("{command}, or name the lessons or principles that constrain it instead")
+    } else {
+        command
+    }
+}
+
+/// The bare `change answer` command `answer_command_hint` prints between backticks: the approval
+/// dry run's `fix` (REQ-cmd-change-040). With two or more choices, or for a free-text question,
+/// it holds a placeholder in angle brackets that the caller must fill in.
+fn answer_command(id: &str, question_id: &str, choices: &[String]) -> String {
     let answer = match choices {
         [] => match question_id {
             "acceptance_criteria" => "\"<observable outcome>\"",
@@ -310,12 +353,7 @@ pub(crate) fn answer_command_hint(id: &str, question_id: &str, choices: &[String
         [only] => only.clone(),
         choices => format!("<{}>", choices.join("|")),
     };
-    let command = format!("`specsync change answer {id} {question_id} {answer}`");
-    if question_id == "constraints" && choices.len() == 1 {
-        format!("{command}, or name the lessons or principles that constrain it instead")
-    } else {
-        command
-    }
+    format!("specsync change answer {id} {question_id} {answer}")
 }
 
 fn validate_supersedes_edges(record: &ChangeRecord) -> Result<(), String> {
@@ -596,7 +634,7 @@ fn validate_artifact_bodies(
     let dir = find_change_dir(root, id)?;
     for artifact in selected {
         let path = dir.join(artifact.file_name());
-        let content = read_bounded_change_text(&path, "artifact")?;
+        let content = read_bounded_change_text(root, &path, "artifact")?;
         if artifact_is_incomplete(artifact, &content) {
             return Err(format!("artifact is incomplete: {}", path.display()));
         }
@@ -782,7 +820,7 @@ fn is_placeholder_todo_line(line: &str) -> bool {
         || lower == "* todo"
 }
 
-fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
+fn read_bounded_change_text(root: &Path, path: &Path, kind: &str) -> Result<String, String> {
     let metadata = fs::metadata(path)
         .map_err(|_| format!("required {kind} is missing: {}", path.display()))?;
     if metadata.len() > MAX_CHANGE_ARTIFACT_BYTES {
@@ -792,7 +830,7 @@ fn read_bounded_change_text(path: &Path, kind: &str) -> Result<String, String> {
             path.display()
         ));
     }
-    fs::read_to_string(path).map_err(|error| format!("failed to read {}: {error}", path.display()))
+    crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| format!("failed to read {}: {error}", path.display()))
 }
 
 /// How many open tasks a refusal or next action names one by one; the rest are counted.
@@ -875,7 +913,7 @@ fn open_tasks_selected(
         return Ok(Vec::new());
     }
     let path = change_dir(root, id).join("tasks.md");
-    let content = fs::read(&path).map_err(|error| error.to_string())?;
+    let content = crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| error.to_string())?;
     Ok(open_tasks_in(&content))
 }
 
@@ -955,7 +993,7 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
     }
     for module in &record.affected_specs {
         let content =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+            read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
         if parse_delta(&content)?.iter().any(|item| {
             matches!(
                 item.target,
@@ -970,8 +1008,9 @@ fn semantic_acceptance_item_exists(root: &Path, record: &ChangeRecord) -> Result
 
 fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[String]) -> Vec<String> {
     let testing =
-        fs::read_to_string(change_dir(root, &record.id).join("testing.md")).unwrap_or_default();
+        crate::util::read_project_string(root, &change_dir(root, &record.id).join("testing.md"), crate::util::MAX_STATE_FILE_BYTES).unwrap_or_default();
     let mut evidence = Vec::new();
+    // not a project file read: walks the project without following any link (WalkDir does not by default), and reads each file through the bounded read
     for entry in walkdir::WalkDir::new(root)
         .into_iter()
         .filter_map(Result::ok)
@@ -996,7 +1035,7 @@ fn requirement_evidence_missing(root: &Path, record: &ChangeRecord, ids: &[Strin
         .filter(|id| {
             !testing.contains(id.as_str())
                 && !evidence.iter().any(|path| {
-                    fs::read_to_string(path)
+                    crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES)
                         .map(|content| content.contains(id.as_str()))
                         .unwrap_or(false)
                 })
@@ -1148,7 +1187,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 continue;
             }
         };
-        let mut spec = match fs::read_to_string(&canonical) {
+        let mut spec = match crate::util::read_project_string(root, &canonical, crate::util::MAX_SPEC_FILE_BYTES) {
             Ok(spec) => spec,
             Err(error) => {
                 errors.push(format!(
@@ -1177,7 +1216,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
                 }
                 Err(error) => return EffectiveContractOutcome::failed(error),
             };
-            let delta = match read_bounded_change_text(&delta_path, "semantic delta") {
+            let delta = match read_bounded_change_text(root, &delta_path, "semantic delta") {
                 Ok(delta) => delta,
                 Err(error) => {
                     if applied {
@@ -1225,12 +1264,14 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             }
         }
         let effective_dir = temp.join(&module);
+        // not a project file write: the effective-contract workspace in the system temporary directory
         if let Err(error) = fs::create_dir_all(&effective_dir) {
             errors.push(format!("failed to prepare effective contract: {error}"));
             continue;
         }
         let effective = effective_dir.join(format!("{module}.spec.md"));
         let inline_ignores = crate::ignore::IgnoreRules::parse_inline(&spec);
+        // not a project file write: the effective-contract workspace in the system temporary directory
         if let Err(error) = fs::write(&effective, spec) {
             errors.push(format!("failed to write effective contract: {error}"));
             continue;
@@ -1278,6 +1319,7 @@ fn validate_effective_contracts(root: &Path, records: &[ChangeRecord]) -> Effect
             module_errors.insert(module.clone(), verdicts);
         }
     }
+    // not a project file write: the effective-contract workspace in the system temporary directory
     let _ = fs::remove_dir_all(temp);
     EffectiveContractOutcome {
         errors,
@@ -1294,6 +1336,7 @@ fn create_effective_contract_workspace() -> Result<PathBuf, String> {
             std::process::id(),
             now()
         ));
+        // not a project file write: the effective-contract workspace in the system temporary directory
         match fs::create_dir(&path) {
             Ok(()) => return Ok(path),
             Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -1365,7 +1408,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     let directory = change_dir(root, &record.id).join("deltas");
     let mut actual_modules = BTreeSet::new();
     if directory.exists() {
-        for entry in fs::read_dir(&directory)
+        for entry in crate::util::read_project_dir_entries(root, &directory)
             .map_err(|error| format!("failed to inspect semantic deltas: {error}"))?
         {
             let entry =
@@ -1417,7 +1460,7 @@ fn validate_delta_files(root: &Path, record: &ChangeRecord) -> Result<(), String
     let tombstones = removed_requirement_ids(root)?;
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = read_bounded_change_text(&path, "semantic delta")
+        let content = read_bounded_change_text(root, &path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&content)?;
         if items.is_empty() {
@@ -1522,7 +1565,7 @@ fn delta_body_digests(
     }
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let body = read_bounded_change_text(&path, "semantic delta")
+        let body = read_bounded_change_text(root, &path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         digests.insert(module.clone(), delta_body_digest(module, &body));
     }
@@ -1581,7 +1624,7 @@ fn for_each_replacing_delta_item(
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
     for module in &record.affected_specs {
-        let delta = read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")
+        let delta = read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         let items = parse_delta(&delta)?;
         if !items
@@ -1607,7 +1650,7 @@ fn for_each_replacing_delta_item(
 /// A canonical file's text, or empty when it does not exist. Any other read failure is an error:
 /// reading an unreadable file as empty would report an IO fault as a moved block.
 fn read_canonical_or_absent(root: &Path, path: &Path) -> Result<String, String> {
-    match fs::read_to_string(path) {
+    match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
         Ok(text) => Ok(text),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(error) => Err(format!(
@@ -2089,7 +2132,7 @@ fn read_approved_delta_binding(
     if !record.no_spec_change {
         for module in &record.affected_specs {
             let path = delta_path_checked(root, record, module)?;
-            let body = read_bounded_change_text(&path, "semantic delta")
+            let body = read_bounded_change_text(root, &path, "semantic delta")
                 .map_err(|error| format!("semantic delta for {module}: {error}"))?;
             record_test_delta_binding_read();
             let intact = approved.get(module) == Some(&delta_body_digest(module, &body));
@@ -2309,8 +2352,8 @@ fn sent_back_added_block_is_own_on_disk(
     }
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-    let spec = fs::read_to_string(&spec_path).unwrap_or_default();
-    let requirements = fs::read_to_string(&requirements_path).unwrap_or_default();
+    let spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
+    let requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES).unwrap_or_default();
     Ok(sent_back_added_block_is_own(
         &ledger,
         module,
@@ -2328,7 +2371,7 @@ fn living_requirement_conflicts(
 ) -> Result<bool, String> {
     let specs_dir = crate::config::load_config(root).specs_dir;
     let (_, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
-    let Ok(source) = fs::read_to_string(&requirements_path) else {
+    let Ok(source) = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES) else {
         return Ok(false);
     };
     let heading = format!("### {key}");
@@ -2370,6 +2413,7 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
                 ));
             }
         }
+        // not a project file read: walks the historical delta root, refused above when it is a link, without following any link below it
         for entry in walkdir::WalkDir::new(&base) {
             let entry = entry.map_err(|error| {
                 format!(
@@ -2392,7 +2436,7 @@ fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
                 ));
             }
             let content =
-                read_bounded_change_text(path, "historical semantic delta").map_err(|error| {
+                read_bounded_change_text(root, path, "historical semantic delta").map_err(|error| {
                     format!(
                         "failed to read historical semantic delta {}: {error}",
                         path.display()
@@ -2429,7 +2473,7 @@ fn collect_requirement_ids(root: &Path, record: &ChangeRecord) -> Result<Vec<Str
     let mut ids = BTreeSet::new();
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = fs::read_to_string(&path).map_err(|error| error.to_string())?;
+        let content = crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES).map_err(|error| error.to_string())?;
         for item in parse_delta(&content)? {
             if item.target == DeltaTarget::Requirement && item.operation != DeltaOperation::Removed
             {
@@ -2662,9 +2706,15 @@ fn delta_item_is_applied(spec: &str, requirements: &str, item: &DeltaItem) -> bo
 ///
 /// The row described the change as `{id}: {title}` in whichever column the table calls its
 /// description, so it is found by that prefix inside the `## Change Log` section rather than by
-/// rebuilding a row and comparing it. A table that `specsync compact` or a human has since
-/// reformatted still counts, and the trailing colon keeps one slug from matching another that
-/// merely extends it.
+/// rebuilding a row and comparing it. A row names the change when one of its table cells begins
+/// with `{id}:` as written, or just inside the one Markdown marker that opens the cell where that
+/// marker closes right after it or at the cell's end (`cell_names_change`), so a row
+/// `specsync compact` or a human has reformatted (`**{id}:**`) still counts. A cell's padding is
+/// not part of its text, so an id's leading spaces are not compared. Anything else does not: the id
+/// mentioned in another
+/// row's prose (Codex's review of #1088), or a longer id that merely ends with it, so `one-session:`
+/// is not a row for `session`. This one matcher decides both "the module records the change" and
+/// "the change is recorded twice" (#1086 review).
 fn changelog_records_change(spec: &str, id: &str) -> bool {
     let Some(position) = spec.rfind("## Change Log") else {
         return false;
@@ -2673,7 +2723,88 @@ fn changelog_records_change(spec: &str, id: &str) -> bool {
     let end = spec[start..]
         .find("\n## ")
         .map_or(spec.len(), |offset| start + offset);
-    spec[start..end].contains(&format!("{id}:"))
+    // A cell's surrounding spaces are padding, so an id's leading spaces, which stand where that
+    // padding is, are not compared (Codex's review of 8266e6c6); its trailing ones meet the `:`.
+    let needle = format!("{}:", id.trim_start());
+    spec[start..end]
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with('|'))
+        .any(|row| {
+            table_row_cells(row)
+                .iter()
+                .any(|cell| cell_names_change(cell.trim(), &needle))
+        })
+}
+
+/// A Markdown table row's cells as Markdown reads them: split on pipes no backslash escapes, each
+/// `\|` a pipe inside its cell (Codex's review of 0cdd7f41: the cell `a\|b: Title` is the row of
+/// the id `a|b`). The empty text before a row's leading pipe and after its trailing one is kept;
+/// an empty cell never begins with an id.
+fn table_row_cells(row: &str) -> Vec<String> {
+    let mut cells = Vec::new();
+    let mut cell = String::new();
+    let mut characters = row.chars().peekable();
+    while let Some(character) = characters.next() {
+        match character {
+            '\\' if characters.peek() == Some(&'|') => {
+                characters.next();
+                cell.push('|');
+            }
+            '|' => cells.push(std::mem::take(&mut cell)),
+            other => cell.push(other),
+        }
+    }
+    cells.push(cell);
+    cells
+}
+
+/// Whether a Change Log cell begins with `needle` (`<id>:`): the raw cell first, so an id that
+/// itself begins with `*`, `_` or a backtick is matched as written, then `needle` just inside the
+/// one Markdown marker that opens the cell (`**`, `__`, `*`, `_` or a backtick, the longest that
+/// fits) when that marker closes right after it (`**<id>:** Title`) or at the end of the cell
+/// (`**<id>: Title**`). A marker that never closes belongs to the id, so `*hotfix: Hot` is the row
+/// of `*hotfix` and not of `hotfix` (Codex's and ss-lead's reviews of #1088).
+fn cell_names_change(cell: &str, needle: &str) -> bool {
+    if cell.starts_with(needle) {
+        return true;
+    }
+    let Some(marker) = ["**", "__", "*", "_", "`"]
+        .into_iter()
+        .find(|marker| cell.starts_with(marker))
+    else {
+        return false;
+    };
+    cell[marker.len()..]
+        .strip_prefix(needle)
+        .is_some_and(|after| after.starts_with(marker) || after.trim_end().ends_with(marker))
+}
+
+/// Refuse a delta item that targets the spec's `## Change Log` section: REQ-change-159 says the
+/// lifecycle never writes that table, which is frozen, and a change's history goes to its own
+/// fragment (#1086 review). Approve, check, verify and accept ask it; an archive is never re-judged.
+fn refuse_change_log_delta_items(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    if record.no_spec_change {
+        return Ok(());
+    }
+    for module in &record.affected_specs {
+        let path = delta_path_checked(root, record, module)?;
+        let Ok(delta) = read_bounded_change_text(root, &path, "semantic delta") else {
+            continue;
+        };
+        let Ok(items) = parse_delta(&delta) else {
+            continue;
+        };
+        if items.iter().any(is_change_log_section) {
+            // The printed command runs as printed whatever the id holds (Codex's review of #1088).
+            return Err(format!(
+                "semantic delta for `{module}` targets its `## Change Log` section, which SpecSync no longer writes: the table is frozen, and `change check` records this change in `history/{id}.md` beside the spec; take the `SPEC SECTION Change Log` item out of `.specsync/changes/{id}/deltas/{module}.md`, then run `specsync change approve {word}`",
+                id = record.id,
+                word = shell_word(&record.id)
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Materialization writes TWO outputs per module, and the `canonical_applied` short-circuit
@@ -2713,7 +2844,7 @@ fn prepare_pending_delta_application(
     let specs_dir = crate::config::load_config(root).specs_dir;
     for module in &record.affected_specs {
         let delta =
-            read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+            read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
         prepare_module_application(root, record, &specs_dir, module, &delta, &mut prepared)
             .map_err(|error| {
                 let frozen = record.canonical_applied && load_approvals(root, record)
@@ -2747,9 +2878,9 @@ fn prepare_module_application(
     let converging = record.canonical_applied || !ledger.send_backs.is_empty();
     let items = parse_delta(delta)?;
     let (spec_path, requirements_path) = canonical_module_paths(root, specs_dir, module)?;
-    let mut spec = fs::read_to_string(&spec_path)
+    let mut spec = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
         .map_err(|error| format!("failed to read {}: {error}", spec_path.display()))?;
-    let mut requirements = fs::read_to_string(&requirements_path)
+    let mut requirements = crate::util::read_project_string(root, &requirements_path, crate::util::MAX_SPEC_FILE_BYTES)
         .unwrap_or_else(|_| format!("---\nspec: {module}.spec.md\n---\n\n# Requirements\n"));
     // Read BEFORE applying. A delta may legitimately target `## Change Log`, and the question
     // is whether the record was already there, never whether this run has just written one.
@@ -3036,7 +3167,7 @@ where
     let backups: Vec<(PathBuf, Option<String>)> = prepared
         .iter()
         .map(|(path, _)| {
-            let original = match fs::read_to_string(path) {
+            let original = match crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES) {
                 Ok(content) => Some(content),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
                 Err(error) => {
@@ -3063,11 +3194,16 @@ where
         entry_count: journal.len(),
         entries_digest: transaction_entries_digest(&journal)?,
         entries: journal,
+        root: Some(journal_root(root)?),
     };
     validate_prepared_transaction_targets(root, prepared)?;
     validate()?;
-    let journal_path = root.join(TRANSACTION_PATH);
-    atomic_write_durable(&journal_path, json_content(&journal)?.as_bytes())
+    // The journal is kept in SpecSync's own state folder outside the work tree, where no
+    // repository can put one, and records the project it belongs to (REQ-change-162).
+    let state = transaction_state(root, true)?
+        .ok_or_else(|| "the local state folder for the transaction journal is missing".to_string())?;
+    state
+        .write_file(TRANSACTION_FILE, json_content(&journal)?.as_bytes(), true)
         .map_err(|error| format!("failed to publish transaction journal: {error}"))?;
     #[cfg(test)]
     run_transaction_after_journal_hook();
@@ -3091,7 +3227,7 @@ where
             recover_pending_transaction(root)?;
             return Err(error);
         }
-        if let Err(error) = atomic_write_durable(path, content.as_bytes()) {
+        if let Err(error) = atomic_write_durable(root, path, content.as_bytes()) {
             recover_pending_transaction(root)?;
             return Err(format!(
                 "atomic delta application failed at {}: {error}",
@@ -3105,7 +3241,8 @@ where
         recover_pending_transaction(root)?;
         return Err(error);
     }
-    remove_file_durable(&journal_path)
+    state
+        .remove(TRANSACTION_FILE, true)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))?;
     Ok(())
 }
@@ -3121,7 +3258,11 @@ fn validate_prepared_transaction_targets(
 }
 
 fn validate_prepared_transaction_target(root: &Path, path: &Path) -> Result<(), String> {
-    transaction_relative_path(root, path)?;
+    let relative = transaction_relative_path(root, path)?;
+    // The same rule the replay applies, so this build never journals a write it would refuse to
+    // put back (REQ-change-162).
+    replayable_transaction_path(root, &relative)
+        .map_err(|reason| format!("transaction target `{relative}`: {reason}"))?;
     reject_symlink_components_for(root, path, "transaction target")
 }
 
@@ -3201,6 +3342,7 @@ fn remove_empty_transaction_directories(root: &Path, start: Option<&Path>) {
             break;
         }
         let parent = directory.parent().map(Path::to_path_buf);
+        // checked project write: removes only empty directories a transaction left below targets whose components were refused as links; rmdir never follows a link
         if fs::remove_dir(&directory).is_err() {
             break;
         }
@@ -3214,11 +3356,17 @@ fn transaction_entries_digest(entries: &[TransactionEntry]) -> Result<String, St
         .map_err(|error| format!("failed to hash transaction journal: {error}"))
 }
 
-fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
+/// Write `path` durably: stage a new file beside it, then rename it over the name, which never
+/// writes through a link there. Every component of `path` is refused as a link first, so no
+/// directory on the way can lead the write out of the project (REQ-change-165).
+fn atomic_write_durable(root: &Path, path: &Path, content: &[u8]) -> Result<(), String> {
+    reject_symlink_components_for(root, path, "lifecycle write target")?;
     let parent = path
         .parent()
         .ok_or_else(|| format!("transaction target has no parent: {}", path.display()))?;
+    // checked project write: `path` and its directories were refused as links just above
     fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+    // checked project write: `path` and its directories were refused as links just above
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-transaction-")
         .tempfile_in(parent)
@@ -3226,6 +3374,7 @@ fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
     let permissions = fs::metadata(path)
         .map(|metadata| metadata.permissions())
         .unwrap_or(default_transaction_permissions(temporary.path())?);
+    // not a project file write: the staged file this function just created
     fs::set_permissions(temporary.path(), permissions)
         .map_err(|error| format!("failed to preserve {} permissions: {error}", path.display()))?;
     temporary
@@ -3233,6 +3382,7 @@ fn atomic_write_durable(path: &Path, content: &[u8]) -> Result<(), String> {
         .and_then(|()| temporary.flush())
         .and_then(|()| temporary.as_file().sync_all())
         .map_err(|error| format!("failed to durably stage {}: {error}", path.display()))?;
+    // checked project write: a rename over a name whose components were refused as links
     temporary
         .persist(path)
         .map_err(|error| format!("failed to publish {}: {}", path.display(), error.error))?;
@@ -3259,7 +3409,9 @@ fn default_transaction_permissions(temporary: &Path) -> Result<fs::Permissions, 
     Ok(permissions)
 }
 
-fn remove_file_durable(path: &Path) -> Result<(), String> {
+fn remove_file_durable(root: &Path, path: &Path) -> Result<(), String> {
+    reject_symlink_components_for(root, path, "lifecycle removal target")?;
+    // checked project write: `path` and its directories were refused as links just above
     fs::remove_file(path).map_err(|error| error.to_string())?;
     let parent = path
         .parent()
@@ -3269,6 +3421,7 @@ fn remove_file_durable(path: &Path) -> Result<(), String> {
 
 #[cfg(unix)]
 fn sync_parent_directory(directory: &Path) -> Result<(), String> {
+    // not a project file read: opens a directory only to sync it; nothing is read
     fs::File::open(directory)
         .and_then(|file| file.sync_all())
         .map_err(|error| format!("failed to sync directory {}: {error}", directory.display()))
@@ -3283,6 +3436,7 @@ fn sync_parent_directory(directory: &Path) -> Result<(), String> {
     // Directory FlushFileBuffers can fail with ERROR_ACCESS_DENIED while a
     // sibling handle (lifecycle lock, staged temp file) remains open. File bytes
     // are already synced; treat metadata durability as best-effort in that case.
+    // not a project file read: opens a directory only to sync it; nothing is read
     match OpenOptions::new()
         .read(true)
         .custom_flags(FILE_FLAG_BACKUP_SEMANTICS)
@@ -3307,7 +3461,9 @@ fn sync_parent_directory(_directory: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn rename_durable(source: &Path, destination: &Path) -> Result<(), String> {
+fn rename_durable(root: &Path, source: &Path, destination: &Path) -> Result<(), String> {
+    reject_symlink_components_for(root, source, "lifecycle move source")?;
+    reject_symlink_components_for(root, destination, "lifecycle move destination")?;
     let source_parent = source
         .parent()
         .ok_or_else(|| format!("rename source has no parent: {}", source.display()))?;
@@ -3317,6 +3473,7 @@ fn rename_durable(source: &Path, destination: &Path) -> Result<(), String> {
             destination.display()
         )
     })?;
+    // checked project write: both paths were refused as links just above
     fs::rename(source, destination).map_err(|error| error.to_string())?;
     sync_parent_directory(source_parent)?;
     if destination_parent != source_parent {
@@ -3411,7 +3568,7 @@ fn delta_keys(root: &Path, record: &ChangeRecord) -> Result<BTreeSet<String>, St
     }
     for module in &record.affected_specs {
         let path = delta_path_checked(root, record, module)?;
-        let content = match fs::read_to_string(path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(_) if record.state == ChangeState::Draft => continue,
             Err(error) => return Err(error.to_string()),
@@ -3772,7 +3929,7 @@ fn definition_artifact_snapshot(
         ));
     }
     let deltas = dir.join("deltas");
-    match fs::read_dir(&deltas) {
+    match crate::util::read_project_dir_entries(root, &deltas) {
         Ok(entries) => {
             for entry in entries {
                 let entry = entry.map_err(|error| {
@@ -4056,7 +4213,7 @@ fn portable_definition_digest_pair_v501_with_task_mode(
     let legacy_bytes = definition_projection_bytes_v501(record)?;
     let snapshot = definition_artifact_snapshot(root, record, &[])?;
     for (relative, _, captured_payload, object) in &snapshot.entries {
-        let working_payload = fs::read(root.join(relative)).map_err(|error| {
+        let working_payload = crate::util::read_project_bytes(root, &root.join(relative), crate::util::MAX_PROJECT_INPUT_BYTES).map_err(|error| {
             format!(
                 "SpecSync 5.0.1 portable projection cannot read working-tree definition artifact `{relative}`: {error}"
             )
@@ -4355,6 +4512,7 @@ fn strict_walk_project_paths_excluding(
     for attempt in 0..2 {
         let mut paths = Vec::new();
         let mut total = 0_usize;
+        // not a project file read: walks the project with follow_links(false), so no link is followed out
         let entries = walkdir::WalkDir::new(root)
             .follow_links(false)
             .into_iter()
@@ -4426,6 +4584,7 @@ fn strict_walk_scoped_project_paths(
                 }
                 Ok(metadata) if metadata.is_dir() => {
                     let preserve_volatile = project_input_is_volatile(scope);
+                    // not a project file read: walks a scope folder checked to be a real directory, with follow_links(false)
                     let entries = walkdir::WalkDir::new(&scoped_root)
                         .follow_links(false)
                         .into_iter()

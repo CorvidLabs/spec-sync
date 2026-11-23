@@ -6,6 +6,7 @@ spec: rehash.spec.md
 
 - [x] Implement full hash-cache regeneration command
 - [x] Ensure cache save failures return a non-zero exit
+- [x] Save the cache in the local state folder and print the path (REQ-rehash-003). Evidence: `rehash_never_writes_the_hash_cache_through_a_link`.
 
 ## Gaps
 

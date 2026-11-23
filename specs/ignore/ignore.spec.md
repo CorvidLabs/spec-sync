@@ -6,7 +6,8 @@ files:
   - src/ignore.rs
 db_tables: []
 tracks: []
-depends_on: []
+depends_on:
+  - specs/util/util.spec.md
 ---
 
 # Ignore
@@ -52,6 +53,7 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 7. Missing `.specsyncignore` file is not an error — returns empty rules
 8. Unrecognized category names and malformed rules remain visible through `IgnoreRules::warnings`
 9. Per-spec matching normalizes forward/backward separators and an optional `./` prefix before prefix comparison
+10. Every read of a project file here, `.specsyncignore` (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-ignore-002).
 
 ## Behavioral Examples
 
@@ -89,6 +91,7 @@ Provides a warning suppression system for spec-sync validation. Supports three l
 | Invalid UTF-8 line | That line is skipped with a numbered diagnostic; other lines still load |
 | Malformed inline comment (missing `-->`) | Directive is ignored |
 | Warning text doesn't match any pattern | `classify()` returns `None`, warning is never suppressed |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

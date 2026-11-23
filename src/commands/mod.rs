@@ -76,7 +76,7 @@ fn normalize_project_path(root: &Path, path: &Path) -> String {
 
 #[allow(dead_code)]
 fn collect_validation_files(root: &Path, directory: &Path, inputs: &mut Vec<String>) {
-    let Ok(entries) = std::fs::read_dir(directory) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, directory) else {
         return;
     };
     let mut paths = entries
@@ -262,13 +262,23 @@ pub(crate) fn validate_scaffold_module_name(module_name: &str) -> Result<(), Str
 /// Reject a module name that would collide with an existing spec directory
 /// under a case-folding filesystem (e.g. `Lib` vs existing `lib`). Linux
 /// allows both, but the repo then breaks on macOS/Windows checkouts.
-pub(crate) fn check_case_collision(specs_dir: &Path, module_name: &str) -> Result<(), String> {
-    let entries = match std::fs::read_dir(specs_dir) {
-        Ok(e) => e,
-        Err(_) => return Ok(()), // no specs dir yet — nothing to collide with
+pub(crate) fn check_case_collision(
+    root: &Path,
+    specs_dir: &Path,
+    module_name: &str,
+) -> Result<(), String> {
+    // Listed only by the project rule: a specs folder that leads out of the project, or none
+    // yet, is nothing to collide with (REQ-commands-016).
+    let Ok(entries) = crate::util::read_project_dir(root, specs_dir) else {
+        return Ok(());
     };
-    for entry in entries.flatten() {
-        let existing = entry.file_name().to_string_lossy().to_string();
+    for entry in entries {
+        let Some(existing) = entry
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string())
+        else {
+            continue;
+        };
         if existing != module_name && existing.eq_ignore_ascii_case(module_name) {
             return Err(format!(
                 "invalid module name `{module_name}`: collides with existing spec directory \
@@ -338,16 +348,16 @@ pub fn filter_specs(root: &Path, spec_files: &[PathBuf], filters: &[String]) -> 
 /// Read only the YAML frontmatter section of a spec file (up to the closing `---`).
 /// Avoids reading the full file body when only metadata is needed, reducing I/O
 /// for commands that re-read specs later for full validation.
-fn read_frontmatter_section(path: &Path) -> std::io::Result<String> {
-    use std::io::{BufRead, BufReader};
-    let file = std::fs::File::open(path)?;
-    let reader = BufReader::new(file);
+///
+/// The file is read through the bounded project read (REQ-commands-014), so a spec that is a
+/// FIFO, a link out of the project, or larger than 8 MiB is an error rather than a wait.
+fn read_frontmatter_section(root: &Path, path: &Path) -> std::io::Result<String> {
+    let content = crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES)?;
     let mut result = String::new();
     let mut found_start = false;
 
-    for line in reader.lines() {
-        let line = line?;
-        result.push_str(&line);
+    for line in content.lines() {
+        result.push_str(line);
         result.push('\n');
         if line.trim() == "---" {
             if found_start {
@@ -364,6 +374,7 @@ fn read_frontmatter_section(path: &Path) -> std::io::Result<String> {
 /// `only` keeps only specs with one of the listed statuses.
 /// If both are empty, returns the full list unchanged.
 pub fn filter_by_status(
+    root: &Path,
     spec_files: &[PathBuf],
     exclude: &[String],
     only: &[String],
@@ -397,9 +408,12 @@ pub fn filter_by_status(
         .filter(|path| {
             // Read only the frontmatter section (up to closing ---) to avoid
             // re-reading the full file body that callers will parse later.
-            let status = read_frontmatter_section(path)
-                .ok()
-                .and_then(|content| parser::parse_frontmatter(&content.replace("\r\n", "\n")))
+            // A spec whose read is refused is kept, so validation reports the refusal with the
+            // path and the reason instead of the filter dropping it (REQ-commands-014).
+            let Ok(content) = read_frontmatter_section(root, path) else {
+                return true;
+            };
+            let status = parser::parse_frontmatter(&content.replace("\r\n", "\n"))
                 .and_then(|parsed| parsed.frontmatter.parsed_status());
 
             // If we can't parse status: include when excluding (let validation catch the error),
@@ -427,7 +441,7 @@ pub fn build_schema_columns(
     config: &types::SpecSyncConfig,
 ) -> std::collections::HashMap<String, crate::schema::SchemaTable> {
     match &config.schema_dir {
-        Some(dir) => crate::schema::build_schema_snapshot(&root.join(dir))
+        Some(dir) => crate::schema::build_schema_snapshot(root, &root.join(dir))
             .map(|snapshot| snapshot.tables)
             .unwrap_or_default(),
         None => std::collections::HashMap::new(),
@@ -452,7 +466,7 @@ fn build_schema_validation_input(
         };
     };
 
-    match crate::schema::build_schema_snapshot(&root.join(directory)) {
+    match crate::schema::build_schema_snapshot(root, &root.join(directory)) {
         Ok(snapshot) => {
             let (table_names, errors) = match schema_table_names_from_snapshot(&snapshot, config) {
                 Ok(table_names) => (table_names, Vec::new()),
@@ -644,7 +658,9 @@ pub(super) fn run_validation_with_suppressions(
     let mut file_owners: HashMap<String, Vec<String>> = HashMap::new();
     let mut spec_files_by_path: HashMap<PathBuf, HashSet<String>> = HashMap::new();
     for spec_file in ownership_spec_files {
-        let Ok(content) = std::fs::read_to_string(spec_file) else {
+        let Ok(content) =
+            crate::util::read_project_string(root, spec_file, crate::util::MAX_SPEC_FILE_BYTES)
+        else {
             continue;
         };
         let normalized = if content.contains("\r\n") {
@@ -740,9 +756,10 @@ pub(super) fn run_validation_with_suppressions(
         }
 
         // Parse inline ignore directives from the spec file
-        let inline_ignores = std::fs::read_to_string(spec_file)
-            .map(|content| IgnoreRules::parse_inline(&content))
-            .unwrap_or_default();
+        let inline_ignores =
+            crate::util::read_project_string(root, spec_file, crate::util::MAX_SPEC_FILE_BYTES)
+                .map(|content| IgnoreRules::parse_inline(&content))
+                .unwrap_or_default();
 
         // Filter only classified warnings, while retaining deterministic
         // machine-readable details for every suppression.
@@ -1361,7 +1378,7 @@ pub fn create_drift_issues(
     all_errors: &[String],
     format: types::OutputFormat,
 ) {
-    let spec_paths = find_spec_files(&root.join(&config.specs_dir))
+    let spec_paths = find_spec_files(root, &root.join(&config.specs_dir))
         .into_iter()
         .map(|path| {
             path.strip_prefix(root)
@@ -1778,9 +1795,9 @@ None.
         let tmp = tempfile::tempdir().unwrap();
         let specs_dir = tmp.path().join("specs");
         std::fs::create_dir_all(specs_dir.join("lib")).unwrap();
-        assert!(super::check_case_collision(&specs_dir, "Lib").is_err());
-        assert!(super::check_case_collision(&specs_dir, "LIB").is_err());
-        assert!(super::check_case_collision(&specs_dir, "lib").is_ok()); // same name: normal "already exists" path
-        assert!(super::check_case_collision(&specs_dir, "other").is_ok());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "Lib").is_err());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "LIB").is_err());
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "lib").is_ok()); // same name: normal "already exists" path
+        assert!(super::check_case_collision(tmp.path(), &specs_dir, "other").is_ok());
     }
 }

@@ -2,7 +2,6 @@ use crate::exports::has_extension;
 use crate::manifest;
 use crate::types::SpecSyncConfig;
 use std::collections::HashSet;
-use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -135,7 +134,7 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
     let mut has_root_source_files = false;
 
     // Check immediate children of root
-    let entries = match fs::read_dir(root) {
+    let entries = match crate::util::read_project_dir_entries(root, root) {
         Ok(e) => e,
         Err(_) => return Vec::new(),
     };
@@ -149,6 +148,11 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
         }
 
         let path = entry.path();
+        // A linked folder is not this project's source, and is never walked: a repository can
+        // commit `lib -> ../outside` (REQ-config-018).
+        if entry.file_type().is_ok_and(|kind| kind.is_symlink()) {
+            continue;
+        }
 
         if path.is_dir() {
             // Check if this directory contains any source files (scan up to 3 levels deep)
@@ -171,7 +175,9 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
 }
 /// Check if a directory contains source files, scanning up to `max_depth` levels.
 fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usize) -> bool {
+    // not a project file read: walks a candidate folder with follow_root_links(false) and no link followed below it
     for entry in WalkDir::new(dir)
+        .follow_root_links(false)
         .max_depth(max_depth)
         .into_iter()
         .filter_entry(|e| {
@@ -209,8 +215,9 @@ pub(crate) fn is_detectable_source_file(path: &Path) -> bool {
 /// becomes an unknown key and is silently ignored) or breaks JSON parsing entirely.
 /// Stripping a leading BOM is lossless. Returns None when the file can't be read.
 /// Avoids allocating when there is no BOM (the common case).
-pub fn read_config_file(path: &Path) -> Option<String> {
-    let content = fs::read_to_string(path).ok()?;
+pub fn read_config_file(root: &Path, path: &Path) -> Option<String> {
+    let content =
+        crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES).ok()?;
     let trimmed = content.trim_start_matches('\u{feff}');
     Some(if trimmed.len() == content.len() {
         content
@@ -225,8 +232,8 @@ pub fn read_config_file(path: &Path) -> Option<String> {
 /// This intentionally does not reject unknown extension keys. It only prevents
 /// `init --repair` from claiming success while a malformed or wrongly typed
 /// canonical config remains unusable.
-pub(crate) fn validate_config_file(path: &Path) -> Result<(), String> {
-    let content = fs::read_to_string(path)
+pub(crate) fn validate_config_file(root: &Path, path: &Path) -> Result<(), String> {
+    let content = crate::util::read_project_string(root, path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read config {}: {error}", path.display()))?;
     let is_json = path.extension().and_then(|extension| extension.to_str()) == Some("json");
     if is_json {
@@ -405,6 +412,29 @@ pub(crate) fn parse_config_content_checked_with_source_dirs(
     };
     config.config_path = Some(config_path.to_path_buf());
     Ok(config)
+}
+
+/// `specs_dir`, `source_dirs` and `schema_dir` name directories inside the project: a relative
+/// path with no `..` (REQ-config-017). A repository writes its own config, so an absolute path or
+/// a `..` would send every walk and read of these directories outside it.
+pub(crate) fn validate_config_directories(config: &SpecSyncConfig) -> Result<(), String> {
+    let inside = |field: &str, value: &str| -> Result<(), String> {
+        if crate::util::confine_path_to_root(Path::new(""), value).is_some() {
+            Ok(())
+        } else {
+            Err(format!(
+                "`{field}` must be a relative path inside the project, without `..`; found `{value}`"
+            ))
+        }
+    };
+    inside("specs_dir", &config.specs_dir)?;
+    for source_dir in &config.source_dirs {
+        inside("source_dirs", source_dir)?;
+    }
+    if let Some(schema_dir) = &config.schema_dir {
+        inside("schema_dir", schema_dir)?;
+    }
+    Ok(())
 }
 
 fn validate_checked_json_config_types(value: &serde_json::Value) -> Result<(), String> {
@@ -636,7 +666,7 @@ pub fn load_config_allowing_unloadable(root: &Path) -> SpecSyncConfig {
     // Read the old local override file only to surface migration guidance.
     let local_toml = root.join(".specsync/config.local.toml");
     if local_toml.exists() {
-        inspect_legacy_local_config(&local_toml);
+        inspect_legacy_local_config(root, &local_toml);
     }
 
     config
@@ -651,8 +681,8 @@ pub fn load_config_allowing_unloadable(root: &Path) -> SpecSyncConfig {
 /// is ever added to local config, route it through the shared array handling
 /// (`find_toml_array_close` accumulation) to avoid re-introducing `["["]`
 /// corruption.
-fn inspect_legacy_local_config(local_path: &Path) {
-    let content = match read_config_file(local_path) {
+fn inspect_legacy_local_config(root: &Path, local_path: &Path) {
+    let content = match read_config_file(root, local_path) {
         Some(c) => c,
         None => {
             // Local config is optional, but a file that exists yet cannot be read
@@ -1143,7 +1173,7 @@ fn fail_closed_invalid_json_github_repo(raw: &mut serde_json::Value) {
 }
 
 fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match read_config_file(config_path) {
+    let content = match read_config_file(root, config_path) {
         Some(c) => c,
         None => {
             // See load_toml_config: a present-but-unreadable config must fail loud
@@ -1165,7 +1195,10 @@ fn load_json_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    match parse_json_config(&content, root) {
+    let parsed = parse_json_config(&content, root)
+        .map_err(|error| error.to_string())
+        .and_then(|config| validate_config_directories(&config).map(|()| config));
+    match parsed {
         Ok(config) => config,
         Err(error) => {
             eprintln!(
@@ -1235,7 +1268,7 @@ fn parse_json_config_with_source_dirs(
 /// required_sections = ["Purpose", "Public API"]
 /// ```
 fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
-    let content = match read_config_file(config_path) {
+    let content = match read_config_file(root, config_path) {
         Some(c) => c,
         None => {
             // read_config_file returns None for both "absent" and "present but
@@ -1261,7 +1294,11 @@ fn load_toml_config(config_path: &Path, root: &Path) -> SpecSyncConfig {
         }
     };
 
-    match parse_config_content_checked(config_path, &content, root) {
+    // The confined loaders of `check`, MCP and `issues` refuse these directories their own way;
+    // this ambient loader refuses them here (REQ-config-017).
+    let parsed = parse_config_content_checked(config_path, &content, root)
+        .and_then(|config| validate_config_directories(&config).map(|()| config));
+    match parsed {
         Ok(config) => config,
         Err(error) => {
             eprintln!(
@@ -1851,6 +1888,30 @@ pub fn default_schema_pattern() -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Verifies REQ-config-018. Source auto-detection never walks a folder that is a link: a
+    /// committed `lib -> ../outside/lib` is not a source folder of this project.
+    #[cfg(unix)]
+    #[test]
+    fn source_detection_never_follows_a_linked_folder() {
+        let temp = tempfile::TempDir::new().unwrap();
+        let root = temp.path().join("project");
+        fs::create_dir_all(&root).unwrap();
+        fs::create_dir_all(temp.path().join("outside/lib")).unwrap();
+        fs::write(
+            temp.path().join("outside/lib/index.ts"),
+            "export const x = 1;\n",
+        )
+        .unwrap();
+        std::os::unix::fs::symlink("../outside/lib", root.join("lib")).unwrap();
+
+        let detected = scan_source_dirs(&root);
+
+        assert!(
+            !detected.contains(&"lib".to_string()),
+            "a linked folder outside the project was detected as source: {detected:?}"
+        );
+    }
     use std::fs;
     use tempfile::TempDir;
 
@@ -3333,18 +3394,18 @@ verify_issues = false
             "specs_dir = \"specs\"\nsource_dirs = [\"src\"]\n",
         )
         .unwrap();
-        validate_config_file(&toml_path).expect("canonical TOML must validate");
+        validate_config_file(temp.path(), &toml_path).expect("canonical TOML must validate");
 
         fs::write(&toml_path, "specs_dir = [\"wrong\"]\n").unwrap();
-        let error = validate_config_file(&toml_path).unwrap_err();
+        let error = validate_config_file(temp.path(), &toml_path).unwrap_err();
         assert!(error.contains("`specs_dir` must be a string"), "{error}");
 
         let json_path = temp.path().join("config.json");
         fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":["src"]}"#).unwrap();
-        validate_config_file(&json_path).expect("canonical JSON must validate");
+        validate_config_file(temp.path(), &json_path).expect("canonical JSON must validate");
 
         fs::write(&json_path, r#"{"specsDir":"specs","sourceDirs":[1]}"#).unwrap();
-        let error = validate_config_file(&json_path).unwrap_err();
+        let error = validate_config_file(temp.path(), &json_path).unwrap_err();
         assert!(error.contains("sourceDirs"), "{error}");
     }
 

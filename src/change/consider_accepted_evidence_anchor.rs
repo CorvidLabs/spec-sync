@@ -5,7 +5,7 @@ fn semantic_acceptance_item_exists_for_module(
     module: &str,
 ) -> Result<bool, String> {
     let content =
-        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+        read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
     Ok(parse_delta(&content)?.iter().any(|item| {
         matches!(
             item.target,
@@ -53,6 +53,7 @@ fn acceptance_entry_digest_at_commit(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -66,6 +67,7 @@ fn acceptance_entry_digest_at_commit(
     )
     .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to inspect succession base tree: {}",
@@ -74,6 +76,7 @@ fn acceptance_entry_digest_at_commit(
     }
     let result = acceptance_entry_digest_in_tree(&tree, predecessor_id, path);
     let removed = crate::git_utils::output_after_child_exits(
+        // git writes no project file: removes the scratch worktree this function added in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -83,6 +86,7 @@ fn acceptance_entry_digest_at_commit(
             ])
             .current_dir(root),
     );
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     if !removed.is_ok_and(|output| output.status.success()) {
         return Err("failed to remove succession base workspace".into());
@@ -1219,6 +1223,7 @@ fn fingerprint_git_index_paths(paths: Vec<PathBuf>) -> Result<String, String> {
                 if total > MAX_GIT_INDEX_BYTES {
                     return Err("Git index dependencies exceed deterministic bounds".into());
                 }
+                // not a project file read: a Git index file in the Git directory, refused as a link and bounded above
                 let mut file = OpenOptions::new()
                     .read(true)
                     .open(&path)
@@ -1779,7 +1784,7 @@ fn capture_working_candidate(
         Ok(metadata) if metadata.is_file() => (
             AcceptanceInputKind::File,
             working_file_mode(&metadata),
-            fs::read(&path)
+            crate::util::read_project_bytes(root, &path, crate::util::MAX_PROJECT_INPUT_BYTES)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         ),
         Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
@@ -2212,6 +2217,7 @@ fn reconstruct_legacy_at_anchor(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -2225,6 +2231,7 @@ fn reconstruct_legacy_at_anchor(
     )
     .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to reconstruct legacy acceptance tree: {}",
@@ -2283,6 +2290,7 @@ fn reconstruct_legacy_at_anchor(
         None
     } else {
         crate::git_utils::output_after_child_exits(
+            // git writes no project file: removes the scratch worktree this function added in the system temporary directory
             Command::new("git")
                 .args([
                     "worktree",
@@ -2297,11 +2305,13 @@ fn reconstruct_legacy_at_anchor(
     if !removed.is_some_and(|output| output.status.success()) {
         // Reclaim the registration if remove failed; ignore further hygiene errors.
         let _ = crate::git_utils::output_after_child_exits(
+            // git writes no project file: prunes the registration of the scratch worktree this function added
             Command::new("git")
                 .args(["worktree", "prune"])
                 .current_dir(root),
         );
     }
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     result
 }
@@ -3150,7 +3160,7 @@ fn authenticated_accepted_transition_for(
             && closing_ledger_extends_all_introductions(root, record, &current_approvals)?);
     if eligible.is_empty()
         && closing_evidence_may_speak
-        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
+        && let Ok(state_bytes) = crate::util::read_project_bytes(root, &workspace.join("accepted-state.json"), crate::util::MAX_STATE_FILE_BYTES)
         && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
     {
         let mut projection = record.clone();
@@ -3808,6 +3818,28 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
 }
 
+/// Whether an archived change's scoped review is settled by its finalization: finalize required a
+/// current review to archive the change, and the archive still authenticates, so ship-status never
+/// asks for another review of an archived change, which `change review` refuses (#1038).
+///
+/// Only `finalize` settles a review. A workflow-v1 change is closed by `accept` and `archive`,
+/// which bind no scoped review, and `finalize` refuses it, so a `review.json` in its archive
+/// settles nothing. The archive must therefore be workflow v2 and still hold the finalization
+/// record that binds a passing review to the accepted verification, the check `finalize` itself
+/// makes before it resumes (review of #1093).
+pub(crate) fn archived_review_is_settled_by_finalize(root: &Path, record: &ChangeRecord) -> bool {
+    record.state == ChangeState::Archived
+        && record.workflow_version >= 2
+        && matches!(
+            terminal_evidence_summary(root, record).validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+                | TerminalEvidenceValidity::HistoricalTransitionUnproven
+        )
+        && load_verification(root, record)
+            .and_then(|verification| validate_finalization_evidence(root, record, &verification))
+            .is_ok()
+}
+
 /// Terminal evidence for one archived record inside a read scope.
 ///
 /// An archived record's verdict depends only on its own package and history, never on the other
@@ -4094,7 +4126,7 @@ fn validate_archived_accepted_snapshot(
     let path = workspace.join("accepted-state.json");
     let (_, historical_bytes, historical) =
         authenticated_accepted_transition_for(root, archived, pending)?;
-    let accepted = match fs::read(&path) {
+    let accepted = match crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => {
             if content != historical_bytes {
                 return Err(format!(
@@ -4325,7 +4357,7 @@ fn load_legacy_archive_baseline_context(
     root: &Path,
 ) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
-    let baseline_bytes = fs::read(&baseline_path)
+    let baseline_bytes = crate::util::read_project_bytes(root, &baseline_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
 
@@ -4721,6 +4753,7 @@ fn archive_workspace_snapshot(
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
     let mut workspace_paths = BTreeSet::new();
+    // not a project file read: walks the archived workspace with follow_links(false), so no link is followed out
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
         if entry.path() != workspace && !entry.file_type().is_dir() {
@@ -4882,6 +4915,7 @@ impl DeliveryBlobStream {
         Ok(Self {
             child,
             stdin,
+            // not a project file read: the output of a child process this function started
             stdout: std::io::BufReader::new(stdout),
             finished: Some(finished),
             watchdog: Some(watchdog),
@@ -5019,6 +5053,7 @@ impl<'root> DeliveryPayloads<'root> {
             Some(stream) => stream,
             None => self.stream.insert(DeliveryBlobStream::open(self.root)?),
         };
+        // not a project file read: a Git object from the batch stream, by its object id
         stream.read(relative, object).map(Cow::Owned)
     }
 

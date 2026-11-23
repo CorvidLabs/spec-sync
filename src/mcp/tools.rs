@@ -13,16 +13,13 @@ use crate::generator::generate_specs_for_unspecced_modules_paths;
 use crate::output::{CoverageFindings, coverage_json};
 use crate::scoring;
 use crate::types::SpecSyncConfig;
-use crate::validator::{
-    compute_coverage_checked, find_spec_files, get_schema_table_names, validate_spec,
-};
+use crate::validator::{compute_coverage_checked, get_schema_table_names, validate_spec};
 use cap_std::fs::Dir;
 use serde_json::{Value, json};
 use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use walkdir::WalkDir;
 
 pub(super) const MAX_GENERATED_SPECS: usize = 1_000;
 
@@ -215,7 +212,7 @@ fn validate_all(root: &Path, config: &SpecSyncConfig, spec_files: &[PathBuf]) ->
     let schema_columns = config
         .schema_dir
         .as_deref()
-        .map(|schema_dir| crate::schema::build_schema(&root.join(schema_dir)))
+        .map(|schema_dir| crate::schema::build_schema(root, &root.join(schema_dir)))
         .unwrap_or_default();
 
     let mut collected = McpFindings::default();
@@ -295,7 +292,7 @@ pub(super) fn load_and_discover(
 ) -> Result<(SpecSyncConfig, Vec<PathBuf>), String> {
     let config = load_confined_config(root)?;
     let specs_dir = root.join(&config.specs_dir);
-    let spec_files: Vec<PathBuf> = find_spec_files(&specs_dir)
+    let spec_files: Vec<PathBuf> = crate::validator::find_spec_files_checked(root, &specs_dir)?
         .into_iter()
         .filter(|f| {
             f.file_name()
@@ -830,18 +827,16 @@ pub(super) fn is_issue_spec_file_name(name: &OsStr) -> Result<bool, ()> {
 
 fn find_issue_spec_files_checked(root: &Path, specs_dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut spec_files = Vec::new();
-    for result in WalkDir::new(specs_dir)
-        .follow_links(false)
-        .sort_by_file_name()
-    {
-        let entry = result.map_err(|error| {
-            let rel_path = issue_relative_spec_path(root, error.path().unwrap_or(specs_dir));
-            format!(
-                "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec directory entry could not be inspected"
-            )
-        })?;
-        let is_spec = is_issue_spec_file_name(entry.file_name()).map_err(|()| {
-            let rel_path = issue_relative_spec_path(root, entry.path());
+    // Only through the confined spec walk: a `specs` folder that leads out of the project is
+    // refused, not walked (REQ-mcp-014).
+    let found = crate::validator::find_spec_files_checked(root, specs_dir)
+        .map_err(|error| format!("MCP specsync_issues issue discovery is inconclusive: {error}"))?;
+    for path in found {
+        let Some(name) = path.file_name() else {
+            continue;
+        };
+        let is_spec = is_issue_spec_file_name(name).map_err(|()| {
+            let rel_path = issue_relative_spec_path(root, &path);
             format!(
                 "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec filename is not valid UTF-8"
             )
@@ -849,13 +844,13 @@ fn find_issue_spec_files_checked(root: &Path, specs_dir: &Path) -> Result<Vec<Pa
         if !is_spec {
             continue;
         }
-        if !entry.file_type().is_file() {
-            let rel_path = issue_relative_spec_path(root, entry.path());
+        if !fs::symlink_metadata(&path).is_ok_and(|metadata| metadata.is_file()) {
+            let rel_path = issue_relative_spec_path(root, &path);
             return Err(format!(
                 "MCP specsync_issues issue discovery is inconclusive for {rel_path}: spec path is not a regular file"
             ));
         }
-        spec_files.push(entry.into_path());
+        spec_files.push(path);
     }
     spec_files.sort();
     Ok(spec_files)

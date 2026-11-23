@@ -132,3 +132,19 @@ The v21 rereview regressions exercise a 200-sibling project beneath a 128-descri
 limit, missing object-form `workspaces.packages`, and malformed, non-object, or wrong-shaped nested
 workspace manifests through both tools and resources. Focused results pass 117 MCP unit and 67 MCP
 integration tests; the full suite passes 1,951 unit and 312 integration tests.
+
+## Symbolic links (REQ-mcp-011)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `tests/integration/project_links.rs`: `mcp_lock_write_refuses_a_lock_linked_outside_the_project`, `mcp_lock_write_writes_a_plain_lock_and_through_a_link_that_stays_inside` |
+
+## Bounded reads (REQ-mcp-012)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `mcp_diff_does_not_wait_on_a_lock_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

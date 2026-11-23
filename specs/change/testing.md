@@ -316,3 +316,60 @@ These are author-focused results. Full verification, Trust, independent final
 review, human acceptance, current-main integration and hosted delivery remain
 pending. The old native archive and its historical review claims are unchanged
 and do not review this repair.
+
+## Bounded reads (REQ-change-161)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `change_status_does_not_wait_on_a_policy_that_is_not_a_regular_file`, `change_status_does_not_read_a_policy_linked_outside_the_project`, `change_status_refuses_a_policy_over_its_bound`, `a_lifecycle_write_does_not_wait_on_or_follow_the_transaction_journal`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## The transaction journal (REQ-change-162)
+
+Each fixture has its own `git init`; every journal names files inside the fixture only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| An entry for `.git/config`, `.GIT/config`, `.git./config`, `.git/HEAD` or a hook | Refused; Git's files keep their bytes | `a_journal_never_rewrites_or_deletes_git_files` |
+| A journal in the work tree, tracked in the index or only in `HEAD`, or untracked, with or without Git | Never opened or replayed; the lock refuses naming the file and how to clear it | `a_journal_git_tracks_is_never_replayed`, `a_journal_in_the_work_tree_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git`, `tests/integration/repository_inputs.rs`: `change_new_never_replays_a_journal_an_unpacked_tree_ships` |
+| A running transaction | Its journal is in the local state folder, not the work tree | `a_running_transaction_keeps_its_journal_outside_the_work_tree` |
+| One entry outside the workflow's files | The whole journal is refused | `one_entry_outside_the_change_workflow_refuses_the_whole_journal` |
+| `.git\\config` with `specs_dir = "."`, `specs/.git\\config` | Refused: backslashes are separators, as the write treats them | `a_backslash_entry_cannot_reach_git_files` |
+| `specs_dir = "."` and an entry for `Makefile` | Refused: under `specs_dir` only spec files, `requirements.md` and history fragments | `specs_dir_dot_does_not_widen_replay` |
+| The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
+| The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |
+
+## Change records written through the confined helpers (REQ-change-165)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A committed `change.md` linked outside, with `change answer` or `change approve` | Refused before anything is written; the outside file, the state and the approvals keep their bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_through_a_link_out`, `change_approve_never_writes_change_md_through_a_link_out` |
+| A dangling artifact link, with `change answer` | Refused; nothing is created outside | `tests/integration/project_writes.rs`: `change_answer_never_creates_the_target_of_a_dangling_artifact_link` |
+| `.specsync/changes` linked outside, with `change new` | No workspace is created there | `tests/integration/project_writes.rs`: `change_new_creates_nothing_in_a_changes_directory_linked_out` |
+| `change.md` linked into `.git/hooks` | Refused; the hook keeps its bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_into_a_hook` |
+
+## Change 7: the journal and the registry (REQ-change-162)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A valid journal under `.git/specsync/<key>` | Never replayed | `a_journal_under_the_git_directory_is_never_replayed` |
+| A registry entry mapping a module to `.env`, with a deletion or a rewrite journaled | Refused; `.env` keeps its bytes | `a_registry_entry_that_is_not_a_spec_never_opens_a_replay` |
+
+## Change 8: the read cache and the proposals walk (REQ-change-164)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
+| A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
+
+REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
+
+## Verification state and the Markdown summary (REQ-change-check-summary-state-001)
+
+- `review_and_ship_refuse_a_verification_commit_that_lacks_the_work` checks that the first passing check preserves a Markdown handoff note and reports `verifying` in the summary and CLI. It also checks that `check --commit` commits the summary and leaves evidence usable for scoped review.
+- `change_check_fails_when_specs_and_code_drift` checks that a completed failing check publishes both state projections and failed evidence.
+- `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
+- `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.

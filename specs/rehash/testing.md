@@ -31,3 +31,10 @@ spec: rehash.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## The cache outside the work tree (REQ-rehash-003)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A link at `.specsync/hashes.json`, or a linked `.specsync` | Never written through; the cache is written in the local state folder and its path printed | `tests/integration/check.rs`: `rehash_never_writes_the_hash_cache_through_a_link` |
+| A cache committed to Git | Left as it is; `rehash` exits 0 | `tests/integration/repository_inputs.rs`: `rehash_leaves_a_hash_cache_git_tracks` |

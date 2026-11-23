@@ -86,3 +86,27 @@ Acceptance Criteria
 - The ignored entries are unchanged.
 - An existing `.specsync/.gitignore` is not rewritten, as before.
 
+### REQ-cmd-migrate-005
+
+`migrate` SHALL refuse before its first write, changing nothing, when a file it would write, move, copy or remove, a directory it would create, or a spec file it would back up or rewrite leaves the project through a symbolic link, is a dangling link, or is not a regular file, and SHALL name each such path. Every write, copy and removal it then makes SHALL go through the project file functions of `util` (REQ-util-002).
+
+Acceptance Criteria
+- A dangling link at `.specsync/.gitignore` in a 3.x project: `migrate` exits non-zero naming it, creates nothing at the link's target, and leaves `specsync.json`, the registry and every spec as they were.
+- A spec file linked to a file outside the project: `migrate` exits non-zero naming it and the outside file is unchanged.
+- `.specsync` linked to a directory outside the project: `migrate` exits non-zero and nothing is created there.
+- A 3.x project with no link migrates as before.
+
+### REQ-cmd-migrate-006
+
+`migrate` SHALL read `.specsync/version`, the config file it converts and `.gitignore` (4 MiB) and the spec files it reads (8 MiB) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-cmd-migrate-007
+
+`migrate` SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). It SHALL find spec files only through the confined, budgeted walk of `validator` (REQ-validator-050), so a `specs` link that leaves the repository, or a tree past the walk's budget, stops it with the reason instead of being walked.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+

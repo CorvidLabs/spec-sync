@@ -376,6 +376,8 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 
 ## Lost-requirement refusals (REQ-change-169)
 
+- The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.
+- A linked requirement removed on the default branch names the merge recovery. A dangling or cyclic reference link names the unreadable canonical file even when the Git diff does not include that path.
 - `registry_companions_use_normalized_paths_in_the_worktree_and_reference` moves a requirement between tracked companions declared with backslash separators, then checks that deleting it reports the original canonical path.
 - `a_merge_hint_quotes_the_default_ref_in_both_diagnostics` inspects the printed merge command for a default ref containing a literal apostrophe, for both default-only and mixed losses.
 - `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.

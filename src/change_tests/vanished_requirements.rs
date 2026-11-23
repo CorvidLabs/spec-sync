@@ -543,7 +543,7 @@ fn a_root_specs_project_reads_no_workspace_git_or_excluded_directory_as_canonica
     assert_eq!(scope.directories, vec![".".to_string()]);
     let scanned: Vec<String> = working_tree_requirement_blocks(root, &scope, &excluded_requirement_directories(root))
         .into_iter()
-        .map(|(path, _)| path)
+        .map(|file| file.chain[0].clone())
         .collect();
     assert!(scanned.contains(&"specs/auth/requirements.md".to_string()), "{scanned:?}");
     assert!(
@@ -749,6 +749,131 @@ fn on_main_and_change(root: &Path, files: &[(&str, &str)]) {
     git(&["push", "-q", "origin", "main"]);
     git(&["checkout", "-q", "change"]);
     git(&["merge", "-q", "--ff-only", "main"]);
+}
+
+#[cfg(unix)]
+fn tracked_requirement_link(root: &Path) -> ChangeRecord {
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[
+            ("specs/billing/notes.md", "Billing"),
+            ("content/billing.md", "### REQ-billing-001\n\nBilling runs monthly.\n"),
+        ],
+    );
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    std::os::unix::fs::symlink("../../content/billing.md", root.join("specs/billing/requirements.md"))
+        .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Register the billing requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    record
+}
+
+#[cfg(unix)]
+#[test]
+fn a_tracked_requirements_link_preserves_and_reports_ids_from_its_target() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    // Only the target changed, outside the canonical specs directory.
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the linked requirement was lost");
+    assert!(error.contains("REQ-billing-001 (specs/billing/requirements.md)"), "{error}");
+    assert!(error.contains(":content/billing.md") && !error.contains("git merge"), "{error}");
+
+    // A tracked canonical link cannot make bytes in an untracked target durable.
+    let git = git_in(root);
+    let canonical = root.join("specs/billing/requirements.md");
+    fs::remove_file(&canonical).unwrap();
+    std::os::unix::fs::symlink("../../content/next.md", &canonical).unwrap();
+    fs::write(root.join("content/next.md"), "### REQ-billing-001\n\nBilling runs monthly.\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("an untracked target cannot keep the id");
+    assert!(error.contains("Git does not track") && error.contains("git add content/next.md"), "{error}");
+    git(&["add", "content/next.md"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_linked_requirement_removed_on_the_default_tip_names_the_merge() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    git(&["commit", "-q", "-am", "Retire the billing requirement on main"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("merge the default branch first");
+    assert!(error.contains("origin/main has removed REQ-billing-001 too"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_requirements_file_can_use_two_tracked_links_inside_the_project() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::rename(root.join("content/billing.md"), root.join("content/current.md")).unwrap();
+    std::os::unix::fs::symlink("current.md", root.join("content/billing.md")).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Use a second link for the billing requirements"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    fs::write(root.join("content/current.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the linked requirement was lost");
+    assert!(error.contains("REQ-billing-001 (specs/billing/requirements.md)"), "{error}");
+    assert!(error.contains(":content/current.md") && !error.contains("git merge"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dangling_reference_requirement_link_names_the_unreadable_file() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::remove_file(root.join("content/billing.md")).unwrap();
+    git(&["commit", "-q", "-am", "Leave a dangling requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("a reference link cannot be read");
+    assert!(error.contains("cannot read specs/billing/requirements.md") && error.contains("content/billing.md"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_cyclic_reference_requirement_link_fails_closed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    let target = root.join("content/billing.md");
+    fs::remove_file(&target).unwrap();
+    std::os::unix::fs::symlink("../specs/billing/requirements.md", &target).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Record a cyclic requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("a reference cycle cannot be read");
+    assert!(error.contains("cannot read specs/billing/requirements.md") && error.contains("cyclic"), "{error}");
 }
 
 /// Codex on #1108 (P1): a spec registered at the project root has its requirements beside it, in

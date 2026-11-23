@@ -802,3 +802,6 @@ Use the shared project-path normalization before looking for the parent director
 
 @plane z=65 label="Keep another change's removal authority in Git (#1108)"
 A lifecycle commit stages new files from the selected workspace. Before crediting an active sibling's removal, establish that Git's index contains the records and delta that authorized it. A local approval can disappear on checkout. A staged sibling definition survives it.
+
+@plane z=66 label="Compare the contents of linked requirements (#1108)"
+A canonical requirements symlink can keep its Git blob while its target loses an ID. Discover tracked file links in the reference tree even when the canonical path is unchanged. Resolve bounded relative file links inside the project in each snapshot. Report the canonical name and print the resolved Git blob for restoration. A worktree link preserves an ID only when Git tracks the complete chain through the content file. An unreadable historical link stops the check before the absence can be mistaken for an empty document.

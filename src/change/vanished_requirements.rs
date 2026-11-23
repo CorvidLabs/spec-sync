@@ -430,8 +430,8 @@ fn listed_entry(
     }
 }
 
-/// What the working-tree scan found: each requirements file with its blocks, and each directory
-/// or requirements file it could not read, with the error (REQ-change-177).
+/// What the working-tree scan found: each readable requirements file with its blocks, and errors
+/// that leave the contents of tracked requirements files uncertain (REQ-change-177).
 struct WorkingRequirements {
     files: Vec<(String, Vec<(String, String)>)>,
     unreadable: Vec<String>,
@@ -439,12 +439,13 @@ struct WorkingRequirements {
 
 /// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
 /// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
-/// directory named in `excluded` is entered. A directory or file that cannot be read for a reason
-/// other than not existing is named in `unreadable` (#1117).
+/// directory named in `excluded` is entered. A directory that cannot be listed or a tracked file
+/// that cannot be read for a reason other than not existing is named in `unreadable` (#1117).
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
     excluded: &BTreeSet<String>,
+    tracked: &BTreeSet<&str>,
 ) -> WorkingRequirements {
     let mut unreadable = Vec::new();
     let note = |unreadable: &mut Vec<String>, path: &Path, error: std::io::Error| {
@@ -531,7 +532,9 @@ fn working_tree_requirement_blocks(
             match crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) {
                 Ok(text) => Some((relative, requirement_blocks(&text))),
                 Err(error) => {
-                    note(&mut unreadable, &path, error);
+                    if tracked.contains(relative.as_str()) {
+                        note(&mut unreadable, &path, error);
+                    }
                     None
                 }
             }
@@ -850,10 +853,6 @@ fn lost_requirements_check(
         .intersection(&excluded_at_reference)
         .cloned()
         .collect();
-    let WorkingRequirements {
-        files: working,
-        unreadable,
-    } = working_tree_requirement_blocks(root, &scope, &excluded_both);
     // Only the tracked ones count ("in none of the tracked ones in the working tree"): `change
     // check --commit` commits no file Git does not track, so a copy there keeps nothing (Codex on
     // #1108, fourth round; Leif's 'continue with 95% confidence').
@@ -862,6 +861,10 @@ fn lost_requirements_check(
     let tracked_listing = git_raw_utf8(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
     let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
+    let WorkingRequirements {
+        files: working,
+        unreadable,
+    } = working_tree_requirement_blocks(root, &scope, &excluded_both, &tracked);
     let present: BTreeSet<&str> = working
         .iter()
         .filter(|(path, _)| tracked.contains(path.as_str()))

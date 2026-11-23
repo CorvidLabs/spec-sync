@@ -738,6 +738,41 @@ fn an_unreadable_requirements_file_is_named_instead_of_a_loss() {
     );
 }
 
+#[test]
+fn an_unreadable_untracked_requirements_file_does_not_hide_a_loss() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    lose_auth_002(&project);
+
+    let path = "specs/auth/more.req.md";
+    fs::write(project.root.join(path), [0xff, 0xfe]).unwrap();
+    let indeterminate = "cannot tell whether this branch lost canonical requirements";
+    let definitive = "that no approved `## REMOVED` delta names";
+    let untracked = project.invoke(&["change", "ship-status", &id]);
+    let text = combined(&untracked);
+    assert!(!untracked.status.success());
+    assert!(text.contains("REQ-auth-002"), "{text}");
+    assert!(text.contains(definitive), "{text}");
+    assert!(!text.contains(indeterminate), "{text}");
+
+    project.git(&["add", "--", path]);
+    project.git(&[
+        "commit",
+        "-q",
+        "-m",
+        "track the unreadable requirements file",
+    ]);
+    let tracked = project.invoke(&["change", "ship-status", &id]);
+    let text = combined(&tracked);
+    assert!(!tracked.status.success());
+    assert!(text.contains(indeterminate), "{text}");
+    assert!(text.contains(path), "{text}");
+    assert!(!text.contains(definitive), "{text}");
+}
+
 /// #1117, the guard: on a branch that lost nothing, an unreadable requirements directory changes
 /// nothing (REQ-change-177).
 #[cfg(unix)]

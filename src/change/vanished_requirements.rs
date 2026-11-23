@@ -374,7 +374,7 @@ fn working_tree_requirement_blocks(
         .map(|directory| root.join(directory))
         .collect();
     while let Some(directory) = pending.pop() {
-        let Ok(entries) = fs::read_dir(&directory) else {
+        let Ok(entries) = crate::util::read_project_dir_entries(root, &directory) else {
             continue;
         };
         for entry in entries.flatten() {
@@ -396,7 +396,7 @@ fn working_tree_requirement_blocks(
         .own_companions()
         .filter(|companion| readable_scope_directory(root, companion))
     {
-        let Ok(entries) = fs::read_dir(root.join(companion)) else {
+        let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(companion)) else {
             continue;
         };
         for entry in entries.flatten() {

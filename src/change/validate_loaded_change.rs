@@ -572,7 +572,7 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
     let archive = root.join(ARCHIVE_PATH);
     // With no archive directory there is nothing to walk, but the retirement checks below still
     // run: a retirement rolled back to an open workspace is that change's own failure.
-    let entries: Vec<std::io::Result<fs::DirEntry>> = match fs::read_dir(&archive) {
+    let entries: Vec<_> = match crate::util::read_project_dir_entries(root, &archive) {
         Ok(entries) => entries.collect(),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
         Err(error) => return Err(format!("failed to read archived changes: {error}")),
@@ -591,12 +591,12 @@ fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
         }
         let directory = entry.file_name().to_string_lossy().into_owned();
         let path = entry.path().join("state.json");
-        let content = match fs::read_to_string(&path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound
-                    && (is_positive_legacy_tombstone(&entry.path())
-                        || is_untrackable_husk(&entry.path())) =>
+                    && (is_positive_legacy_tombstone(root, &entry.path())
+                        || is_untrackable_husk(root, &entry.path())) =>
             {
                 continue;
             }
@@ -680,7 +680,7 @@ fn retirement_failures(
             continue;
         }
         let receipt = find_change_dir(root, &id).and_then(|directory| {
-            fs::read(directory.join(RETIREMENT_FILE))
+            crate::util::read_project_bytes(root, &directory.join(RETIREMENT_FILE), crate::util::MAX_STATE_FILE_BYTES)
                 .map_err(|e| format!("committed retirement receipt is missing: {e}"))
         });
         match receipt {

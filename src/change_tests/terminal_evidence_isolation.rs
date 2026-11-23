@@ -521,3 +521,21 @@ fn a_rollback_to_an_open_workspace_with_no_archive_left_still_names_the_rollback
         "{own:?}"
     );
 }
+
+#[test]
+fn a_terminal_roster_attributes_an_oversized_archived_state_to_its_own_package() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    let directory = "2026-11-22-oversized";
+    let path = root.join(ARCHIVE_PATH).join(directory);
+    fs::create_dir_all(&path).unwrap();
+    fs::File::create(path.join("state.json"))
+        .unwrap()
+        .set_len(crate::util::MAX_STATE_FILE_BYTES + 1)
+        .unwrap();
+
+    let roster = terminal_evidence_roster(root).unwrap();
+    assert_eq!(roster.failed.len(), 1);
+    assert!(roster.failed[directory].reason.contains("larger than"), "{roster:?}");
+}

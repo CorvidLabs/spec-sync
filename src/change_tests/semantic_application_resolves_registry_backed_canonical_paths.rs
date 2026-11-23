@@ -719,6 +719,8 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
 
     let error = verify_change(root, &record.id).unwrap_err();
     assert!(
@@ -744,6 +746,11 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
         !change_dir(root, &record.id).join("verification.json").exists(),
         "a refusal never writes verification.json"
     );
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Implementing
+    );
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
 }
 
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
@@ -803,13 +810,74 @@ fn change_check_fails_when_specs_and_code_drift() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
+    let error = check_change(root, Some(&record.id)).unwrap_err();
     assert!(
         error.contains("does_not_exist")
             || error.contains("out of sync")
             || error.contains("phantom")
             || error.contains("missing"),
         "spec↔code drift must fail change check, got {error}"
+    );
+    let recorded = load_change(root, &record.id).unwrap();
+    let summary = fs::read_to_string(change_dir(root, &record.id).join("change.md")).unwrap();
+    assert_eq!(recorded.state, ChangeState::Verifying);
+    assert!(summary.lines().any(|line| line == "state: verifying"));
+    assert!(!load_verification(root, &recorded).unwrap().passed);
+}
+
+#[test]
+fn change_check_repairs_an_older_verifying_summary_and_keeps_its_notes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+
+    let summary_path = change_dir(root, &record.id).join("change.md");
+    let previous = fs::read_to_string(&summary_path).unwrap();
+    let expected = format!("{previous}\n---\n\n## Handoff notes\n\nstate: implementing\n")
+        .replace('\n', "\r\n");
+    let stale = expected.replacen("state: verifying", "state: implementing", 1);
+    assert_ne!(stale, expected);
+    fs::write(&summary_path, stale).unwrap();
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected);
+}
+
+#[test]
+fn failed_verification_publication_restores_the_summary_state_and_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let state_before = fs::read(workspace.join("state.json")).unwrap();
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
+
+    // Fail the last publication after the evidence and JSON state have been written.
+    inject_transaction_write_failure(3);
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+    assert!(
+        error.contains("injected atomic publication failure") && error.contains("change.md"),
+        "{error}"
+    );
+    assert_eq!(fs::read(workspace.join("state.json")).unwrap(), state_before);
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
+    assert!(!workspace.join("verification.json").exists());
+    assert!(!workspace.join("verification-attempts.json").exists());
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Verifying
     );
 }
 
@@ -2307,12 +2375,15 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
     fs::create_dir_all(root.join("specs/auth")).unwrap();
     let canonical = root.join("specs/auth/auth.spec.md");
     fs::write(&canonical, "corrupted partial write\n").unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[TransactionEntry {
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        transaction_journal_path(root),
+        durable_journal(root, vec![TransactionEntry {
             path: "specs/auth/auth.spec.md".into(),
             original: Some("original canonical content\n".into()),
-        }],
+        }]),
     )
     .unwrap();
     let lock = acquire_project_lock(root).unwrap();
@@ -2321,7 +2392,7 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
         fs::read_to_string(canonical).unwrap(),
         "original canonical content\n"
     );
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2341,7 +2412,7 @@ fn torn_transaction_staging_file_is_never_treated_as_the_journal() {
     drop(lock);
 
     assert_eq!(fs::read_to_string(canonical).unwrap(), "original\n");
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2359,27 +2430,30 @@ fn torn_canonical_transaction_journal_fails_closed() {
             path: ".specsync/state.json".into(),
             original: Some("original\n".into()),
         }],
+        root: Some(journal_root(root).unwrap()),
     };
-    write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+    write_json(&transaction_journal_path(root), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
     assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
-    assert!(root.join(TRANSACTION_PATH).exists());
+    assert!(transaction_journal_path(root).exists());
 }
 
 #[test]
 fn unreadable_transaction_backup_aborts_before_journal_publication() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let target = root.join("state.json");
+    // A change record, a path the change workflow really journals (REQ-change-162).
+    let target = root.join(".specsync/changes/unreadable/state.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, [0xff, 0xfe]).unwrap();
 
     let error =
         write_prepared_files(root, &[(target.clone(), "replacement\n".into())]).unwrap_err();
     assert!(error.contains("failed to preserve transaction target"));
     assert_eq!(fs::read(&target).unwrap(), vec![0xff, 0xfe]);
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]

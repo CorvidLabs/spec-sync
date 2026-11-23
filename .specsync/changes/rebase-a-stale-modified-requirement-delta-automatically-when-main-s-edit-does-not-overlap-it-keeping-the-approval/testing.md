@@ -9,7 +9,7 @@ artifact: testing
 
 | Requirement | Evidence |
 |---|---|
-| REQ-change-161 | `src/change_tests/rebase_stale_delta.rs`: a non-overlapping main edit is written into the delta as a proposal and refused; after `change approve` the check applies it and the requirement carries both edits; the canonical file and `approvals.json` are untouched by the proposal; each working-tree text (main's, the change's, the merge) gets the same proposal; overlaps, moves, a lost repeated word, main's deletion, main's heading edit, branch-side text, an older main text, a side branch's text and an unreadable merge-base are refused naming the cause; the #654 no-op; no proposal in CI or without a default branch; the 4,000-word limit; `tests/integration/rebase_stale_delta.rs` through the binary |
+| REQ-change-rebase-proposal-001 | `src/change_tests/rebase_stale_delta.rs`: a non-overlapping main edit is written into the delta as a proposal and refused; after `change approve` the check applies it and the requirement carries both edits; the canonical file and `approvals.json` are untouched by the proposal; each working-tree text (main's, the change's, the merge) gets the same proposal; overlaps, moves, a lost repeated word, main's deletion, main's heading edit, branch-side text, an older main text, a side branch's text and an unreadable merge-base are refused naming the cause; the #654 no-op; no proposal in CI or without a default branch; the 4,000-word limit; `tests/integration/rebase_stale_delta.rs` through the binary |
 | REQ-change-122 | the existing `stale_modified_delta` tests, still refusing overlapping edits |
 
 ## How it runs

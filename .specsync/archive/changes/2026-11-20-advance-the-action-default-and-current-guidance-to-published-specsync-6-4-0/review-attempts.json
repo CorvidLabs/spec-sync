@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-0",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "74ff023537083769c200a7d5346f23d2d9c18bc1",
+      "contract_digest": "29a8a0c9cb7be9d804f94e887b0d4de5b0641b8134d639378e0176445cfd8289",
+      "execution_digest": "e03a089fca2ae00f285f965a1666132744d69f9c46f1ff0b966bca08131ab70e",
+      "workspace_digest": "1311db9a67bbb924822dad79558dde0d42ef64c8085cdf78c89ea5129404e414",
+      "timestamp": 1795204081,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Pass (Recommended)\", to: 'SpecSync #1136, the post-publication PR you approved (\"Yes, both\"). It moves the Action's default version, the published-default constant, the Action docs' default row and the install, migration and security guidance from 6.3.0 to 6.4.0, exactly the lines #1069 moved for 6.3.0, plus the publication record in the 6.4.0 release notes. ... Does your review pass? Note: @v6 will then move to this PR's merge commit, not the 6.4.0 tag ...'",
+        "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 19:46Z, on PR #1136 at head 74ff0235; relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

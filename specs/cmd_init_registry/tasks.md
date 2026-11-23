@@ -16,6 +16,7 @@ spec: cmd_init_registry.spec.md
 - [x] Project name resolution: `--name` → root dir name → `"project"`.
 - [x] No-overwrite guard when the registry already exists.
 - [x] Write-failure path prints an error and exits 1.
+- [x] Create the registry through the confined helpers (REQ-cmd-init-registry-004). Evidence: `tests/integration/project_writes.rs`.
 
 ## Gaps
 

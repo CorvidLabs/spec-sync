@@ -2,8 +2,8 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+#[cfg(test)]
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 // ─── Shared instruction body ─────────────────────────────────────────────────
@@ -449,15 +449,18 @@ fn agent_artifact_manifest_path(root: &Path) -> PathBuf {
 
 fn load_agent_artifact_manifest(root: &Path) -> Result<AgentArtifactManifest, String> {
     let path = agent_artifact_manifest_path(root);
-    let content = match fs::read(&path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == ErrorKind::NotFound => {
-            return Ok(AgentArtifactManifest::default());
-        }
-        Err(error) => {
-            return Err(format!("Failed to read {}: {error}", path.display()));
-        }
-    };
+    // Read, like every artifact below, through the project file functions: the manifest and each
+    // generated file can be committed as a symbolic link (REQ-agents-011).
+    let content =
+        match crate::util::read_project_file(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(Some(content)) => content,
+            Ok(None) => {
+                return Ok(AgentArtifactManifest::default());
+            }
+            Err(error) => {
+                return Err(format!("Failed to read {}: {error}", path.display()));
+            }
+        };
     let manifest: AgentArtifactManifest = serde_json::from_slice(&content)
         .map_err(|error| format!("Failed to parse {}: {error}", path.display()))?;
     if manifest.version != AGENT_ARTIFACT_MANIFEST_VERSION {
@@ -501,15 +504,10 @@ fn write_agent_artifact_manifest(
     manifest: &AgentArtifactManifest,
 ) -> Result<(), String> {
     let path = agent_artifact_manifest_path(root);
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("Invalid agent artifact manifest path: {}", path.display()))?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
     let mut content = serde_json::to_vec_pretty(manifest)
         .map_err(|error| format!("Failed to serialize {}: {error}", path.display()))?;
     content.push(b'\n');
-    fs::write(&path, content)
+    crate::util::write_project_file(root, &path, &content)
         .map_err(|error| format!("Failed to write {}: {error}", path.display()))
 }
 
@@ -615,16 +613,11 @@ fn recorded_artifact_matches(
     record.tool == artifact.tool.name() && record.digest.eq_ignore_ascii_case(digest)
 }
 
-fn write_generated_agent_artifact(artifact: &GeneratedAgentArtifact) -> Result<(), String> {
-    let parent = artifact.path.parent().ok_or_else(|| {
-        format!(
-            "Invalid generated agent artifact path: {}",
-            artifact.path.display()
-        )
-    })?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
-    fs::write(&artifact.path, &artifact.content)
+fn write_generated_agent_artifact(
+    root: &Path,
+    artifact: &GeneratedAgentArtifact,
+) -> Result<(), String> {
+    crate::util::write_project_file(root, &artifact.path, &artifact.content)
         .map_err(|error| format!("Failed to write {}: {error}", artifact.path.display()))
 }
 
@@ -644,14 +637,15 @@ pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
 
     for artifact in &artifacts {
         let desired_digest = content_digest(&artifact.content);
-        match fs::read(&artifact.path) {
-            Ok(existing) if existing == artifact.content => {
+        match crate::util::read_project_file(root, &artifact.path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
+            Ok(Some(existing)) if existing == artifact.content => {
                 updated_manifest.artifacts.insert(
                     artifact.manifest_key.clone(),
                     generated_artifact_record(artifact, desired_digest),
                 );
             }
-            Ok(existing) => {
+            Ok(Some(existing)) => {
                 let existing_digest = content_digest(&existing);
                 match manifest.artifacts.get(&artifact.manifest_key) {
                     Some(recorded)
@@ -673,7 +667,7 @@ pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
                     )),
                 }
             }
-            Err(error) if error.kind() == ErrorKind::NotFound => {
+            Ok(None) => {
                 pending_writes.push(artifact);
                 updated_manifest.artifacts.insert(
                     artifact.manifest_key.clone(),
@@ -698,7 +692,7 @@ pub fn install_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     }
 
     for artifact in &pending_writes {
-        write_generated_agent_artifact(artifact)?;
+        write_generated_agent_artifact(root, artifact)?;
     }
 
     let manifest_changed = updated_manifest != manifest;
@@ -722,8 +716,9 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     let mut conflicts = Vec::new();
 
     for artifact in &artifacts {
-        match fs::read(&artifact.path) {
-            Ok(existing) => {
+        match crate::util::read_project_file(root, &artifact.path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
+            Ok(Some(existing)) => {
                 let existing_digest = content_digest(&existing);
                 match manifest.artifacts.get(&artifact.manifest_key) {
                     Some(recorded)
@@ -741,7 +736,7 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
                     )),
                 }
             }
-            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Ok(None) => {}
             Err(error) => {
                 return Err(format!(
                     "Failed to inspect generated agent artifact {}: {error}",
@@ -760,10 +755,10 @@ pub fn uninstall_agent(root: &Path, tool: AgentTool) -> Result<bool, String> {
     }
 
     for artifact in &pending_removals {
-        fs::remove_file(&artifact.path)
+        crate::util::remove_project_file(root, &artifact.path)
             .map_err(|error| format!("Failed to remove {}: {error}", artifact.path.display()))?;
         updated_manifest.artifacts.remove(&artifact.manifest_key);
-        cleanup_generated_namespace(&artifact.path);
+        cleanup_generated_namespace(root, &artifact.path);
     }
 
     // Missing files no longer need stale ownership entries.
@@ -854,31 +849,24 @@ fn audit_change_command_content(tool: AgentTool) -> String {
     }
 }
 
-fn cleanup_command_namespace(path: &Path) {
-    if let Some(parent) = path.parent() {
-        let is_our_namespace_dir =
-            parent.file_name().and_then(|name| name.to_str()) == Some("specsync");
-        if is_our_namespace_dir
-            && fs::read_dir(parent)
-                .map(|mut entries| entries.next().is_none())
-                .unwrap_or(false)
-        {
-            let _ = fs::remove_dir(parent);
-        }
-    }
-}
-
-fn cleanup_generated_namespace(path: &Path) {
-    cleanup_command_namespace(path);
-    if let Some(parent) = path.parent() {
-        let is_skill_dir = parent.file_name().and_then(|name| name.to_str()) == Some("spec-sync");
-        if is_skill_dir
-            && fs::read_dir(parent)
-                .map(|mut entries| entries.next().is_none())
-                .unwrap_or(false)
-        {
-            let _ = fs::remove_dir(parent);
-        }
+/// Remove the now-empty `specsync` command directory or `spec-sync` skill directory that held
+/// `path`. The removal is confined: a directory reached through a link out of the project is
+/// never removed (REQ-agents-013).
+fn cleanup_generated_namespace(root: &Path, path: &Path) {
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let ours = matches!(
+        parent.file_name().and_then(|name| name.to_str()),
+        Some("specsync" | "spec-sync")
+    );
+    if ours
+        && crate::util::project_path_refusal(root, parent).is_none()
+        && crate::util::read_project_dir_entries(root, parent)
+            .map(|mut entries| entries.next().is_none())
+            .unwrap_or(false)
+    {
+        let _ = crate::util::remove_empty_project_dir(root, parent);
     }
 }
 

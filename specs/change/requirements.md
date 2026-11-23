@@ -1636,7 +1636,7 @@ The system SHALL let `change finalize` and `change archive` reuse, for the durat
 
 ### REQ-change-122
 
-A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal; REQ-change-161 may first write a proposed rebase of the item into the delta, which the check refuses until a person approves it. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.
+A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal; REQ-change-rebase-proposal-001 may first write a proposed rebase of the item into the delta, which the check refuses until a person approves it. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.
 
 Acceptance Criteria
 - A stale MODIFIED item whose block main rewrote after approval, with edits that overlap the change's own, is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.
@@ -2197,6 +2197,85 @@ Acceptance Criteria
 
 ### REQ-change-161
 
+The change lifecycle SHALL read `.specsync/sdd.json` and every change record under `.specsync/changes/` and `.specsync/archive/` (4 MiB), `.specsync/change-transaction.json` and a delivery file whose digest it compares (64 MiB), and the spec, requirements, companion and history files it reads (8 MiB) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/sdd.json` a FIFO, `change status --json` finishes without waiting on it and reports the policy as unreadable, naming the path.
+- With `.specsync/sdd.json` a link to a file outside the project, that file's bytes are not read: the error names the link as leaving the project.
+- With `.specsync/sdd.json` one byte over 4 MiB, it is refused naming the bound, without reading it whole.
+- With `.specsync/change-transaction.json` a FIFO or a link to a file outside the project, a lifecycle command finishes without waiting on it and reports the journal invalid, naming the path.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-change-162
+
+The change workflow SHALL write, replay and remove its transaction journal only as `change-transaction.json` in the project's folder in the user's state folder (REQ-util-006), and only into files the change workflow writes.
+- Each journal SHALL record the device and inode of the project root and its canonical path when it is written. A journal that records another root, or none (every journal SpecSync 6.4.0 wrote, in the user's cache folder or the state folder), SHALL never be replayed: every command that takes the lifecycle lock SHALL refuse, name the journal's path, say that it was not written for this project, and say how to clear it (check the files it lists, then delete it).
+- A `.specsync/change-transaction.json` in the work tree, of any kind and whether or not Git tracks it, SHALL never be opened or replayed, and nor SHALL a journal under a Git directory. While one is in the work tree, every command that takes the lifecycle lock SHALL refuse, name the path, say that a journal in the work tree is never replayed because a repository can put one there, and say how to clear it (check the files it lists if an older SpecSync left it, then delete it).
+- A journal entry SHALL be replayed only when its path is under `.specsync/`, or is a spec file, `requirements.md` or `history/*.md` under the configured `specs_dir`, or is a registry-mapped spec whose mapped path ends in `.spec.md`, the `requirements.md` beside it, or a file in that spec's `history/` directory.
+- A path with a `.git` component SHALL be refused under ASCII case folding, after trailing dots and spaces are removed from each component.
+- One refused entry SHALL refuse the whole journal, so nothing is replayed, with the existing invalid-journal message and its `.broken` recovery naming the entry.
+- The bare-array journal form, written only by SpecSync 5.x, SHALL no longer be replayed and SHALL be refused the same way.
+- Every transaction this build writes SHALL pass the same path rule before it is journaled.
+
+Acceptance Criteria
+- A valid journal planted at `.specsync/change-transaction.json`, or under `.git/specsync/`, is not replayed.
+- A registry entry mapping a module to `.env` does not let a journal delete or rewrite `.env`.
+- While a transaction runs, its journal is in the local state folder and not in the work tree.
+- A journal left for an earlier project at the same path is not replayed, and the command names it.
+- A journal SpecSync 6.4.0 left in the user's cache folder is not replayed, and the command names it.
+
+### REQ-change-163
+
+The system SHALL offer a dry run of the definition approval that says whether `change approve` would accept a change as it stands, and writes nothing. It SHALL run the checks `change approve` runs, in the same order and through the same functions, so the two cannot differ: the relayed-decision check, the lifecycle-lock check, loading the change, the sequence-collision check, the state guard, the roster check, the legacy-baseline binding, the definition check, the delta check, the declared-path ownership check, the `verification_ignored_paths` check, building the approval record, and resolving the actor. The lifecycle-lock check asks what taking the lock asks, without taking it: whether the lock path holds a symlink, whether the lock file could be opened, or created where it is missing, the way `change approve` opens it, and whether an interrupted lifecycle write is waiting to be recovered. It SHALL run every check that can run on its own and report the first problem from each, with the message `change approve` gives for it. It SHALL name each check it skipped and the refused check that check waits on: every later check when the lifecycle-lock check refuses, the change does not load or its state does not admit approval, and building the approval record when the delta check refuses. The first problem it reports SHALL be the one refusal `change approve` gives for the same change and flags, except when an interrupted lifecycle write is waiting to be recovered. It SHALL create, change or remove no file: not the change's `state.json`, `approvals.json` or `change.md`, no canonical spec file, not `.specsync/hashes.json`, not the lifecycle lock, and not the read cache. The legacy-baseline binding and a relayed decision's workflow-version raise SHALL stay in memory. When an interrupted lifecycle write is waiting to be recovered, it SHALL refuse with that reason and run no other check, because a real approval recovers it first, which is a write. It SHALL accept every state `change approve` accepts, including a draft and a change that was sent back. `change approve` itself SHALL refuse exactly what it refused before, with the same messages.
+
+Acceptance Criteria
+- For a complete draft with one of these faults, the dry run reports the message `change approve` then gives, and `change approve` still refuses with it: an unknown delta operation heading; an invalid, bare or non-ASCII delta item heading; a delta with no recognized heading or no item; an empty item; an empty delta file; an ADDED requirement whose id already exists; one item declared twice; a requirement with no SHALL; an ADDED requirement with no Acceptance Criteria; another module's requirement id; a malformed requirement id; an affected path no declared module owns, with and without a declared spec; a declared spec whose front matter does not parse; an unfinished interview.
+- A clean draft reports no refusal, and `change approve` then succeeds.
+- A draft with an open interview question and an invalid delta reports both in one run, each under its own check.
+- A change id that does not exist reports one refusal and names every later check as skipped.
+- Every file of the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte the same before and after the dry run, for a refused draft and for a clean one, with and without an existing lifecycle lock and hash cache.
+- A change that was sent back reports what its re-approval would.
+- A symlinked lifecycle lock path, a lock file the approval could not open or create, and an interrupted lifecycle write waiting to be recovered, each give one refusal from the lifecycle-lock check and name every later check as skipped; a transaction journal that cannot be replayed gets the refusal `change approve` gives, word for word.
+
+### REQ-change-164
+
+`change adopt`'s requirement ID proposals SHALL find `requirements.md` files under `specs_dir` only through the confined, budgeted walk (REQ-validator-053), and the read cache SHALL be read and written only in the folder REQ-util-009 names.
+
+Acceptance Criteria
+- A committed `specs` link that leaves the project yields no proposals, and the read cache of a Git work tree is outside the clone.
+
+### REQ-change-165
+
+The change workflow SHALL write `change.md`, the selected artifacts, `state.json`, `approvals.json` and its other JSON records, and create its workspaces, only through the confined project write functions of `util` (REQ-util-002); an artifact SHALL be created with an exclusive create, so a dangling link is refused instead of created through. Before `change answer`, `depend`, `supersede`, `approve` and `start` write anything, they SHALL refuse, naming the file, a change whose `state.json`, `change.md`, `approvals.json` or selected artifact leads out of the repository or into the Git directory. The durable writers behind transactions, archive, retirement and late-close moves SHALL refuse every symbolic link component of the paths they write, remove or rename.
+
+Acceptance Criteria
+- `change answer` and `change approve` refuse a committed `change.md` linked outside the repository; the outside file keeps its bytes and neither the state nor the approvals change.
+- `change answer` refuses a dangling artifact link and creates nothing outside.
+- `change new` creates no workspace in a `.specsync/changes` linked outside the repository.
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+
+### REQ-change-170
+
+`change audit` SHALL report, for each approved, implementing or verifying change, the refusal REQ-change-159 gives a delta item that targets the frozen `## Change Log` section, with the message `change check` gives, prefixed by the change id, and SHALL ask it in the order `change check` asks it: after the definition approval and the delta files hold, and before the approved delta bodies and bases. An archived change SHALL NOT be judged again.
+
+Acceptance Criteria
+- An approved, implementing or verifying change whose approved delta holds a `SPEC SECTION Change Log` item, as an older SpecSync approved it, makes `change audit` report the refusal `change check` gives, prefixed by the change id, and `change audit --strict` exits 1.
+- An archived change whose package holds such an item is not reported.
+- An active change whose delta holds no such item audits as before, and so does a project with no active change.
+
+### REQ-change-check-summary-state-001
+
+When a scoped check records a completed verification, SpecSync SHALL publish its latest evidence, attempt ledger, and Verifying state in both state.json and change.md in one recoverable transaction.
+
+Acceptance Criteria
+
+- A passing verification and a completed spec-to-code failure both leave state.json, the change.md frontmatter, and change status at verifying.
+- Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
+- A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
+- check --commit commits the synchronized summary and passing evidence that still allows scoped review.
+
+### REQ-change-rebase-proposal-001
+
 When `change check` finds a `## MODIFIED` requirement item of a workflow-v2 change that main has edited since the item's approved base, it SHALL propose a rebase of the item and refuse (#1085). Main's block SHALL be read from Git at the merge-base of `HEAD` and the default branch (`origin/HEAD`, else `origin/main` or `origin/master`), a commit on that branch's first-parent line; main has edited the item when that block, heading included, differs from the item's base and from the change's own text and that line held the base earlier, or when main deleted the block after holding the base. SpecSync SHALL merge the base, main's block and the delta's body word by word, aligning them only on words that occur once in each of the three. When the merge is clean and the working tree's block is main's block, the delta's body or already their merge, it SHALL write the merged body into that item of the delta as a proposal, write nothing else, and refuse, naming the requirement and `specsync change approve <id>`: the delta then no longer matches its approval, so nothing reaches the canonical requirement until a person approves the proposal, and `change check` applies the approved body as it applies any other. It SHALL propose nothing, and SHALL refuse as REQ-change-122 does, naming the cause and the way on, when the edits overlap (a stretch both sides changed that no such word splits, a word both sides deleted at one place that one side adds at another, or a merged word whose count falls outside the range from the base's count plus both sides' deletions of it to the base's count plus both sides' additions of it), when main deleted the requirement or edited its heading, when the working tree's block is any other text, when the requirement is longer than the merge reads (4,000 words a side), or when a default branch exists and Git cannot read the merge-base, tree, text or history the check needs. For an overlap, a deletion, a heading or a requirement too long to merge, the way on is to rewrite the body onto main's text by hand and approve it; for a text Git cannot read, it is to repair the repository or fetch the default branch and check again. An item main has edited is refused this way even when the working tree carries the change's own body, since keeping that body drops main's edit; when one item of a change cannot be proposed, no item is. Nothing is proposed in CI; with no default branch, and in CI, an item the working tree already carries is read as one main has not edited, as before.
 
 Acceptance Criteria
@@ -2210,4 +2289,3 @@ Acceptance Criteria
 - With a default branch, a merge-base, tree, text or history Git cannot read refuses, naming it; with no default branch, and in CI, nothing is proposed and an item the working tree already carries materializes as before.
 - A requirement longer than 4,000 words on any side is refused, naming that limit and the way on (rewrite the body onto main's text by hand, then approve).
 - A `## MODIFIED` spec section, a `## REMOVED` item and a workflow-v1 change keep today's refusal, and nothing is proposed.
-

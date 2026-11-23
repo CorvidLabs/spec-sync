@@ -93,6 +93,7 @@ pub fn cmd_comment(
             }
         };
 
+        // spawned command writes no project file: `gh` posts a comment on GitHub and writes no file
         let status = std::process::Command::new("gh")
             .args([
                 "pr",

@@ -1,7 +1,7 @@
 // Issue #1085, option 2 (Leif's "propose, don't approve"): a MODIFIED requirement delta that went
 // stale only because main edited the same requirement gets a proposed rebase from `change check`
 // when the two edits do not overlap word by word: the merge is written into the delta, the check
-// refuses, and only a person's `change approve` lets it apply (REQ-change-161). Overlapping edits
+// refuses, and only a person's `change approve` lets it apply (REQ-change-rebase-proposal-001). Overlapping edits
 // are refused as before, naming the cause (REQ-change-122).
 //
 // These drive the built binary in a real repository, because the approval-time text of the
@@ -305,7 +305,7 @@ fn an_overlapping_main_edit_is_still_refused_and_writes_nothing() {
     );
 }
 
-/// REQ-change-161: CI never writes, so a CI run of `change check` proposes nothing; the delta stays
+/// REQ-change-rebase-proposal-001: CI never writes, so a CI run of `change check` proposes nothing; the delta stays
 /// refused there until it is checked locally.
 #[test]
 fn a_ci_run_proposes_nothing() {

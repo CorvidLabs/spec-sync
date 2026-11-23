@@ -1,0 +1,66 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795228157,
+      "digest": "4216dd8f82c5238f22027ddeeb607f626bec1190151a67c9132e1eb723ad8bb6",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of the 6.4.1 post-publication change (relayed by hc t4c)\": \"\"Go (Recommended)\" to releasing SpecSync 6.4.1 with the same steps as 6.4.0, a question that named 'then the Action default and @v6' among the 6.4.1 steps\" (A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 22:41Z; hc t4c confirmed on 2026-11-21 that this answer covers the post-publication change's definition, as his 'Yes, both' covered 6.4.0's (#1136). Relayed by hc t4c). Relayed and recorded by claude-code-t59 at 2026-11-21T02:29:15Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-1",
+        "title": "Advance the Action default and current guidance to published SpecSync 6.4.1",
+        "description": "Advance the Action default and current guidance to published SpecSync 6.4.1",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/releases/6.4.1.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After the published v6.4.1 GitHub release (Latest, twelve assets; promoted from candidate v6.4.1-rc.1 at 3f0985e8, qualified on Ubuntu and macos-15 in run 44843175474), the main Action wrapper's omitted-input default moves to 6.4.1: the action.yml version default and description, PUBLISHED_ACTION_DEFAULT in validate-release-version.py, and the version default row in the Action docs; composite runtime script bytes and the CI and Trust candidate mirrors are unchanged. Immutable v6.4.1 and RC refs stay at 3f0985e8 with embedded default 6.4.0, and the docs say to pass version '6.4.1' with @v6.4.1; the immutable v6.0.0 caveat is kept. The github spec Purpose changes through one SpecSection delta. Current guidance (README install and pin text, SECURITY.md, MIGRATION.md, docs/ADOPTING.md, the site index, the Action docs' published-binary and manual-download text) names published 6.4.1; historical release text is unchanged. CHANGELOG gains an Unreleased entry and docs/releases/6.4.1.md records publication. validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, and the pre-push gate passes. The PR merges only after crates.io serves 6.4.1; the floating v6 tag moves separately, after this wrapper commit's consumer checks."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "As #1136 did for 6.4.0 and #1069 for 6.3.0; historical release text is unchanged; floating v6 is a separate move.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "a1654d6312f9852a166f94790f6dabe5cea8b6a049bed45c34e9ad557746b7f7"
+      },
+      "approved_delta_bases": {
+        "github: SPEC SECTION Purpose": "c5034dbbc9fe52e6c8f647f750eb519f72b1769b382967a3b3a5262207f0b01c"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Go (Recommended)\" to releasing SpecSync 6.4.1 with the same steps as 6.4.0, a question that named 'then the Action default and @v6' among the 6.4.1 steps",
+        "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 22:41Z; hc t4c confirmed on 2026-11-21 that this answer covers the post-publication change's definition, as his 'Yes, both' covered 6.4.0's (#1136). Relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795228977,
+      "digest": "0f92891d69cfb73893f945cfa887ecc294b866ccdb6d5110222ea504b12acecc",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

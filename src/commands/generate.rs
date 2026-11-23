@@ -510,6 +510,7 @@ struct RetainedGenerateRoot {
 
 impl RetainedGenerateRoot {
     fn open(root: &Path) -> Result<Self, String> {
+        // not a project file read: retains a handle on the project root itself, whose identity is checked after the coverage snapshot
         let directory = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
             format!(
                 "Cannot retain Generate project root {}: {error}",
@@ -528,6 +529,7 @@ impl RetainedGenerateRoot {
     }
 
     fn verify_public_path(&self) -> Result<(), String> {
+        // not a project file read: re-opens the project root to check it is the folder retained above
         let observed =
             Dir::open_ambient_dir(&self.requested_path, ambient_authority()).map_err(|error| {
                 format!(
@@ -604,6 +606,8 @@ fn generate_after_coverage_test_barrier() -> Result<(), String> {
     }
 
     let directory = std::path::PathBuf::from(directory);
+    // not a project file write: a test barrier file in the directory a test names
+    // not a project file read: the same open, for writing a test barrier only
     let mut ready = std::fs::OpenOptions::new()
         .write(true)
         .create_new(true)

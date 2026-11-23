@@ -1,7 +1,7 @@
 // #1085, option 2 (Leif's "propose, don't approve"): when main has edited a `## MODIFIED`
 // requirement since the change's approved base and the two edits do not overlap, `change check`
 // writes the word merge into the delta as a proposal and refuses; once a person approves it, the
-// check applies it (REQ-change-161). Anything it cannot merge keeps the #843 refusal, naming its
+// check applies it (REQ-change-rebase-proposal-001). Anything it cannot merge keeps the #843 refusal, naming its
 // cause (REQ-change-122). Only the delta is ever written: never the canonical requirement, never
 // approvals.json.
 
@@ -59,7 +59,7 @@ fn rebased_repository(root: &Path) -> ChangeRecord {
 
 /// The check proposes `merged` for REQ-auth-001 and refuses, writing only the delta: the canonical
 /// requirements and approvals.json stay byte for byte, status reports the delta as changed after
-/// approval, and a second check refuses it as such without proposing again (REQ-change-161).
+/// approval, and a second check refuses it as such without proposing again (REQ-change-rebase-proposal-001).
 fn assert_proposed(root: &Path, record: &ChangeRecord, merged: &str, how: &str) {
     let requirements = fs::read_to_string(requirements_path(root)).unwrap();
     let ledger_path = change_dir(root, &record.id).join("approvals.json");
@@ -108,7 +108,7 @@ fn ledger_bytes(root: &Path, record: &ChangeRecord) -> String {
     fs::read_to_string(change_dir(root, &record.id).join("approvals.json")).unwrap()
 }
 
-/// REQ-change-161: the word merge takes each side's edit where the other left the text alone,
+/// REQ-change-rebase-proposal-001: the word merge takes each side's edit where the other left the text alone,
 /// and refuses where both changed the same words or inserted at the same point.
 #[test]
 fn merge_words_merges_edits_apart_and_refuses_edits_that_touch() {
@@ -143,6 +143,21 @@ fn merge_words_merges_edits_apart_and_refuses_edits_that_touch() {
 }
 
 #[test]
+fn rebasing_a_delta_preserves_surrounding_bytes_and_replaces_nested_body() {
+    let original = "## MODIFIED\r\n\r\n### requirement REQ-auth-001  \r\n\r\nOld body.\r\n\r\n### Scenario\r\n\r\nOld scenario.\r\n\r\n\r\n### REQUIREMENT REQ-auth-002\r\n\r\nUntouched body.";
+    let expected = "## MODIFIED\r\n\r\n### requirement REQ-auth-001  \r\n\r\nNew body.\r\n\r\n### Scenario\r\n\r\nNew scenario.\r\n\r\n\r\n### REQUIREMENT REQ-auth-002\r\n\r\nUntouched body.";
+    let items = parse_delta_with_body_ranges(original).unwrap();
+    assert_eq!(items.len(), 2);
+    let mut actual = original.to_string();
+    replace_delta_item_body(
+        &mut actual,
+        items[0].1.clone(),
+        "New body.\n\n### Scenario\n\nNew scenario.",
+    );
+    assert_eq!(actual, expected);
+}
+
+#[test]
 fn word_tokens_join_back_to_the_text() {
     for text in ["", "a", "  lead and trail  ", "one\n\ntwo\tthree", "x\r\ny"] {
         assert_eq!(word_tokens(text).concat(), text);
@@ -150,7 +165,7 @@ fn word_tokens_join_back_to_the_text() {
     assert_eq!(word_tokens(" a b\n"), [" ", "a ", "b\n"]);
 }
 
-/// REQ-change-161 end to end at the unit level: the check writes the merge into the delta as a
+/// REQ-change-rebase-proposal-001 end to end at the unit level: the check writes the merge into the delta as a
 /// proposal and refuses; nothing reaches the canonical requirement until a person approves it;
 /// then the check applies it, and checking again changes nothing.
 #[test]
@@ -169,7 +184,7 @@ fn a_non_overlapping_main_edit_is_proposed_and_applies_once_approved() {
     assert_eq!(fs::read_to_string(delta_path(root, &record, "auth")).unwrap(), delta);
 }
 
-/// REQ-change-161: an approved proposal is ordinary approved wording, so the change verifies and
+/// REQ-change-rebase-proposal-001: an approved proposal is ordinary approved wording, so the change verifies and
 /// accepts.
 #[test]
 fn an_approved_proposal_verifies_and_accepts() {
@@ -196,7 +211,7 @@ fn an_approved_proposal_verifies_and_accepts() {
     assert_eq!(accepted.state, ChangeState::Accepted);
 }
 
-/// REQ-change-161: what the merge does not cover keeps the #843 refusal, and nothing is written.
+/// REQ-change-rebase-proposal-001: what the merge does not cover keeps the #843 refusal, and nothing is written.
 #[test]
 fn what_the_rebase_does_not_cover_keeps_the_refusal() {
     fn assert_refused_untouched(root: &Path, record: &ChangeRecord, what: &str) -> String {
@@ -260,7 +275,7 @@ fn what_the_rebase_does_not_cover_keeps_the_refusal() {
     assert_refused_untouched(root, &record, "no history");
 }
 
-/// REQ-change-161: a workflow-v1 change's definition digest hashes its delta bodies, so a rebase
+/// REQ-change-rebase-proposal-001: a workflow-v1 change's definition digest hashes its delta bodies, so a rebase
 /// would change what its approval signed; it keeps the refusal.
 #[test]
 fn a_workflow_v1_change_keeps_the_refusal() {
@@ -861,6 +876,7 @@ fn an_applied_item_whose_main_text_git_cannot_read_is_refused_only_with_a_defaul
 /// check refuses any merge that loses or invents a word.
 #[test]
 fn a_repeated_word_both_sides_move_is_refused_by_the_word_count() {
+    assert_eq!(merge_words("a b a c d", "a b c a d", "b a c a d"), None);
     assert_eq!(
         merge_words(
             "alpha beta alpha gamma delta",

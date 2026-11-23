@@ -1,5 +1,5 @@
 // Proposing a rebase of a stale MODIFIED requirement delta over main's edit (#1085,
-// REQ-change-161; Leif's option 2, "propose, don't approve").
+// REQ-change-rebase-proposal-001; Leif's option 2, "propose, don't approve").
 //
 // A `## MODIFIED` body replaces a requirement's whole text, written against the block as it stood
 // at approval. When main edits that requirement afterwards, applying the old body would delete
@@ -267,18 +267,32 @@ fn item_block_digest(module: &str, item: &DeltaItem, block: &str) -> String {
     digest.finish()
 }
 
-/// `delta` with `item`'s body replaced by `body`, every other byte kept.
-fn rebased_delta_text(delta: &str, item: &DeltaItem, body: &str) -> Result<String, String> {
-    apply_markdown_block(
-        delta,
-        "### ",
-        &format!("REQUIREMENT {}", item.key),
-        body,
-        DeltaOperation::Modified,
-    )
+/// Replace only the parsed item's body. Keep its heading and surrounding whitespace byte for byte.
+fn replace_delta_item_body(delta: &mut String, range: Range<usize>, body: &str) {
+    let original = &delta[range.clone()];
+    let trimmed = original.trim_start();
+    let (start, end) = if trimmed.is_empty() {
+        (range.start, range.start)
+    } else {
+        let start = range.end - trimmed.len();
+        (start, start + trimmed.trim_end().len())
+    };
+    let line_ending = if delta[..range.start].ends_with("\r\n") {
+        "\r\n"
+    } else {
+        "\n"
+    };
+    let mut normalized = body.replace("\r\n", "\n").replace('\n', line_ending);
+    if range.is_empty() && start < delta.len() {
+        normalized.push_str(line_ending);
+    }
+    if start == delta.len() && !delta.ends_with('\n') {
+        normalized.insert_str(0, line_ending);
+    }
+    delta.replace_range(start..end, &normalized);
 }
 
-/// Main's side of one requirement, read from Git and never from the working tree (REQ-change-161):
+/// Main's side of one requirement, read from Git and never from the working tree (REQ-change-rebase-proposal-001):
 /// the merge-base of HEAD and the default branch, which is on that branch's first-parent line, the
 /// requirement's block there, and the approval-time (or last rebase's) block found earlier on
 /// that line.
@@ -468,7 +482,7 @@ enum MainEdit {
     Unreadable(String),
 }
 
-/// What main's edit of `item` means for a workflow-v2 change outside CI (REQ-change-161): main's
+/// What main's edit of `item` means for a workflow-v2 change outside CI (REQ-change-rebase-proposal-001): main's
 /// side is read from Git, and the item's working-tree block is read from `requirements`, the text
 /// of the canonical file at `path`. Each refusal names its cause and the way on (Leif's rule 3).
 #[allow(clippy::too_many_arguments)]
@@ -547,7 +561,7 @@ fn main_edit(
 }
 
 /// Why the base check refuses `item` on main's side, as a parenthetical after its id
-/// (REQ-change-161): main has edited it past `base`, which is stale even when the working tree
+/// (REQ-change-rebase-proposal-001): main has edited it past `base`, which is stale even when the working tree
 /// carries the change's own body, since keeping that body drops main's edit. `None` when main has
 /// not, as before, including with no default branch and in CI.
 #[allow(clippy::too_many_arguments)]
@@ -575,7 +589,7 @@ fn main_edit_refusal(
 }
 
 /// Propose a rebase of every `## MODIFIED` requirement item of `record` that main has edited
-/// since its approved base, and refuse (REQ-change-161). Main's block is read from Git at HEAD's
+/// since its approved base, and refuse (REQ-change-rebase-proposal-001). Main's block is read from Git at HEAD's
 /// merge-base with the default branch. Each proposal writes the merged body into the item in the
 /// delta, and nothing else: the canonical requirement and `approvals.json` are untouched, and the
 /// delta no longer matches its approval, so the next check refuses it as changed after approval
@@ -609,7 +623,7 @@ fn propose_stale_modified_rebases(root: &Path, record: &ChangeRecord) -> Result<
     let mut held_back = false;
     for module in &record.affected_specs {
         let delta_path = delta_path_checked(root, record, module)?;
-        let mut delta = read_bounded_change_text(&delta_path, "semantic delta")
+        let mut delta = read_bounded_change_text(root, &delta_path, "semantic delta")
             .map_err(|error| format!("semantic delta for {module}: {error}"))?;
         if digests.get(module) != Some(&delta_body_digest(module, &delta)) {
             // Not the approved wording; the delta-body check refuses it, and a hand edit is never
@@ -619,21 +633,20 @@ fn propose_stale_modified_rebases(root: &Path, record: &ChangeRecord) -> Result<
         let (spec_path, requirements_path) = canonical_module_paths(root, &specs_dir, module)?;
         let spec = read_canonical_or_absent(root, &spec_path)?;
         let requirements = read_canonical_or_absent(root, &requirements_path)?;
-        let items = parse_delta(&delta)?;
-        let mut changed = false;
-        for item in items.iter().filter(|item| {
+        let items = parse_delta_with_body_ranges(&delta)?;
+        let mut replacements = Vec::new();
+        for (item, range) in items.into_iter().filter(|(item, _)| {
             item.operation != DeltaOperation::Added && !is_change_log_section(item)
         }) {
-            let Some(base) = bases.get(&delta_base_key(module, item)) else {
+            let Some(base) = bases.get(&delta_base_key(module, &item)) else {
                 continue;
             };
-            let stale = !delta_item_is_applied(&spec, &requirements, item)
-                && canonical_block_digest(module, &spec, &requirements, item) != *base;
-            match main_edit(root, record, &requirements_path, &requirements, module, item, base) {
+            let stale = !delta_item_is_applied(&spec, &requirements, &item)
+                && canonical_block_digest(module, &spec, &requirements, &item) != *base;
+            match main_edit(root, record, &requirements_path, &requirements, module, &item, base) {
                 MainEdit::Unedited => held_back |= stale,
                 MainEdit::Proposal { body, commit } => {
-                    delta = rebased_delta_text(&delta, item, &body)?;
-                    changed = true;
+                    replacements.push((range, body));
                     proposed.push(format!(
                         "{module}: {} (main's text at {})",
                         item.key,
@@ -648,7 +661,10 @@ fn propose_stale_modified_rebases(root: &Path, record: &ChangeRecord) -> Result<
                 )),
             }
         }
-        if changed {
+        if !replacements.is_empty() {
+            for (range, body) in replacements.into_iter().rev() {
+                replace_delta_item_body(&mut delta, range, &body);
+            }
             prepared.push((delta_path, delta));
         }
     }

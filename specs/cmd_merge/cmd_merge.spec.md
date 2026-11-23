@@ -10,6 +10,7 @@ depends_on:
   - specs/merge/merge.spec.md
   - specs/config/config.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Merge
@@ -35,6 +36,7 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 3. Exits 1 if any merge needs manual resolution
 4. `specsync merge --install` writes the attribute rules into `.gitattributes` and sets `merge.specsync.driver` to this executable's `merge-file` command. A symlinked `.gitattributes` is refused. When the configured specs directory is `.` or `./`, the unprefixed `**/*.spec.md` and `**/requirements.md` rules match root and nested contracts (REQ-cmd-merge-004)
 5. `specsync merge-file` is the driver git runs as `%O %A %B %P`. It exits 1 when the contract still contains a conflict, and it does not loosen `cmd_merge`'s marker scan
+6. Every read of a project file here, `.gitattributes` (4 MiB) and spec files (8 MiB); the files Git hands the merge driver are out of scope, goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-merge-005).
 
 ## Behavioral Examples
 
@@ -56,6 +58,7 @@ Implements the `specsync merge` command. Auto-resolves git merge conflicts in sp
 |-----------|----------|
 | No conflicts | Prints "no conflicts" |
 | Complex conflict | Exits 1 with file path |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

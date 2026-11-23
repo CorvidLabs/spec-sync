@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "be0b03bb8c1ff93afd8670c537ef08f0b79d61a2",
+  "contract_digest": "f3da0208f61cbe6ff76dd5925fc382cdd662341536966c4261522189467b581c",
+  "execution_digest": "23b8256511cc4f0a6d9f2776b239e22fd7e40b68a430a95d6ae490b11ae68097",
+  "workspace_digest": "991d6fcbcaed9127948ca9c552773e2107a9724aa56cc6d3816878edc1473770",
+  "timestamp": 1795117602,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "All as recommended",
+    "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 19:43Z, after t4c gave him one table of recommendations whose first row was that the implementation review of change 4 as amended at eddc7f5e passes (record it as his relayed review, ship and archive it in the private fork); relayed by t4c over hc to t5r as his implementation review",
+    "recorded_by": "claude-code-t5r"
+  }
+}

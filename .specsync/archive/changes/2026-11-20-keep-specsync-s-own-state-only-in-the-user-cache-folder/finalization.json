@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-specsync-s-own-state-only-in-the-user-cache-folder",
+  "implementation_commit": "7943890ab12ee5c8dcbf394a4d3683ac2d1f3872",
+  "implementation_tree": "bba219d2ec7befdbb9de41f2623a89ea614bc5dc",
+  "contract_digest": "9a7ce342e15a76a0c8610055138b82f5c578cb6a46ad86867b92e33c8a017e44",
+  "workspace_digest": "d4a3ca10a4790e3e0e33f8bf48ea4af5be322f4e326f6caee98c8060fb5a76c1",
+  "closing_digest": "bba51d01797814986fdc966e698fef6993fe6e2cba450a5dcf2485d670a03c87",
+  "review_digest": "11ebbaccd5fc246991133f1c16760febcb98f9c69e537dc1721b1d1544b6e1ce",
+  "finalization_digest": "0fcd9ab6de5778de7f09ed692cfedbd481a154b91e379ae66744f84cb9f43377",
+  "timestamp": 1795183896
+}

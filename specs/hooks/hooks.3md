@@ -48,3 +48,8 @@ the two forms. A prefix match was declined: uninstall deletes everything between
 begin and end. The pre-commit body needs no frozen copy: since #480 it is written
 only inside project-keyed markers that carry no dash, and the unmarked legacy
 comparison has matched no released install since #774 changed the body.
+
+@plane z=7 label="Lesson: every file an installer writes can be a link (GHSA-7q5v-8jcc-rx54 sweep)"
+- verified. `install` appended to `CLAUDE.md`, `.cursorrules`, `AGENTS.md`, `.github/copilot-instructions.md` and `.claude/settings.json` with `fs::write`, through whatever link the repository had committed there, while the pre-commit hook beside them was already guarded. `uninstall` rewrote the same files the same way.
+- All of them now go through `util`'s project file functions. A link that stays inside the project is written through, so a `CLAUDE.md` link to `AGENTS.md` still gets the block in `AGENTS.md`. A link that leaves, or dangles, fails that target with the path in the message.
+- `uninstall` used to print every error as a note and exit 0. A refused path now makes it exit 1; the Claude Code settings notice stays a note. Source: `tests/integration/project_links.rs` `hooks_*`.

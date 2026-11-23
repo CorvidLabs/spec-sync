@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795215248,
+      "digest": "78a6f2d39ae59efc9281516f4965246ffeab5c4394a5ba9e89550fcd64b6eaa0",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of the 6.4.1 prep definition (relayed by hc t4c)\": \"\"Approve (Recommended)\" to the 6.4.1 prep definition as written (gates/641-prep-definition.md: versions to 6.4.1, the CHANGELOG section dated the planned tag day and corrected before the tag if it moves, docs/releases/6.4.1.md, 6.4.0's paths and wording); and \"1: hardening only (Recommended)\" to what 6.4.1 holds, with his earlier \"Go (Recommended)\" to releasing 6.4.1 with the same steps as 6.4.0\" (Claude Code question dialogs in his planning session (hc t4c), 2026-11-20 about 22:41Z (the go) and about 22:44Z (the definition and what 6.4.1 holds), on exactly ss-builder/gates/641-prep-definition.md; relayed by hc t4c). Relayed and recorded by claude-code-t59 at 2026-11-20T22:54:07Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "prepare-specsync-6-4-1-package-metadata-and-release-handoff",
+        "title": "Prepare SpecSync 6.4.1 package metadata and release handoff",
+        "description": "Prepare SpecSync 6.4.1 package metadata and release handoff",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "README.md",
+          "docs/releases/6.4.1.md",
+          "site/src/content/"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Release package version, the self-built candidate inputs and release documentation only; no runtime, canonical spec, published Action default, risk or provenance policy changes",
+        "acceptance_criteria": [
+          "Cargo.toml and the specsync Cargo.lock entry, the CI packaged Action consumer version and the Trust specsync-version are 6.4.1; README and site Action examples pin @v6.4.1 with version '6.4.1', and test-validate-release-candidate.py's fixtures for the version being released name 6.4.1, while the action.yml default, PUBLISHED_ACTION_DEFAULT, the Action docs default row and current-install guidance stay at published 6.4.0; CHANGELOG.md has a dated 6.4.1 section listing every user-visible change merged since v6.4.0, with the Unreleased link comparing from v6.4.1; docs/releases/6.4.1.md names the selected source, the upgrade notes for each user-visible change since 6.4.0, what the release lane does, and the owner gates for the candidate tag, promotion, crates.io, the Homebrew tap, the post-publication PR and the floating v6 tag; validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass at 6.4.1; no tag, release or publish happens"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "6.4.0's prep (#1109) with the versions moved; nothing in this PR names the 6.4.1 fix or leaves a placeholder for it",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Approve (Recommended)\" to the 6.4.1 prep definition as written (gates/641-prep-definition.md: versions to 6.4.1, the CHANGELOG section dated the planned tag day and corrected before the tag if it moves, docs/releases/6.4.1.md, 6.4.0's paths and wording); and \"1: hardening only (Recommended)\" to what 6.4.1 holds, with his earlier \"Go (Recommended)\" to releasing 6.4.1 with the same steps as 6.4.0",
+        "where": "Claude Code question dialogs in his planning session (hc t4c), 2026-11-20 about 22:41Z (the go) and about 22:44Z (the definition and what 6.4.1 holds), on exactly ss-builder/gates/641-prep-definition.md; relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795218071,
+      "digest": "b647939bb5e3e39912e3200aac0c08971d3a27170d3c30d63f9a79d538e9fc78",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

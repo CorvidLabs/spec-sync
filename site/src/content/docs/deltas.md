@@ -176,9 +176,11 @@ which runs no merge driver. A Change Log table written by an earlier SpecSync st
 is; `specsync history <module>` prints it followed by one row per fragment.
 
 SpecSync 6.3.0 and older do not know history fragments. Their `check` ignores them, but their
-`change audit` fails on a tree that has one (it reads the fragment as a path no active change
-covers), and their `change check` on a change recorded by a fragment appends a Change Log row and
-bumps `version:` as well, which a newer `check` reports as a change recorded twice. A repository
+`change audit` and `change audit --strict` fail on a branch whose changes add a fragment, at the
+checked tip and at the archive tip (they read the fragment as a path no active change covers); on
+a branch that only holds fragments already merged they pass. Their `change check` on a change
+recorded by a fragment appends a Change Log row and bumps `version:` as well, which a newer
+`check` reports as a change recorded twice. A repository
 that pins SpecSync must move the pin in the same pull request that first ships a change with
 history fragments.
 

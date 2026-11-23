@@ -34,6 +34,7 @@ files:
   - src/change_tests/doctor_collision.rs
   - src/change_tests/fast_archived_reads.rs
   - src/change_tests/fast_finalize.rs
+  - src/change_tests/git_environments.rs
   - src/change_tests/historical_reconciliation.rs
   - src/change_tests/open_task_gate.rs
   - src/change_tests/recorded_review_recovery.rs

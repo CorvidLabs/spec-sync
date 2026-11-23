@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+  "implementation_commit": "eac242876ca3c73c12f918c90794e82aeee08cd0",
+  "implementation_tree": "f6871e51a0874841ad04999f03f434495647b3df",
+  "contract_digest": "836323793bb9a2e5a669d9e94f76642b20f37a3d1af162e1c4fd98ecfc6625ea",
+  "workspace_digest": "8a6223c6eac8460fb67267b73ca90068d6452292b7f004300832d06fe70a19b0",
+  "closing_digest": "044080615545bb577536aa38a0fadc5f9914c4f4f1b9ab1d4c0259e4bc2408d4",
+  "review_digest": "89d332577e8e90635b171e7eee62589f65e3a51510852edfbd0d8f7d3ee1511e",
+  "finalization_digest": "3998710ac520b2d30e7b0685b3549e2b4cc7436ce63ff79c40bd33638a3d4bda",
+  "timestamp": 1795214984
+}

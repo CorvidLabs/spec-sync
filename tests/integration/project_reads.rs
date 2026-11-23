@@ -577,6 +577,9 @@ const READ_CALLS: &[&str] = &[
     "open_ambient_dir(",
     "File::open_ambient(",
     ".open(",
+    // 6.4.1 (X1): directory listings, which a committed link can lead out of the project.
+    "read_dir(",
+    "WalkDir::new(",
 ];
 
 /// Free functions of `std::fs` that read, which an import would let a call name bare.

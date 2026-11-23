@@ -146,6 +146,7 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
 }
 
 fn git_config_get(root: &Path, key: &str) -> Option<String> {
+    // git writes no project file: reads one key of the repository's Git config
     let output = git_cmd(root)
         .args(["config", "--local", "--get", key])
         .output()
@@ -158,6 +159,7 @@ fn git_config_get(root: &Path, key: &str) -> Option<String> {
 }
 
 fn git_config_unset(root: &Path, key: &str) -> Result<(), String> {
+    // git writes no project file: `merge uninstall` removes only its own merge-driver key from the repository's Git config, which it exists to do
     let output = git_cmd(root)
         .args(["config", "--local", "--unset", key])
         .output()
@@ -281,6 +283,7 @@ fn shell_quote(text: &str) -> String {
 }
 
 fn git_config(root: &Path, key: &str, value: &str) -> Result<(), String> {
+    // git writes no project file: `merge install` sets only its own merge-driver keys in the repository's Git config, which it exists to do
     let output = git_cmd(root)
         .args(["config", key, value])
         .output()

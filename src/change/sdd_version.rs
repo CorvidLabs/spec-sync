@@ -684,6 +684,44 @@ struct TransactionJournal {
     entry_count: usize,
     entries_digest: String,
     entries: Vec<TransactionEntry>,
+    /// The project root the journal was written for (REQ-change-162). SpecSync 6.4.0 wrote none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    root: Option<JournalRoot>,
+}
+
+/// The project root a journal belongs to: its canonical path, and on Unix its device and inode,
+/// so another project later placed at the same path is told apart (REQ-change-162).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct JournalRoot {
+    path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    device: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inode: Option<u64>,
+}
+
+/// The identity of the project root at `root`, as a journal records it.
+fn journal_root(root: &Path) -> Result<JournalRoot, String> {
+    let canonical = root
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve {}: {error}", root.display()))?;
+    let metadata = fs::metadata(&canonical)
+        .map_err(|error| format!("cannot inspect {}: {error}", canonical.display()))?;
+    #[cfg(unix)]
+    let (device, inode) = {
+        use std::os::unix::fs::MetadataExt;
+        (Some(metadata.dev()), Some(metadata.ino()))
+    };
+    #[cfg(not(unix))]
+    let (device, inode) = {
+        let _ = metadata;
+        (None, None)
+    };
+    Ok(JournalRoot {
+        path: canonical.to_string_lossy().into_owned(),
+        device,
+        inode,
+    })
 }
 
 
@@ -704,8 +742,8 @@ fn transaction_state(
     root: &Path,
     create: bool,
 ) -> Result<Option<crate::util::local_state::LocalState>, String> {
-    crate::util::local_state::LocalState::open(root, create).map_err(|error| {
-        format!("cannot open SpecSync's local state folder for the transaction journal: {error}")
+    crate::util::local_state::LocalState::open_journal(root, create).map_err(|error| {
+        format!("cannot open SpecSync's state folder for the transaction journal: {error}")
     })
 }
 
@@ -801,6 +839,7 @@ fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String
 /// writes nothing, so `change approve --dry-run` asks it too (REQ-change-163).
 fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>, String> {
     refuse_journal_in_work_tree(root)?;
+    refuse_journal_in_cache_folder(root)?;
     let Some(state) = transaction_state(root, false)? else {
         return Ok(None);
     };
@@ -834,15 +873,61 @@ fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>
             "the integrity envelope does not hold",
         ));
     }
+    // A journal is replayed only into the project it was written for: another project later
+    // placed at the same path, or a journal that records none, as SpecSync 6.4.0 wrote, never
+    // gets its contents (REQ-change-162).
+    let here = journal_root(root)?;
+    if journal.root.as_ref() != Some(&here) {
+        return Err(invalid_journal_error(
+            &journal_path,
+            &format!(
+                "it was not written for this project at {} ({}), so it is never replayed; check \
+                 the files it lists before you set it aside",
+                here.path,
+                match &journal.root {
+                    Some(recorded) => format!("it records the project at {}", recorded.path),
+                    None => "it records no project, as SpecSync 6.4.0 wrote it".to_string(),
+                }
+            ),
+        ));
+    }
     Ok(Some(journal.entries))
+}
+
+/// Refuse while SpecSync 6.4.0's journal is still in the user's cache folder: it records no
+/// project, so it is never replayed (REQ-change-162).
+fn refuse_journal_in_cache_folder(root: &Path) -> Result<(), String> {
+    let Ok(Some(cache)) = crate::util::local_state::LocalState::open(root, false) else {
+        return Ok(());
+    };
+    // Where the cache and state folders are one folder (`%LOCALAPPDATA%` on Windows, or
+    // `XDG_STATE_HOME` set to `XDG_CACHE_HOME`), the journal there is this build's own, and the
+    // read below judges it by the project it records (REQ-change-162).
+    let same_folder = |state: &crate::util::local_state::LocalState| {
+        let folder = |path: PathBuf| path.parent().and_then(|parent| parent.canonicalize().ok());
+        folder(state.file_path(TRANSACTION_FILE)) == folder(cache.file_path(TRANSACTION_FILE))
+    };
+    if transaction_state(root, false)?.is_some_and(|state| same_folder(&state)) {
+        return Ok(());
+    }
+    match cache.metadata(TRANSACTION_FILE) {
+        Ok(None) => Ok(()),
+        _ => Err(invalid_journal_error(
+            &cache.file_path(TRANSACTION_FILE),
+            "SpecSync 6.4.0 kept its journal in the cache folder; it records no project, so it is \
+             never replayed; check the files it lists before you set it aside",
+        )),
+    }
 }
 
 /// Where one journal entry is restored, or recovery's refusal of it: a path outside the project,
 /// one the change workflow never writes, or one with a symbolic link on the way (REQ-change-162).
 fn pending_transaction_entry_path(root: &Path, entry: &TransactionEntry) -> Result<PathBuf, String> {
-    let journal_path = crate::util::local_state::project_state_dir(root)
-        .map(|folder| folder.join(TRANSACTION_FILE))
-        .unwrap_or_else(|_| PathBuf::from(TRANSACTION_FILE));
+    let journal_path = transaction_state(root, false)
+        .ok()
+        .flatten()
+        .map(|state| state.file_path(TRANSACTION_FILE))
+        .unwrap_or_else(|| PathBuf::from(TRANSACTION_FILE));
     let refused =
         |reason: String| invalid_journal_error(&journal_path, &format!("entry `{}`: {reason}", entry.path));
     let path = safe_project_path(root, &entry.path).map_err(refused)?;
@@ -2300,7 +2385,7 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
 fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
     let mut roster = ChangeRoster::default();
     let dir = root.join(CHANGES_PATH);
-    let entries = match fs::read_dir(dir) {
+    let entries = match crate::util::read_project_dir_entries(root, &dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read active changes: {error}")),
@@ -2347,7 +2432,7 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                if is_untrackable_husk(&entry.path()) {
+                if is_untrackable_husk(root, &entry.path()) {
                     continue;
                 }
                 roster.unreadable.push(UnreadableChange {
@@ -2579,7 +2664,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
         (root.join(CHANGES_PATH), false),
         (root.join(ARCHIVE_PATH), true),
     ] {
-        let entries = match fs::read_dir(&base) {
+        let entries = match crate::util::read_project_dir_entries(root, &base) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => {
@@ -2604,8 +2689,8 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 Err(error)
                     if archived
                         && error.kind() == std::io::ErrorKind::NotFound
-                        && (is_positive_legacy_tombstone(&entry.path())
-                            || is_untrackable_husk(&entry.path())) =>
+                        && (is_positive_legacy_tombstone(root, &entry.path())
+                            || is_untrackable_husk(root, &entry.path())) =>
                 {
                     continue;
                 }
@@ -2618,7 +2703,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 Err(error)
                     if !archived
                         && error.kind() == std::io::ErrorKind::NotFound
-                        && is_untrackable_husk(&entry.path()) =>
+                        && is_untrackable_husk(root, &entry.path()) =>
                 {
                     continue;
                 }
@@ -4082,7 +4167,7 @@ fn module_has_canonical_spec(root: &Path, specs_dir: &str, module: &str) -> bool
     registered
         || spec_path
             .parent()
-            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(directory) && entry_is_not_an_ascii_case_variant(&spec_path))
+            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(root, directory) && entry_is_not_an_ascii_case_variant(root, &spec_path))
 }
 
 /// Whether some component of `path` below `root` is a symlink.
@@ -4099,11 +4184,11 @@ fn path_traverses_symlink(root: &Path, path: &Path) -> bool {
 
 /// False when `path`'s directory holds an entry differing from its name only in ASCII case and
 /// none spelled exactly: the disk resolved a case variant.
-fn entry_is_not_an_ascii_case_variant(path: &Path) -> bool {
+fn entry_is_not_an_ascii_case_variant(root: &Path, path: &Path) -> bool {
     let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
         return true;
     };
-    let Ok(entries) = fs::read_dir(parent) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, parent) else {
         return true;
     };
     let names: Vec<std::ffi::OsString> = entries.flatten().map(|entry| entry.file_name()).collect();
@@ -4707,7 +4792,7 @@ pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackf
 fn change_workspaces_for_backfill(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut workspaces = Vec::new();
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
-        let Ok(entries) = fs::read_dir(&base) else {
+        let Ok(entries) = crate::util::read_project_dir_entries(root, &base) else {
             continue;
         };
         for entry in entries.flatten() {
@@ -6058,7 +6143,7 @@ impl SpecListingIndex {
         let mut visited = 0usize;
         let mut truncated = false;
         'walk: while let Some(directory) = stack.pop() {
-            let Ok(entries) = fs::read_dir(&directory) else {
+            let Ok(entries) = crate::util::read_project_dir_entries(root, &directory) else {
                 continue;
             };
             for entry in entries.flatten() {

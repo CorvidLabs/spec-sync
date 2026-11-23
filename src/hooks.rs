@@ -248,13 +248,12 @@ fn git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, HooksDirError> {
 }
 
 fn reach_git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
-    let output =
-        crate::git_utils::output_after_child_exits(Command::new("git").arg("-C").arg(root).args([
-            "rev-parse",
-            "--git-path",
-            "hooks",
-        ]))
-        .map_err(|error| format!("{GIT_NOT_RUN}: {error}"))?;
+    let output = crate::git_utils::output_after_child_exits(clean_git(root).args([
+        "rev-parse",
+        "--git-path",
+        "hooks",
+    ]))
+    .map_err(|error| format!("{GIT_NOT_RUN}: {error}"))?;
     if !output.status.success() {
         return Err(format!("{} {NOT_A_REPOSITORY}", root.display()));
     }
@@ -276,24 +275,31 @@ fn reach_git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     let path = lexically_normal(&path);
     // The walk starts from a folder no repository content leads to: the Git directory, the work
     // tree's top folder, or, for a hooks folder the person set outside both, its own parent.
-    let mut may_create = create;
-    let (base, rest) = match crate::util::work_tree_and_git_dir(root) {
-        Some((_, git_dir)) if path.starts_with(&git_dir) => {
-            let rest = path.strip_prefix(&git_dir).unwrap_or(&path).to_path_buf();
-            (git_dir, rest)
-        }
-        Some((top, _)) if path.starts_with(&top) => {
-            let rest = path.strip_prefix(&top).unwrap_or(&path).to_path_buf();
-            (top, rest)
-        }
-        _ => {
+    let may_create = create;
+    let common_dir = git_common_dir(root);
+    let inside = crate::util::work_tree_and_git_dir(root).and_then(|(top, git_dir)| {
+        inside_base(
+            &path,
+            &[&git_dir, common_dir.as_deref().unwrap_or(&git_dir), &top],
+        )
+    });
+    let (base, rest) = match inside {
+        Some(found) => found,
+        None => {
             let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
                 return Err(format!("Git returned an unusable hooks path: {raw}"));
             };
-            // Outside both trees, only the person's own global or system config may have folders
-            // made there: a repository's `.git/config`, which an archive can ship, may not
-            // (REQ-hooks-009).
-            may_create = create && hooks_path_is_the_persons_own(root);
+            // Outside these trees, only the person's own global or system config may name a hooks
+            // folder: a repository's `.git/config`, which an archive can ship, may not, so nothing
+            // is read, written or made there (REQ-hooks-009).
+            if !hooks_path_is_the_persons_own(root) {
+                return Err(format!(
+                    "the Git hooks folder {} lies outside the work tree and the Git directory, and \
+                     core.hooksPath is not set in your global or system Git config, so SpecSync \
+                     does not manage a hook there",
+                    path.display()
+                ));
+            }
             if may_create {
                 // not a project file write: the parent of a hooks folder the person set outside the work tree and the Git directory in their own Git config
                 fs::create_dir_all(parent)
@@ -352,10 +358,65 @@ fn reach_git_hooks_dir(root: &Path, create: bool) -> Result<HooksDir, String> {
     Ok(HooksDir { dir, path: reached })
 }
 
+/// `git -C root`, with the variables that would point Git at another repository removed, as
+/// `tracked_by_git` does (REQ-hooks-009).
+fn clean_git(root: &Path) -> Command {
+    let mut command = Command::new("git");
+    command
+        .arg("-C")
+        .arg(root)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE");
+    command
+}
+
+/// The canonical common Git directory, which a linked worktree shares with its main repository.
+fn git_common_dir(root: &Path) -> Option<PathBuf> {
+    let output = crate::git_utils::output_after_child_exits(
+        clean_git(root).args(["rev-parse", "--git-common-dir"]),
+    )
+    .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let raw = String::from_utf8(output.stdout).ok()?;
+    let path = PathBuf::from(raw.trim());
+    let path = if path.is_absolute() {
+        path
+    } else {
+        root.join(path)
+    };
+    path.canonicalize().ok()
+}
+
+/// The one of `bases` (the canonical Git directory, common Git directory and work-tree top) that
+/// `path` lies in, and the rest of `path` below it. Each ancestor of `path` is compared after it
+/// is resolved, so a path spelled through a link to one of them (macOS's `/var` for
+/// `/private/var`) is placed where it lies. An ancestor that is itself a symbolic link is never
+/// taken as the base, so a committed link on the way is still refused by the walk from the base
+/// (REQ-hooks-009).
+fn inside_base(path: &Path, bases: &[&Path]) -> Option<(PathBuf, PathBuf)> {
+    for ancestor in path.ancestors() {
+        if fs::symlink_metadata(ancestor).is_ok_and(|metadata| metadata.file_type().is_symlink()) {
+            continue;
+        }
+        let Ok(resolved) = ancestor.canonicalize() else {
+            continue;
+        };
+        if let Some(base) = bases.iter().find(|base| **base == resolved) {
+            let rest = path.strip_prefix(ancestor).unwrap_or(Path::new(""));
+            return Some((base.to_path_buf(), rest.to_path_buf()));
+        }
+    }
+    None
+}
+
 /// Whether `core.hooksPath` comes from the person's own `global` or `system` Git config, as
 /// `git config --show-scope` says, rather than from the repository's config, which an archive can
 /// ship, or from anywhere else.
 fn hooks_path_is_the_persons_own(root: &Path) -> bool {
+    // git writes no project file: reads where core.hooksPath is set
     let output = crate::git_utils::output_after_child_exits(
         Command::new("git")
             .arg("-C")

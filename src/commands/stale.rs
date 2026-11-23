@@ -66,7 +66,24 @@ pub fn cmd_stale(
             crate::util::MAX_SPEC_FILE_BYTES,
         ) {
             Ok(c) => c.replace("\r\n", "\n"),
-            Err(_) => continue,
+            Err(error) => {
+                // A spec whose read is refused is unmeasurable, never left out of the totals, so
+                // the summary cannot call every spec up to date (REQ-cmd-stale-005).
+                let rel_spec = spec_file
+                    .strip_prefix(root)
+                    .unwrap_or(spec_file)
+                    .to_string_lossy()
+                    .to_string();
+                unmeasurable_specs.push(UnmeasurableSpec {
+                    module_name: rel_spec.clone(),
+                    files: vec![(
+                        format!("{rel_spec}: {error}"),
+                        "the spec's read was refused",
+                    )],
+                    spec_path: rel_spec,
+                });
+                continue;
+            }
         };
         let parsed = match parser::parse_frontmatter(&content) {
             Some(p) => p,

@@ -3747,6 +3747,7 @@ fn prune_empty_package_directories(package: &Path) {
 }
 
 fn collect_package_directories(directory: &Path, found: &mut Vec<PathBuf>) {
+    // not a project file read: lists the archived package SpecSync just moved, entering only real folders (file_type never follows a link)
     let Ok(entries) = fs::read_dir(directory) else {
         return;
     };
@@ -4616,8 +4617,8 @@ fn archived_workflow_history_errors(root: &Path) -> Vec<String> {
         Ok(records) => records,
         Err(error) => return vec![error],
     };
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
-        let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
+        let entries: Vec<std::io::Result<crate::util::ProjectDirEntry>> = entries.collect();
         prefetch_archived_workflow_histories(root, &entries);
     }
     records

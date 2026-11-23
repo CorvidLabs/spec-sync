@@ -147,3 +147,6 @@ mod project_writes;
 mod approve_dry_run;
 #[path = "integration/repository_inputs.rs"]
 mod repository_inputs;
+
+#[path = "integration/hardening_641.rs"]
+mod hardening_641;

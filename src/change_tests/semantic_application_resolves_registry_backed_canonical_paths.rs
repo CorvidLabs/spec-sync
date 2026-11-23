@@ -2312,7 +2312,7 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(
         transaction_journal_path(root),
-        durable_journal(vec![TransactionEntry {
+        durable_journal(root, vec![TransactionEntry {
             path: "specs/auth/auth.spec.md".into(),
             original: Some("original canonical content\n".into()),
         }]),
@@ -2362,6 +2362,7 @@ fn torn_canonical_transaction_journal_fails_closed() {
             path: ".specsync/state.json".into(),
             original: Some("original\n".into()),
         }],
+        root: Some(journal_root(root).unwrap()),
     };
     write_json(&transaction_journal_path(root), &journal).unwrap();
 

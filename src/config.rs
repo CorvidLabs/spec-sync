@@ -2,7 +2,6 @@ use crate::exports::has_extension;
 use crate::manifest;
 use crate::types::SpecSyncConfig;
 use std::collections::HashSet;
-use std::fs;
 use std::path::Path;
 use walkdir::WalkDir;
 
@@ -135,7 +134,7 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
     let mut has_root_source_files = false;
 
     // Check immediate children of root
-    let entries = match fs::read_dir(root) {
+    let entries = match crate::util::read_project_dir_entries(root, root) {
         Ok(e) => e,
         Err(_) => return Vec::new(),
     };
@@ -176,6 +175,7 @@ fn scan_source_dirs(root: &Path) -> Vec<String> {
 }
 /// Check if a directory contains source files, scanning up to `max_depth` levels.
 fn dir_contains_source_files(dir: &Path, ignored: &HashSet<&str>, max_depth: usize) -> bool {
+    // not a project file read: walks a candidate folder with follow_root_links(false) and no link followed below it
     for entry in WalkDir::new(dir)
         .follow_root_links(false)
         .max_depth(max_depth)

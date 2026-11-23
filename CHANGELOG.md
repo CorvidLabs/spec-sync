@@ -9,11 +9,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Advance the main Action binary default to published 6.4.0 after supported-platform asset and Action checks. Immutable `@v6.4.0` remains at its qualified candidate SHA (`3d57fa13`) with default 6.3.0; select `version: '6.4.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.0.
+- Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
 ### Fixed
 
 - `change check`, verification, `change accept`, `change finalize` and `change ship` refuse a change on a branch that lost a canonical requirement no approved `## REMOVED` delta names, naming every lost id and the file that held it, compared with the merge-base of `HEAD` and the default branch (or the change's base commit when there is none). A requirement moved between files under its id is not lost; a renumbered one is refused under its old id, since ids are permanent. `change audit` reports it and `change ship-status` lists it as a blocker. In CorvidLabs/starling a truncated `requirements.md` had deleted 28 requirements while every check passed (REQ-change-169, REQ-cmd-change-042, #1081). It reads no requirements under `.git`, `.specsync` or `exclude_dirs`, lists lost ids in natural order, and when Git cannot be read (as in a shallow clone missing the merge-base) it says to repair the repository or fetch the default branch, naming `git fetch --unshallow origin` in a shallow clone. A requirement the default branch removed too, brought into the branch by a cherry-pick instead of a merge, is refused with the way out that fits: merge the default branch.
+
+## [6.4.1] - 2026-11-21
+
+### Changed
+
+- Advance the main Action binary default to published 6.4.0 after supported-platform asset and Action checks. Immutable `@v6.4.0` remains at its qualified candidate SHA (`3d57fa13`) with default 6.3.0; select `version: '6.4.0'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.0.
+
+### Security
+
+- Follow-ups to GHSA-7q5v-8jcc-rx54, all low severity, from the independent re-check of the
+  6.4.0 fix, the review of #1133 and #1135.
+  - **The transaction journal moves to your user state folder** (`$XDG_STATE_HOME`, else
+    `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows or `~/.local/state`),
+    which cleanup tools and macOS do not purge as they may a cache.
+  - **Each journal records the project it belongs to**, so a journal left at a path is never
+    replayed into another project later placed there. A journal SpecSync 6.4.0 wrote records no
+    project, so it is not replayed either: lifecycle commands stop with its path until you check
+    the files it lists and delete it.
+  - **On Unix, SpecSync's own state folders are made private (0700)**, and one another user owns,
+    or that its group or others can write, is refused. Folders SpecSync 6.4.0 made under a umask
+    of 002 (Fedora, RHEL, and Debian or Ubuntu with per-user groups) are refused until you run the
+    `chmod -R go-w <cache folder>/specsync` the message names, once.
+  - **A project folder that would lie inside the project is refused.**
+  - **Record-folder listings go through the confined listing.** `.specsync/archive/changes`, a
+    change's `deltas` and a spec's `history/` committed as a link out are refused with the folder
+    named, and no name outside is printed.
+  - **The change read cache is read and written through the same no-follow, bounded handles.**
+  - **Hooks.** `hooks` manages a hooks folder outside the work tree and Git directory only when
+    your own global or system Git config names it; it no longer writes `pre-commit` into an
+    existing folder a repository's own config names.
+  - **Typed paths.** `change correct-owner --manifest` and `scaffold --template` no longer wait on
+    a FIFO or read past a bound; they still follow links, since you chose the path.
+  - **The source scans** also catch directory listings, spawned commands other than Git, and
+    Git's `apply`, `merge`, `switch` and `config`.
+
+### Fixed
+
+- `hooks` works in a linked worktree whose main repository has no `hooks` folder, as 6.3.0 did, and
+  places an absolute `core.hooksPath` spelled through a link (macOS's `/var`) where it lies.
+- A spec SpecSync refuses to read is reported, never dropped:
+  - `check --only-status` keeps it;
+  - `resolve` names it;
+  - `stale` counts it as unmeasurable.
+- A hash cache larger than the bound SpecSync reads is never written: `rehash` exits 1, and
+  `check` warns once and keeps the cache already there.
 
 ## [6.4.0] - 2026-11-20
 
@@ -3830,7 +3875,8 @@ Published from candidate `v6.1.2-rc.2` (d08d2746), qualified on Ubuntu and macOS
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.0...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.1...HEAD
+[6.4.1]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.0...v6.4.1
 [6.4.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...v6.3.0
 [6.2.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.1.2...v6.2.0

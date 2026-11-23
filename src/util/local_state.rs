@@ -92,6 +92,33 @@ fn user_cache_folder() -> Option<PathBuf> {
     })
 }
 
+/// The user's state folder, where SpecSync keeps its transaction journal, which cleanup tools
+/// and macOS must not purge as they may a cache: `$XDG_STATE_HOME` when it is an absolute path,
+/// else `~/Library/Application Support` on macOS, `%LOCALAPPDATA%` on Windows and
+/// `~/.local/state` elsewhere (REQ-util-006). Unit tests use a folder in the system temporary
+/// directory.
+fn user_state_folder() -> Option<PathBuf> {
+    if cfg!(test) {
+        return Some(std::env::temp_dir().join("specsync-unit-test-state-home"));
+    }
+    let absolute = |value: std::ffi::OsString| {
+        let path = PathBuf::from(value);
+        path.is_absolute().then_some(path)
+    };
+    if let Some(folder) = std::env::var_os("XDG_STATE_HOME").and_then(absolute) {
+        return Some(folder);
+    }
+    if cfg!(windows) {
+        return std::env::var_os("LOCALAPPDATA").and_then(absolute);
+    }
+    let home = std::env::var_os("HOME").and_then(absolute)?;
+    Some(if cfg!(target_os = "macos") {
+        home.join("Library").join("Application Support")
+    } else {
+        home.join(".local").join("state")
+    })
+}
+
 /// `path` as it is on disk: its longest existing ancestor canonicalized, and the rest of the
 /// path, which does not exist yet, joined to it.
 fn resolved(path: &Path) -> PathBuf {
@@ -114,7 +141,6 @@ fn resolved(path: &Path) -> PathBuf {
 }
 
 fn location(root: &Path) -> io::Result<Location> {
-    let canonical = root.canonicalize()?;
     let base = user_cache_folder().ok_or_else(|| {
         refused(
             "there is no user cache folder (set HOME or XDG_CACHE_HOME) to keep SpecSync's own \
@@ -122,6 +148,24 @@ fn location(root: &Path) -> io::Result<Location> {
                 .to_string(),
         )
     })?;
+    location_in(root, base)
+}
+
+/// The project's folder for its transaction journal, in the user's state folder, refused as
+/// [`location`] is (REQ-util-006).
+fn journal_location(root: &Path) -> io::Result<Location> {
+    let base = user_state_folder().ok_or_else(|| {
+        refused(
+            "there is no user state folder (set HOME or XDG_STATE_HOME) to keep SpecSync's \
+             transaction journal in"
+                .to_string(),
+        )
+    })?;
+    location_in(root, base)
+}
+
+fn location_in(root: &Path, base: PathBuf) -> io::Result<Location> {
+    let canonical = root.canonicalize()?;
     // Some CI containers set `HOME` or `XDG_CACHE_HOME` to the checkout. A cache folder inside
     // the project, or inside the folder its files are confined to, is a place a repository can
     // put a file, so it is refused rather than trusted (REQ-util-006).
@@ -134,14 +178,28 @@ fn location(root: &Path) -> io::Result<Location> {
             base.display()
         )));
     }
-    Ok(Location {
-        base,
-        names: vec![
-            STATE_FOLDER.to_string(),
-            PROJECTS_FOLDER.to_string(),
-            key("project", &canonical),
-        ],
-    })
+    let names = vec![
+        STATE_FOLDER.to_string(),
+        PROJECTS_FOLDER.to_string(),
+        key("project", &canonical),
+    ];
+    // The project's own folder is compared too, not only the base: a project at
+    // `<cache>/specsync` would otherwise hold its own state (REQ-util-006).
+    let folder = names
+        .iter()
+        .fold(base.clone(), |path, name| path.join(name));
+    let folder_on_disk = resolved(&folder);
+    if folder_on_disk.starts_with(&canonical)
+        || folder_on_disk.starts_with(super::confinement_top(&canonical))
+    {
+        return Err(refused(format!(
+            "SpecSync's own folder for this project, {}, would lie inside the project, where a \
+             repository can put a file, so SpecSync keeps none of its own state there; set \
+             XDG_CACHE_HOME to a folder outside the project",
+            folder.display()
+        )));
+    }
+    Ok(Location { base, names })
 }
 
 /// The folder where SpecSync keeps what it knows about the Git repository whose canonical
@@ -169,6 +227,8 @@ pub fn project_state_dir(root: &Path) -> io::Result<PathBuf> {
 pub struct LocalState {
     dir: Dir,
     path: PathBuf,
+    /// SpecSync's own `specsync` folder above it, which the hint for a shared folder names.
+    top: PathBuf,
 }
 
 /// A name SpecSync gives a file or folder of its own: one plain component.
@@ -181,7 +241,14 @@ fn checked_name(name: &str) -> io::Result<&str> {
 
 /// `name` beneath `dir`, a folder SpecSync makes: made when missing and `create`, refused when it
 /// is a link or not a folder, then opened without following a link.
-fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Option<Dir>> {
+fn open_child(
+    dir: Dir,
+    name: &str,
+    shown: &Path,
+    top: &Path,
+    create: bool,
+) -> io::Result<Option<Dir>> {
+    let mut created = false;
     match dir.symlink_metadata(name) {
         Ok(metadata) if metadata.is_dir() => {}
         Ok(metadata) if metadata.file_type().is_symlink() => {
@@ -195,8 +262,16 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
             if !create {
                 return Ok(None);
             }
-            match dir.create_dir(name) {
-                Ok(()) => {}
+            // Made private in one step, whatever the umask, so another SpecSync process never
+            // sees it writable by others before its mode is set (REQ-util-006).
+            let mut builder = cap_std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            {
+                use cap_std::fs::DirBuilderExt;
+                builder.mode(0o700);
+            }
+            match dir.create_dir_with(name, &builder) {
+                Ok(()) => created = true,
                 Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(error) => return Err(error),
             }
@@ -205,16 +280,106 @@ fn open_child(dir: Dir, name: &str, shown: &Path, create: bool) -> io::Result<Op
     }
     // The look above names what is refused; this open enforces it, on a link that appeared since
     // as well.
-    cap_primitives::fs::open_dir_nofollow(&dir.into_std_file(), Path::new(name))
-        .map(Dir::from_std_file)
-        .map(Some)
+    let folder = Dir::from_std_file(cap_primitives::fs::open_dir_nofollow(
+        &dir.into_std_file(),
+        Path::new(name),
+    )?);
+    // On Linux the no-follow open is an `O_PATH` handle, which can neither change nor reliably
+    // report a mode, so the folder is reopened readable through itself.
+    let mut readable = OpenOptions::new();
+    // not a project file read: reopens SpecSync's own state folder through its handle, only to set and check its mode
+    readable.read(true);
+    // not a project file read: reopens SpecSync's own state folder through its handle, only to set and check its mode
+    let handle = folder.open_with(".", &readable)?.into_std();
+    if created {
+        // Only the person can write a folder SpecSync makes for itself, whatever the umask.
+        private_folder(&handle)?;
+    }
+    refuse_shared_folder(&handle, shown, top)?;
+    Ok(Some(folder))
+}
+
+#[cfg(unix)]
+fn private_folder(folder: &std::fs::File) -> io::Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    folder.set_permissions(std::fs::Permissions::from_mode(0o700))
+}
+
+#[cfg(not(unix))]
+fn private_folder(_: &std::fs::File) -> io::Result<()> {
+    Ok(())
+}
+
+/// On Unix, a folder of SpecSync's own state that another user owns, or that its group or others
+/// can write, is refused, as `ssh` refuses such a folder: whoever can write it could put a cache
+/// or a journal there (REQ-util-006).
+#[cfg(unix)]
+fn refuse_shared_folder(folder: &std::fs::File, shown: &Path, top: &Path) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = folder.metadata()?;
+    // SAFETY: `geteuid` has no preconditions and cannot fail.
+    let user = unsafe { libc::geteuid() };
+    if metadata.uid() != user {
+        return Err(refused(format!(
+            "{} is owned by another user, who could put a file there, so SpecSync keeps none of \
+             its own state there",
+            shown.display()
+        )));
+    }
+    if metadata.mode() & 0o022 != 0 {
+        return Err(refused(format!(
+            "{} is writable by its group or by others, who could put a file there, so SpecSync \
+             keeps none of its own state there; if only you use it, run `chmod -R go-w {}` once \
+             for every folder beneath it",
+            shown.display(),
+            top.display()
+        )));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn refuse_shared_folder(_: &std::fs::File, _: &Path, _: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 impl LocalState {
     /// The local state folder of the project at `root`. With `create` it is made, with the
     /// user's cache folder if that is missing too; without, `None` when it does not exist yet.
     pub fn open(root: &Path, create: bool) -> io::Result<Option<LocalState>> {
-        let location = location(root)?;
+        Self::open_at(location(root)?, create)
+    }
+
+    /// The project's folder for its transaction journal, in the user's state folder rather than
+    /// the cache folder (REQ-util-006). With `create` it is made; without, `None` when it does not
+    /// exist yet.
+    pub fn open_journal(root: &Path, create: bool) -> io::Result<Option<LocalState>> {
+        Self::open_at(journal_location(root)?, create)
+    }
+
+    /// The folder for what SpecSync knows about the Git repository whose canonical common
+    /// directory is `common_dir`, for the project at `root`, in the user's cache folder: the change
+    /// read cache lives there (REQ-util-009). Refused as [`LocalState::open`] is.
+    pub fn open_repository(
+        root: &Path,
+        common_dir: &Path,
+        create: bool,
+    ) -> io::Result<Option<LocalState>> {
+        let project = location(root)?;
+        Self::open_at(
+            Location {
+                base: project.base,
+                names: vec![
+                    STATE_FOLDER.to_string(),
+                    REPOSITORIES_FOLDER.to_string(),
+                    key("repository", common_dir),
+                ],
+            },
+            create,
+        )
+    }
+
+    fn open_at(location: Location, create: bool) -> io::Result<Option<LocalState>> {
         if create {
             std::fs::create_dir_all(&location.base)?;
         }
@@ -224,14 +389,20 @@ impl LocalState {
             Err(error) => return Err(error),
         };
         let mut shown = location.base.clone();
+        // SpecSync's own `specsync` folder, which the hint for a shared folder names.
+        let top = location.base.join(&location.names[0]);
         for name in &location.names {
             shown.push(name);
-            match open_child(dir, name, &shown, create)? {
+            match open_child(dir, name, &shown, &top, create)? {
                 Some(child) => dir = child,
                 None => return Ok(None),
             }
         }
-        Ok(Some(LocalState { dir, path: shown }))
+        Ok(Some(LocalState {
+            dir,
+            path: shown,
+            top,
+        }))
     }
 
     /// The path of `name` in the folder, for messages.
@@ -243,8 +414,15 @@ impl LocalState {
     pub fn subdirectory(&self, name: &str, create: bool) -> io::Result<Option<LocalState>> {
         let name = checked_name(name)?;
         let path = self.path.join(name);
-        Ok(open_child(self.dir.try_clone()?, name, &path, create)?
-            .map(|dir| LocalState { dir, path }))
+        Ok(
+            open_child(self.dir.try_clone()?, name, &path, &self.top, create)?.map(|dir| {
+                LocalState {
+                    dir,
+                    path,
+                    top: self.top.clone(),
+                }
+            }),
+        )
     }
 
     /// What `name` is, without following a link; `None` when nothing is there.
@@ -486,5 +664,16 @@ mod tests {
         state.remove("linked.json", true).unwrap();
         assert!(elsewhere.exists());
         assert!(state.read_file("linked.json", 16).unwrap().is_none());
+    }
+
+    /// N2 (6.4.1). A project that would hold its own state folder, such as one at
+    /// `<cache>/specsync`, is refused as a cache folder inside the project is.
+    #[test]
+    fn a_project_that_would_hold_its_own_state_folder_is_refused() {
+        let base = user_cache_folder().unwrap();
+        let root = base.join(STATE_FOLDER);
+        fs::create_dir_all(&root).unwrap();
+        let state = project_state_dir(&root);
+        assert!(state.is_err(), "{state:?}");
     }
 }

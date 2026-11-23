@@ -96,6 +96,48 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795471807,
+      "commit": "2b703b4ad37aa6646c0eb7d80d3fc06f25d1c5c0",
+      "contract_digest": "d7136a2b4894a0e43e66af343659742aaf5c12e5de9f2014f08ba2ddbfa2efd2",
+      "execution_digest": "fa5eb25c22f19e7a25957bb58245cddc754647b16494173ff326feb083df0c6c",
+      "workspace_digest": "6b46e2fa72ef8c089e6c66a297a091879e1494b2093482c11b6d3b50285ca542",
+      "acceptance_input_digest": "a8fb2a4ee27a907e43c58a5d5883a213b241e907bae8eca8679df5e601dc9bd5",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e99b88fa9c8c6f8882f093b68460d8de88f103df7e3e749eeb0a66cc87a7ad55",
+            "entry_digest": "3753e14e2927ee5aaa58a79237c33dee961626bf9171d873e6c77a879726af15",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "tests/integration/watch.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e90d2762d08065062ace125d9aeec309a3d7da089ace8230118164a6a88c90e8",
+            "entry_digest": "a65b655cc2cae26de2c3eac11abf14e4235f5b989006db13d1d02df51b9ac367",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

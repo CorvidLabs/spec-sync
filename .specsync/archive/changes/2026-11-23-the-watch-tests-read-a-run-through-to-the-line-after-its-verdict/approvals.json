@@ -38,6 +38,13 @@
         "where": "coordinator chat (Claude Code hc t370), 2026-11-13T04:37Z, relayed by claude-code-t370. Asked: 'Approve these two?' Option text: 'Test only: the watch tests read the whole run, not just the first verdict line.'",
         "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795477912,
+      "digest": "08992708ed3995c85bfd43449569f0581a52d88b8c6daa7bef13404f85c8f938",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

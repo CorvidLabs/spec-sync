@@ -124,3 +124,5 @@ spec: change.spec.md
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
 - [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
 - [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
+- [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).

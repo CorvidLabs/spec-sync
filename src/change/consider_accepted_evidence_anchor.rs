@@ -3779,8 +3779,11 @@ enum AcceptedInputValidity {
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
-    if record.state == ChangeState::Archived && read_scope_value(root, |_| Some(())).is_some() {
-        return archived_terminal_evidence_in_scope(root, record);
+    if record.state == ChangeState::Archived {
+        if read_scope_value(root, |_| Some(())).is_some() {
+            return archived_terminal_evidence_in_scope(root, record);
+        }
+        return archived_terminal_summary(root, record, &mut ArchivedIntegrityCache::default());
     }
     if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
         return terminal_summary_from_cache(record, cached);
@@ -3818,7 +3821,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
         return terminal_summary_from_cache(record, result);
     }
     let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
-        Some(failed) => own_failure_summary(record.state == ChangeState::Archived, failed),
+        Some(failed) => own_failure_summary(false, failed),
         None => name_failed_candidates(
             &roster,
             Some(record),
@@ -3828,11 +3831,7 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     match result {
         Ok(summary) => summary,
         Err(reason) => TerminalEvidenceSummary {
-            validity: if record.state == ChangeState::Archived {
-                TerminalEvidenceValidity::CorruptHistory
-            } else {
-                TerminalEvidenceValidity::Stale
-            },
+            validity: TerminalEvidenceValidity::Stale,
             reason: Some(reason),
         },
     }
@@ -3872,23 +3871,6 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     }) {
         return cached;
     }
-    // #1104: an archive is judged for itself alone (REQ-change-119); another change's failure is
-    // not its verdict, only its own is.
-    match terminal_evidence_roster(root) {
-        Err(reason) => return terminal_summary_from_cache(record, Err(reason)),
-        Ok(roster) => {
-            if let Some(failed) = roster.failed.get(&record.id) {
-                let summary = own_failure_summary(record.state == ChangeState::Archived, failed);
-                // Kept like any archive's verdict, so a second read in the scope answers from it.
-                update_read_scope(root, |scope| {
-                    scope
-                        .archived_terminal_evidence
-                        .insert(record.id.clone(), summary.clone());
-                });
-                return summary;
-            }
-        }
-    }
     let mut cache = CHANGE_READ_SCOPES
         .with(|scopes| {
             scopes
@@ -3898,14 +3880,7 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
                 .and_then(|scope| scope.archived_integrity_cache.take())
         })
         .unwrap_or_default();
-    let summary = terminal_evidence_summary_with_validation_state(
-        root,
-        record,
-        &BTreeMap::new(),
-        &mut BTreeSet::new(),
-        &mut AcceptedInputValidationMemo::default(),
-        &mut cache,
-    );
+    let summary = archived_terminal_summary(root, record, &mut cache);
     update_read_scope(root, |scope| {
         scope.archived_integrity_cache = Some(cache);
         scope
@@ -3913,6 +3888,32 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
             .insert(record.id.clone(), summary.clone());
     });
     summary
+}
+
+/// A read-only archived summary isolates unrelated roster failures. Reuse the same roster for
+/// every archive in the read scope and for the legacy baseline authority, if one is needed.
+fn archived_terminal_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match cache
+        .summary_roster
+        .get_or_insert_with(|| terminal_evidence_roster(root))
+    {
+        Ok(roster) => {
+            if let Some(failed) = roster.failed.get(&record.id) {
+                return own_failure_summary(true, failed);
+            }
+        }
+        Err(reason) => {
+            return TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::CorruptHistory,
+                reason: Some(reason.clone()),
+            };
+        }
+    }
+    archived_integrity_summary(root, record, cache)
 }
 
 /// The verdict of a change whose own records fail validation: its own reason, `corrupt-history`
@@ -4067,19 +4068,7 @@ fn terminal_evidence_summary_with_validation_state(
     archived_cache: &mut ArchivedIntegrityCache,
 ) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
-        return match validate_archived_integrity_with_cache(root, record, archived_cache) {
-            Ok(()) => {
-                if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                    historical_terminal_summary()
-                } else {
-                    TerminalEvidenceSummary { validity: TerminalEvidenceValidity::AuthenticatedHistory, reason: None }
-                }
-            },
-            Err(reason) => TerminalEvidenceSummary {
-                validity: TerminalEvidenceValidity::CorruptHistory,
-                reason: Some(reason),
-            },
-        };
+        return archived_integrity_summary(root, record, archived_cache);
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
         Ok(AcceptedInputValidity::Exact) => {
@@ -4099,6 +4088,33 @@ fn terminal_evidence_summary_with_validation_state(
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
         Err(reason) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
+            reason: Some(reason),
+        },
+    }
+}
+
+fn archived_integrity_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match validate_archived_integrity_with_cache(root, record, cache) {
+        Ok(()) => {
+            if record
+                .answers
+                .get(HISTORICAL_RECONCILIATION)
+                .is_some_and(|value| value == "unproven")
+            {
+                historical_terminal_summary()
+            } else {
+                TerminalEvidenceSummary {
+                    validity: TerminalEvidenceValidity::AuthenticatedHistory,
+                    reason: None,
+                }
+            }
+        }
+        Err(reason) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::CorruptHistory,
             reason: Some(reason),
         },
     }
@@ -4283,6 +4299,8 @@ struct LegacyArchiveBaselineContext {
 #[derive(Debug, Default)]
 struct ArchivedIntegrityCache {
     legacy: Option<Result<LegacyArchiveBaselineContext, String>>,
+    // Archive audit and mutation use the strict loader because they never set this field.
+    summary_roster: Option<Result<TerminalRoster, String>>,
 }
 
 fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
@@ -4409,7 +4427,13 @@ fn authenticate_legacy_archive_baseline(
         .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
 
     if cache.legacy.is_none() {
-        cache.legacy = Some(load_legacy_archive_baseline_context(root));
+        let roster = cache
+            .summary_roster
+            .as_ref()
+            .map(Result::as_ref)
+            .transpose()
+            .map_err(Clone::clone)?;
+        cache.legacy = Some(load_legacy_archive_baseline_context(root, roster));
     }
     let context = cache
         .legacy
@@ -4458,14 +4482,31 @@ fn authenticate_legacy_archive_baseline(
 
 fn load_legacy_archive_baseline_context(
     root: &Path,
+    summary_roster: Option<&TerminalRoster>,
 ) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
     let baseline_bytes = crate::util::read_project_bytes(root, &baseline_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
 
-    let records = list_all_changes_checked(root)?;
-    let authority = records.get(&baseline.authority_change_id).ok_or_else(|| {
+    let authority_id = &baseline.authority_change_id;
+    let strict_records;
+    let records = match summary_roster {
+        Some(roster) => {
+            if let Some(failed) = roster.failed.get(authority_id) {
+                return Err(format!(
+                    "legacy archive baseline authority `{authority_id}` failed validation: {}",
+                    failed.reason
+                ));
+            }
+            &roster.records
+        }
+        None => {
+            strict_records = list_all_changes_checked(root)?;
+            &strict_records
+        }
+    };
+    let authority = records.get(authority_id).ok_or_else(|| {
         format!(
             "legacy archive baseline authority `{}` is unavailable",
             baseline.authority_change_id

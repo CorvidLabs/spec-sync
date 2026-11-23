@@ -365,7 +365,7 @@ Every link points inside the test's own temporary directory.
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
 
-The terminal evidence isolation tests exercise an oversized archived state file through the fallback roster. The error belongs to that archive and retains the configured size limit.
+The terminal evidence isolation tests exercise an oversized archived state file through the fallback roster. The error belongs to that archive and retains the configured size limit. The pre-snapshot archive test checks that scoped and unscoped summaries still authenticate beside a duplicate or malformed sibling. Strict validation refuses both siblings, and a damaged baseline authority still invalidates the legacy archive.
 REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
 
 ## Verification state and the Markdown summary (REQ-change-check-summary-state-001)

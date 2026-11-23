@@ -539,3 +539,96 @@ fn a_terminal_roster_attributes_an_oversized_archived_state_to_its_own_package()
     assert_eq!(roster.failed.len(), 1);
     assert!(roster.failed[directory].reason.contains("larger than"), "{roster:?}");
 }
+
+fn pre_snapshot_archive_with_approved_authority(root: &Path) -> (ChangeRecord, ChangeRecord) {
+    fast_read_repository(root);
+    let mut archived = accepted_legacy_change(root);
+    let workspace = change_dir(root, &archived.id);
+    let mut verification = load_verification(root, &archived).unwrap();
+    verification.acceptance_manifest = None;
+    write_json(&workspace.join("verification.json"), &verification).unwrap();
+    archived.state = ChangeState::Archived;
+    write_json(&workspace.join("state.json"), &archived).unwrap();
+
+    let archive_path = format!("{ARCHIVE_PATH}/2026-07-11-{}", archived.id);
+    fs::create_dir_all(root.join(ARCHIVE_PATH)).unwrap();
+    fs::rename(workspace, root.join(&archive_path)).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "introduce the pre-snapshot archive"]);
+    let cutoff = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+    let mut authority = completed_no_spec_record(root);
+    authority.base_commit = Some(cutoff.clone());
+    authority.affected_paths.push(LEGACY_BASELINE_PATH.into());
+    save_change(root, &authority).unwrap();
+    write_change_markdown(root, &authority).unwrap();
+    let paths = BTreeSet::from([archive_path.clone()]);
+    let (paths, evidence) =
+        stable_discovered_evidence(root, Some(&paths), &BTreeSet::new(), false, false).unwrap();
+    let snapshot = archive_snapshot_from_evidence(&paths, &evidence, &archive_path).unwrap();
+    let baseline = LegacyArchiveBaselineV1 {
+        schema_version: 1,
+        domain: "specsync.legacy-archive-baseline.v1".into(),
+        authority_change_id: authority.id.clone(),
+        cutoff_commit: cutoff.clone(),
+        entries: vec![LegacyArchiveBaselineEntryV1 {
+            id: archived.id.clone(),
+            archive_path,
+            introduction_commit: cutoff,
+            subtree_digest: legacy_archive_subtree_digest(&snapshot).unwrap(),
+        }],
+    };
+    write_json(&root.join(LEGACY_BASELINE_PATH), &baseline).unwrap();
+    let authority = approve_definition(root, &authority.id, Some("Scope owner".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "record the approved legacy baseline"]);
+    (archived, authority)
+}
+
+#[test]
+fn a_pre_snapshot_archive_ignores_broken_siblings_but_requires_its_baseline_authority() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (archived, authority) = pre_snapshot_archive_with_approved_authority(root);
+    let assert_authenticated = || {
+        for summary in scoped_and_unscoped_evidence(root, &archived.id) {
+            assert_eq!(
+                summary.validity,
+                TerminalEvidenceValidity::AuthenticatedHistory,
+                "{:?}",
+                summary.reason
+            );
+        }
+    };
+    assert_authenticated();
+    let clean_tip = git_output(root, &["rev-parse", "HEAD"]).unwrap();
+
+    let broken = finalized_archived_change(root);
+    let before_archive = git_output(root, &["rev-parse", "HEAD~1"]).unwrap();
+    let both = leave_open_and_archived_at_one_commit(root, &broken, &before_archive);
+    assert_authenticated();
+    assert!(load_change(root, &broken.id).unwrap_err().contains(&both));
+    let strict_error = validate_archived_integrity(root, &archived).unwrap_err();
+    assert!(strict_error.contains(&both), "{strict_error}");
+    quiet_git(root, &["switch", "--detach", &clean_tip]);
+
+    let malformed = change_dir(root, "malformed-sibling");
+    fs::create_dir_all(&malformed).unwrap();
+    fs::write(malformed.join("state.json"), "{ invalid").unwrap();
+    assert_authenticated();
+    let strict_error = validate_archived_integrity(root, &archived).unwrap_err();
+    assert!(strict_error.contains("malformed-sibling"), "{strict_error}");
+    let audit = audit_project_with_archives(root, true);
+    assert!(
+        audit.errors.iter().any(|error| error.contains("malformed-sibling")),
+        "{:?}",
+        audit.errors
+    );
+
+    fs::write(change_dir(root, &authority.id).join("state.json"), "{ invalid").unwrap();
+    for summary in scoped_and_unscoped_evidence(root, &archived.id) {
+        assert_eq!(summary.validity, TerminalEvidenceValidity::CorruptHistory);
+        let reason = summary.reason.unwrap();
+        assert!(reason.contains("baseline authority") && reason.contains(&authority.id), "{reason}");
+    }
+}

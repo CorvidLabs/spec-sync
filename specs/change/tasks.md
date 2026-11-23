@@ -123,3 +123,4 @@ spec: change.spec.md
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
 - [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
+- [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).

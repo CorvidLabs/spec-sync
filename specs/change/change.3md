@@ -793,3 +793,6 @@ Once verification runs, publish its attempt, latest evidence, `state.json`, and 
 
 @plane z=62 label="Bounded reads during terminal evidence recovery (#1104)"
 When the full roster fails validation, the per-change scan reads archive directories, state files and retirement receipts through the same confined helpers. Each individual read failure retains its path and the owning change.
+
+@plane z=63 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
+An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.

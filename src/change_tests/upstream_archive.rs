@@ -555,7 +555,7 @@ fn lookup_with_non_utf8_upstream_package(same_id: bool) -> Option<UpstreamArchiv
         .status()
         .unwrap();
     assert!(status.success());
-    quiet_git(&root, &["commit", "-m", "add a package with a non-UTF-8 name"]);
+    quiet_git(&root, &["commit", "-q", "-m", "add a package with a non-UTF-8 name"]);
     // The branch switch drops the index-only entry; nothing writes the name to disk.
     publish_and_branch_from(&temp, &root, &base);
 

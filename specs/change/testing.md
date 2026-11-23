@@ -374,4 +374,4 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
 - `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.
 
-The upstream archive tests exercise a reopened package after a remote rename, matching and unrelated non-UTF-8 directory names, and copies of a remote-only record under backup and nested paths. Only a package’s own state.json establishes local archive history.
+The upstream archive tests exercise a reopened package after a remote rename, matching and unrelated non-UTF-8 directory names, and copies of a remote-only record under backup and nested paths. Only a package’s own state.json establishes local archive history. The two non-UTF-8 package tests also run with `core.quotePath=false`, where Git can write raw path bytes to its commit summary.

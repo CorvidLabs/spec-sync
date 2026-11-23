@@ -194,6 +194,216 @@ fn read_cache_folder(
         .flatten()
 }
 
+/// What one process decided for each partial clone it read (REQ-change-172): the download is
+/// asked once, and a failed one is the refusal every later read that fails gives.
+static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, Result<(), String>>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+/// How long the one download may take: inside Chough's 120 s bound on each SpecSync call.
+const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
+
+/// REQ-change-172 (#1077, option 1): in a partial clone, every history object SpecSync's reads
+/// need that is not present (under `.specsync` and the canonical requirements, reachable from
+/// `HEAD` and the default branch) is downloaded first, in one fetch from the repository's
+/// promisor remote run with the user's own Git, never prompting. A full clone asks one
+/// configuration question and nothing more. When the download fails, the refusal names one
+/// `git fetch` that downloads those objects, given by a read that then fails
+/// (`partial_clone_download_refusal`); a read that needs none of them still succeeds.
+fn ensure_partial_clone_objects(root: &Path) {
+    // The entry is taken before the download runs Git, so a read the download makes itself
+    // finds it and goes on, instead of starting a second download or waiting on this one.
+    {
+        let mut downloads =
+            PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
+        if downloads.contains_key(root) {
+            return;
+        }
+        downloads.insert(root.to_path_buf(), Ok(()));
+    }
+    let result = download_partial_clone_objects(root);
+    PARTIAL_CLONE_DOWNLOADS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .insert(root.to_path_buf(), result);
+}
+
+/// The refusal a failed partial-clone download gave this process, if one did.
+fn partial_clone_download_refusal(root: &Path) -> Option<String> {
+    PARTIAL_CLONE_DOWNLOADS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .get(root)
+        .and_then(|result| result.clone().err())
+}
+
+fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
+    let Some(config) = git_output(
+        root,
+        &["config", "--get-regexp", r"^(extensions\.partialclone|remote\..*\.promisor)$"],
+    ) else {
+        return Ok(());
+    };
+    let Some(remote) = config.lines().find_map(|line| {
+        let (key, value) = line.split_once(' ')?;
+        if key == "extensions.partialclone" {
+            return Some(value.trim().to_string());
+        }
+        // Every spelling Git reads as true (Codex on #1122).
+        let value = value.trim().to_ascii_lowercase();
+        let truthy = matches!(value.as_str(), "true" | "yes" | "on")
+            || value.parse::<i64>().is_ok_and(|number| number != 0);
+        key.strip_prefix("remote.")?
+            .strip_suffix(".promisor")
+            .filter(|_| truthy)
+            .map(str::to_string)
+    }) else {
+        return Ok(());
+    };
+    let default = lost_requirements_default_ref(root);
+    // `.specsync` and the root configuration and registry files the loaders read, at the reference
+    // too (Codex on #1122, second round), then the canonical requirements.
+    let mut pathspecs: Vec<String> = [".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml"]
+        .iter()
+        .map(|path| format!(":(literal){path}"))
+        .collect();
+    pathspecs.extend(requirement_scope(root).pathspecs());
+    let mut revisions = vec!["HEAD".to_string()];
+    revisions.extend(default);
+    // `--full-history`: a path-limited walk Git simplifies skips a side branch merged without its
+    // changes, whose files a later read can still name.
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "--full-history"];
+    args.extend(revisions.iter().map(String::as_str));
+    args.push("--");
+    args.extend(pathspecs.iter().map(String::as_str));
+    // `--missing=print` lists what is absent and never fetches it.
+    let listing = run_git_bounded(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+    if !listing.status.success() {
+        return Ok(());
+    }
+    let listing = String::from_utf8_lossy(&listing.stdout).into_owned();
+    let missing: Vec<&str> = listing
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix('?'))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    eprintln!(
+        "downloading {} objects this partial clone lacks from `{remote}`",
+        missing.len()
+    );
+    match fetch_with_the_users_git(root, &remote, &missing) {
+        Ok(()) => {
+            crate::git_utils::invalidate_repository_facts();
+            Ok(())
+        }
+        // The printed line names every id, and the shell's builtin `printf` hands them to the
+        // fetch on standard input, so no program's argument list carries them and it runs as
+        // printed however many objects are missing (Codex on #1122, second round).
+        Err(reason) => Err(format!(
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `printf '%s\\n' {} | git -C {} fetch --no-tags --no-write-fetch-head --filter=blob:none --stdin -- {}`, then run the command again.",
+            missing.len(),
+            missing.join(" "),
+            shell_word(&root.display().to_string()),
+            shell_word(&remote)
+        )),
+    }
+}
+
+/// One `git fetch --stdin -- <remote>` of `ids`, with the user's own configuration, rooted as
+/// SpecSync's other Git calls are (no `GIT_DIR`, `GIT_OBJECT_DIRECTORY` or the like pointing
+/// elsewhere), `GIT_TERMINAL_PROMPT=0`, and (on Unix) a new session with no controlling
+/// terminal, so a credential that needs typing fails it instead of waiting; the whole session is
+/// killed after `PARTIAL_CLONE_FETCH_SECONDS`. It runs Git directly, never through
+/// `run_git_bounded`, whose history reads would ask for this download again.
+fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(), String> {
+    let mut command = rooted_git_command(root);
+    command
+        .args(["fetch", "--no-tags", "--no-write-fetch-head", "--filter=blob:none", "--stdin", "--", remote])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().map_err(|error| format!("Git could not be run: {error}"))?;
+    // Standard error is drained in chunks, keeping at most `FETCH_STDERR_CAP` bytes, and is never
+    // waited on past the deadline: a helper that inherits the pipe can hold it open after `git
+    // fetch` exits (Codex on #1122).
+    const FETCH_STDERR_CAP: usize = 64 * 1024;
+    let mut stderr = child.stderr.take();
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut kept = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        if let Some(stderr) = stderr.as_mut() {
+            while let Ok(read) = std::io::Read::read(stderr, &mut buffer) {
+                if read == 0 {
+                    break;
+                }
+                let room = FETCH_STDERR_CAP.saturating_sub(kept.len());
+                kept.extend_from_slice(&buffer[..read.min(room)]);
+                let _ = sender.send(buffer[..read.min(room)].to_vec());
+            }
+        }
+    });
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = std::io::Write::write_all(&mut stdin, format!("{}\n", ids.join("\n")).as_bytes());
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(PARTIAL_CLONE_FETCH_SECONDS);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() >= deadline => {
+                // The fetch leads its own session: stop every process in it, helpers included.
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+                }
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "the download did not finish within {PARTIAL_CLONE_FETCH_SECONDS} seconds"
+                ));
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            Err(error) => return Err(error.to_string()),
+        }
+    };
+    if status.success() {
+        return Ok(());
+    }
+    // What the fetch said by the time it exited, or by a short grace after it, never longer.
+    let mut bytes = Vec::new();
+    let grace = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    loop {
+        let wait = grace.saturating_duration_since(std::time::Instant::now());
+        match receiver.recv_timeout(wait) {
+            Ok(chunk) => bytes.extend_from_slice(&chunk),
+            Err(_) => break,
+        }
+        if bytes.len() >= FETCH_STDERR_CAP {
+            break;
+        }
+    }
+    let stderr = String::from_utf8_lossy(&bytes).into_owned();
+    let reason = stderr
+        .lines()
+        .map(str::trim)
+        .find_map(|line| line.strip_prefix("fatal: "))
+        .or_else(|| stderr.lines().map(str::trim).rfind(|line| !line.is_empty()))
+        .unwrap_or("Git gave no reason")
+        .trim_end_matches('.')
+        .to_string();
+    Err(reason)
+}
+
 thread_local! {
     /// History cache frames for mutating commands, which install no `ChangeReadScope`.
     static HISTORY_CACHE_SCOPES: RefCell<Vec<(PathBuf, PersistentReadCacheFrame)>> =

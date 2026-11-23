@@ -2258,6 +2258,9 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             None => 2,
         }
     };
+    // REQ-change-173: a shallow clone that cannot check the baseline's history refuses here,
+    // before anything is written.
+    ensure_baseline_history_for_change_new(root)?;
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
@@ -3466,9 +3469,9 @@ fn load_change_for_definition_mutation(
 ) -> Result<(ChangeRecord, Vec<CorrectionRecord>), String> {
     let record = load_change(root, id)?;
     let ledger = load_correction_ledger(root, &record)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     validate_correction_records(&record, &ledger.corrections)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     ensure_change_files_writable(root, &record)?;
     Ok((record, ledger.corrections))
 }

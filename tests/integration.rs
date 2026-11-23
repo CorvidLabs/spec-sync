@@ -145,8 +145,12 @@ mod project_writes;
 
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+
 #[path = "integration/repository_inputs.rs"]
 mod repository_inputs;
 
 #[path = "integration/hardening_641.rs"]
 mod hardening_641;
+
+#[path = "integration/git_environments.rs"]
+mod git_environments;

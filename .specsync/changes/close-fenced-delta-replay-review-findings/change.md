@@ -1,6 +1,6 @@
 ---
 id: close-fenced-delta-replay-review-findings
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: 4df769d3130d17c39ead061077400b784bce2d13
 ---

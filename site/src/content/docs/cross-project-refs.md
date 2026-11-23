@@ -75,14 +75,23 @@ specsync resolve
 specsync resolve --remote
 ```
 
-Output:
+Output, for a spec that depends on two modules spec-sync's registry publishes and one it does not:
 
 ```
-Cross-project references:
-  ✓ CorvidLabs/spec-sync@cli — resolved
-  ✓ CorvidLabs/spec-sync@parser — resolved
-  ✗ CorvidLabs/spec-sync@nonexistent — module not in registry
+--- Dependency Resolution ------------------------------------------------
+
+  Remote Cross-project references:
+    ✓ specs/client/client.spec.md -> CorvidLabs/spec-sync@cli
+    ✓ specs/client/client.spec.md -> CorvidLabs/spec-sync@parser
+    ✗ specs/client/client.spec.md -> CorvidLabs/spec-sync@nonexistent (module not in registry)
+
+  Error: 1 cross-project ref(s) could not be verified
+
+Dependency resolution FAILED:
+  ✗ 1 cross-project ref(s) not found in remote registry
 ```
+
+It exits 1 while a reference cannot be verified.
 
 ---
 

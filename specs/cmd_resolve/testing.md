@@ -44,3 +44,26 @@ spec: cmd_resolve.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`, `fledge run build`.
+
+## Symbolic links (REQ-cmd-resolve-002)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/commands/resolve.rs`: `spec_cache_never_writes_or_reads_through_a_link`, `spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory`. No test drives a live `resolve --remote`, which needs the network |
+
+## Bounded reads (REQ-cmd-resolve-003)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## The remote spec cache outside the work tree (REQ-cmd-resolve-002)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A forged entry committed under `.specsync-cache/remote-specs/` | Never returned | `src/commands/resolve.rs`: `spec_cache_never_returns_an_entry_the_work_tree_holds` |
+| A link or a dangling link at an entry in the local state folder, a linked `.specsync-cache` | Never read through; storing replaces the link and creates nothing at its target | `src/commands/resolve.rs`: `spec_cache_never_writes_or_reads_through_a_link`, `spec_cache_creates_nothing_through_a_dangling_link_or_a_linked_directory` |

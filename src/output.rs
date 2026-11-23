@@ -593,7 +593,7 @@ pub fn print_diff_markdown(
     entries: &[(String, Vec<String>, Vec<String>, Vec<String>, bool)],
     changed_files: &std::collections::HashSet<String>,
     spec_files: &[std::path::PathBuf],
-    _root: &std::path::Path,
+    root: &std::path::Path,
     config: &types::SpecSyncConfig,
     base: &str,
 ) {
@@ -603,7 +603,9 @@ pub fn print_diff_markdown(
         // Check for untracked files
         let specced_files: std::collections::HashSet<String> = spec_files
             .iter()
-            .filter_map(|f| std::fs::read_to_string(f).ok())
+            .filter_map(|f| {
+                crate::util::read_project_string(root, f, crate::util::MAX_SPEC_FILE_BYTES).ok()
+            })
             .filter_map(|c| crate::parser::parse_frontmatter(&c.replace("\r\n", "\n")))
             .flat_map(|p| p.frontmatter.files)
             .collect();

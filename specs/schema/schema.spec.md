@@ -6,7 +6,8 @@ files:
   - src/schema.rs
 db_tables: []
 tracks: [63]
-depends_on: []
+depends_on:
+  - specs/util/util.spec.md
 ---
 
 # Schema
@@ -40,13 +41,13 @@ filename-sorted inputs; compatibility wrappers remain available for older caller
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `build_schema` | `schema_dir: &Path` | `HashMap<String, SchemaTable>` | Compatibility wrapper over ordered replay; returns an empty map when the checked snapshot fails |
+| `build_schema` | `root: &Path, schema_dir: &Path` | `HashMap<String, SchemaTable>` | Compatibility wrapper over ordered replay; returns an empty map when the checked snapshot fails |
 | `build_schema_snapshot` | `schema_dir: &Path` | `Result<SchemaSnapshot, SchemaError>` | Build the single deterministic fallible replay snapshot used by validation |
 | `canonicalize_table_name` | `raw: &str` | `Result<String, String>` | Normalize a quoted or qualified table identity |
 | `canonical_table_leaf` | `raw: &str` | `Result<String, String>` | Return the canonical final segment of a table identity |
 | `table_reference_matches` | `declaration, discovered` | `Result<bool, String>` | Match full qualified declarations or unqualified canonical leaves |
 | `pattern_table_names` | Alias for `SchemaSnapshot::pattern_table_names` | `Result<HashSet<String>, String>` | Supplement replay with configured captures without resurrecting retired names |
-| `schema_read_errors` | `schema_dir: &Path` | `Vec<String>` | Return the checked snapshot's path-aware replay/read error for validation callers |
+| `schema_read_errors` | `root: &Path, schema_dir: &Path` | `Vec<String>` | Return the checked snapshot's path-aware replay/read error for validation callers |
 | `parse_spec_schema` | `body: &str` | `HashMap<String, Vec<SpecColumn>>` | Extract column definitions from a spec's `### Schema` section(s) |
 
 ## Invariants
@@ -68,6 +69,8 @@ filename-sorted inputs; compatibility wrappers remain available for older caller
 12. `parse_spec_schema` supports two formats: inline (`### Schema: table_name`) and multi-table (`### Schema` with `#### table_name` sub-headers)
 13. `parse_spec_schema` skips markdown table header rows (column named "column")
 14. Only files with recognized SQL extensions are processed (sql, ts, js, mjs, cjs, swift, kt, kts, java, py, rb, go, rs, cs, dart, php)
+15. Every read of a project file here, the files in `schema_dir` (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-schema-002).
+16. `build_schema_snapshot` lists the schema folder only through `util::read_project_dir`, so a schema folder that leads out of the project is refused before any file in it is named (REQ-schema-003).
 
 ## Behavioral Examples
 
@@ -117,6 +120,7 @@ filename-sorted inputs; compatibility wrappers remain available for older caller
 | Unmatched parentheses in CREATE TABLE | `extract_paren_body` returns `None`, table is skipped |
 | No `### Schema` section in spec | `parse_spec_schema` returns empty map |
 | Column name looks like SQL keyword | Column is skipped by `is_sql_keyword` check |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

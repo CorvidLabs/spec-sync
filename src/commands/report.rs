@@ -1,5 +1,4 @@
 use colored::Colorize;
-use std::fs;
 use std::path::Path;
 use std::process;
 
@@ -97,7 +96,7 @@ pub fn cmd_report(
         default_enforcement(&config)
     });
     let (config, all_spec_files) = load_and_discover(root, true);
-    let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &all_spec_files, exclude_status, only_status);
     let coverage = compute_coverage_checked(root, &spec_files, &config).unwrap_or_else(|error| {
         if matches!(format, types::OutputFormat::Json) {
             let output = serde_json::json!({
@@ -147,7 +146,11 @@ pub fn cmd_report(
     let mut history_missing: Option<MissingHistory> = None;
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(_) => continue,
         };

@@ -37,6 +37,7 @@ spec: exports.spec.md
 - [x] Extend AST parse mode to C, C++, Scala, Erlang, Elixir, Perl, and Lisp/Scheme/Emacs Lisp (tree-sitter runtime bumped 0.24→0.26 to support these grammars' ABI 15)
 - [x] Test file detection (`is_test_file()`) by filename pattern and test directory name
 - [x] TypeScript wildcard resolver (`resolve_ts_import`) trying .ts/.tsx/.js/.jsx/.mts/.cts and index files
+- [x] Read project files only through the bounded project read of `util` (REQ-exports-011). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

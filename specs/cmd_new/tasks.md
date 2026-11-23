@@ -29,3 +29,4 @@ spec: cmd_new.spec.md
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
 
 - [x] Implement the approved exact-file creation selection correction with confined no-follow metadata traversal, explicit mapping precedence and causal focused regressions. Full final-source and independent release qualification remain separate.
+- [x] Create the spec through `generator::create_spec_file` (REQ-cmd-new-006). Evidence: `tests/integration/project_links.rs` `spec_creation_*`.

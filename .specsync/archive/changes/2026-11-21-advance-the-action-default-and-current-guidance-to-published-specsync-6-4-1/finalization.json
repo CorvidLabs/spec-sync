@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-1",
+  "implementation_commit": "5e1e017895a46cab73668dbaaf6d2b53c592e91c",
+  "implementation_tree": "69836ff5a56ea0d7dd1b3ae6c9caf0c3203c796f",
+  "contract_digest": "4216dd8f82c5238f22027ddeeb607f626bec1190151a67c9132e1eb723ad8bb6",
+  "workspace_digest": "1e284ac00e01b3d8b2a685ab6d3a4d8972be18e0619f4cc1a2d81162c8cdabf1",
+  "closing_digest": "0f92891d69cfb73893f945cfa887ecc294b866ccdb6d5110222ea504b12acecc",
+  "review_digest": "639b0a2740a1957ec1c0f7b78986226a24afc17bab39879ace439894f49f0c64",
+  "finalization_digest": "c80bc06d3e69d388bbb76cd96618ac4adf6cc48a333bd0a0e6c92f1d589f9cb2",
+  "timestamp": 1795228977
+}

@@ -9,6 +9,7 @@ tracks: []
 depends_on:
   - specs/config/config.spec.md
   - specs/generator/generator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Wizard
@@ -35,6 +36,8 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 6. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
 7. Default wizard invariants and behavioral example headings use reviewable starter text rather than unfinished-work markers
 7. Shows a full preview of the spec before asking for write confirmation
+8. The wizard's write step creates the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so a spec path that is a dangling link, or a spec directory that leaves the project through a link, exits 1 with an error naming the path and creates nothing there (REQ-cmd-wizard-003).
+9. The wizard finds candidate source files only through `util::find_project_files`, within 100,000 entries and 256 levels (REQ-cmd-wizard-004).
 
 ## Behavioral Examples
 
@@ -58,6 +61,7 @@ Implements the `specsync wizard` command — an interactive TUI wizard for creat
 | Spec directory already exists | Prints error and exits 1 |
 | User cancels at confirmation | Exits cleanly with code 0 |
 | Directory creation fails | Exits with code 1 |
+| The spec path is a dangling link, or the spec directory leaves the project through a link | Exits 1 naming the path; nothing is created at the link's target |
 
 ## Dependencies
 

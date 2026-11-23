@@ -32,7 +32,7 @@ Enforcement is **strict** — CI and pre-commit hooks will block on any spec vio
 | `specsync change approve/check/finalize <id>` | Drive the single workflow: one scope approval, targeted verification, scoped PR review, and same-PR finalization |
 | `specsync change approve <id> --dry-run` | Say whether the approval would be accepted, and why not: the first problem from each of the approval's own checks, with nothing written (`--json` for tools) |
 | `specsync change status [id]` | Show current gates and exactly one explicit next action |
-| `specsync change ship-status [id]` | Ship readiness: tip class, stages, live GitHub check-run trust when `GITHUB_TOKEN` is set (else local guidance), blockers, multi-active ordering warnings |
+| `specsync change ship-status [id]` | Ship readiness: tip class, stages, live GitHub check-run trust when `GITHUB_TOKEN` is set (else local guidance), blockers, multi-active ordering warnings; exits 1 while it names a blocker |
 | `specsync change ship [id]` | Preflight ship readiness and finalize when ready (`--dry-run`; after finalize `--push` / `--wait` for archive tip + check-run wait) |
 | `specsync change reopen <id>` | Re-verify stale accepted evidence (audited, append-only) |
 | `specsync history <module>` | Print a module's Change Log: its frozen table, then one row per `specs/<module>/history/<change-id>.md` fragment that `change check` wrote |
@@ -68,7 +68,7 @@ CI is **archive-first**: the `Archive` job runs before everything else, and ever
    fledge lanes run verify             # CI will not test this tip while the change is open
 4. change review <id> --reviewer <human>   # may be the same actor as approve; no CI wait
 5. change ship <id>                    # or finalize; do NOT commit between review and ship
-6. commit the archive tip, push, wait for CI (Archive → full lane on that tip), then merge on GitHub
+6. push the archive commit that ship (or finalize) made, wait for CI (Archive → full lane on that tip), then merge on GitHub
 ```
 
 Pushing an unarchived tip is fine as a backup, but CI stops at `Archive`. If the full lane fails after archival, push a fix commit on top and keep specs in sync (`specsync check --strict`); a fix that changes the approved scope needs a new change.
@@ -80,7 +80,7 @@ Use `change ship-status <id>` any time you are unsure which tip stage you are on
 1. **Review + ship are one step** — recording review binds a workspace digest; committing before finalize stales the review. Ship with the tree still dirty after review.
 2. **Finalize one change at a time** — archiving writes under `.specsync/archive/`, which immediately stales every other active change. Sequential only.
 3. **Do not batch reviews** — review A then review B before committing invalidates A.
-4. **Never merge with active changes** — merge only after every change on the PR is archived. If you merge first, run `change status <id>` on `main`, then `change audit`, and follow the exact state-specific recovery it reports. Do not assume every workflow-v2 record can start with `check --commit`: an `Accepted` record resumes through `change finalize` or `change ship`, while a `Verifying` record may need a fresh check before review and ship. If history is unavailable, re-record the review anchor before treating the change as current. Workflow-v1 recovery uses the explicit `verify` → `accept` → merge → archive sequence. A green audit does not replace the missing lifecycle steps.
+4. **Never merge with active changes** — merge only after every change on the PR is archived. If you merge first, run `change status <id>` on `main`, then `change audit`, and follow the exact state-specific recovery it reports. Do not assume every workflow-v2 record can start with `change check --commit`: an `Accepted` record resumes through `change finalize` or `change ship`, while a `Verifying` record may need a fresh check before review and ship. If history is unavailable, re-record the review anchor before treating the change as current. Workflow-v1 recovery uses the explicit `verify` → `accept` → merge → archive sequence. A green audit does not replace the missing lifecycle steps.
 
 
 ## Before pushing (MANDATORY — keep it FAST)
@@ -131,7 +131,7 @@ Specs follow a lifecycle from creation through archival:
 2. **Spec creation** — Run `specsync scaffold <name>` or `specsync new <name>` to create the spec, companion files, and detect source files. Complete the spec before writing code.
 3. **Active development** — The spec (`*.spec.md`) is the detailed contract. Keep it in sync with code changes. Use `tasks.md` for work items, `context.md` for architectural decisions.
 4. **Working specs** — Specs with `status: draft` are in-progress. Promote to `status: stable` once the module's API is settled.
-5. **Maintenance** — Run `specsync check --strict` to catch drift. Use `specsync compact` to keep changelogs manageable.
+5. **Maintenance** — Run `specsync check --strict` to catch drift. Changes add history fragments, not Change Log rows, so a Change Log table no longer grows; `specsync compact` shortens one an older SpecSync wrote.
 6. **Archival** — When a module is deprecated, set `status: deprecated`. Use `specsync archive-tasks` to clean up completed work items.
 
 ## Companion Files
@@ -168,7 +168,7 @@ Each spec in `specs/<module>/` has companion files — read them before working,
 
 ## Spec Format
 
-Each `*.spec.md` needs YAML frontmatter (`module`, `version`, `status`, `files`) and sections: Purpose, Requirements, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log. Public API tables must use backtick-quoted names matching actual code exports.
+Each `*.spec.md` needs YAML frontmatter (`module`, `version`, `status`, `files`) and sections: Purpose, Public API, Invariants, Behavioral Examples, Error Cases, Dependencies, Change Log (the default `required_sections`). Requirements live in `requirements.md` beside the spec. Public API tables must use backtick-quoted names matching actual code exports.
 
 ## MCP Integration
 

@@ -6,6 +6,7 @@ spec: cmd_lifecycle.spec.md
 
 - [x] Implement lifecycle status commands and guard evaluation
 - [x] Add CI-oriented lifecycle enforcement command
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-lifecycle-005). Evidence: `tests/integration/project_reads.rs`.
 
 ## Gaps
 

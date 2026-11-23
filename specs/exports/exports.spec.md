@@ -36,6 +36,7 @@ files:
   - src/exports/ast/elixir.rs
   - src/exports/ast/perl.rs
   - src/exports/ast/lisp.rs
+  - src/exports/ast/tests.rs
   - src/exports/haskell.rs
   - src/exports/lua.rs
   - src/exports/r.rs
@@ -67,16 +68,16 @@ Language-aware export extraction from source files. Auto-detects the programming
 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
-| `get_exported_symbols` | `file_path: &Path` | `Vec<String>` | Extract exported symbol names from a source file, auto-detecting language from extension |
-| `get_exported_symbols_with_level` | `file_path: &Path, level: ExportLevel` | `Vec<String>` | Extract exports with configurable granularity — Type (declarations only) or Member (all symbols) |
+| `get_exported_symbols` | `root: &Path, file_path: &Path` | `Vec<String>` | Extract exported symbol names from a source file, auto-detecting language from extension |
+| `get_exported_symbols_with_level` | `root: &Path, file_path: &Path, level: ExportLevel` | `Vec<String>` | Extract exports with configurable granularity — Type (declarations only) or Member (all symbols) |
 | `is_test_file` | `file_path: &Path, root: &Path` | `bool` | Check if a file is a test file by filename convention or a test directory *within `root`*; the directory check is bounded to project-relative components so ancestors above `root` (e.g. a parent dir named `spec`/`test`) do not misclassify ordinary sources |
 | `is_source_file` | `file_path: &Path` | `bool` | Check if a file extension belongs to a supported source language |
 | `has_extension` | `file_path: &Path, extensions: &[String]` | `bool` | Check if file matches specific extensions, or any supported language if extensions is empty |
 | `extract_exports` | `content: &str` | `Vec<String>` | Per-language backend function that parses source text and returns exported symbol names (one per backend file) |
 | `extract_exports_with_resolver` | `content: &str, resolver: Option<&ImportResolver>` | `Vec<String>` | TypeScript-specific: extract exports with optional wildcard re-export resolution via file resolver callback |
-| `get_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast); a read/parse failure or unsupported language yields an empty vector |
-| `scan_exported_symbols` | `file_path: &Path` | `ExportScan` | Like `get_exported_symbols` but returns an `ExportScan`, distinguishing a genuine empty result from an unreadable/unsupported file |
-| `scan_exported_symbols_full` | `file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `ExportScan` | Like `get_exported_symbols_full` but returns an `ExportScan` so gating callers (`diff`, `score`) can tell a failure from genuine emptiness |
+| `get_exported_symbols_full` | `root: &Path, file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `Vec<String>` | Extract exports with full control over granularity and parse mode (Regex or Ast); a read/parse failure or unsupported language yields an empty vector |
+| `scan_exported_symbols` | `root: &Path, file_path: &Path` | `ExportScan` | Like `get_exported_symbols` but returns an `ExportScan`, distinguishing a genuine empty result from an unreadable/unsupported file |
+| `scan_exported_symbols_full` | `root: &Path, file_path: &Path, level: ExportLevel, parse_mode: ParseMode` | `ExportScan` | Like `get_exported_symbols_full` but returns an `ExportScan` so gating callers (`diff`, `score`) can tell a failure from genuine emptiness |
 | `files_entry_is_directory` | `path: &Path` | `bool` | Whether a `files:` entry names a directory rather than a file. The single place that question is answered, asked *before* any read attempt so a directory is classified as its own outcome instead of surfacing as a failed read |
 | `describe` | `&self` | `String` | `ConflictedExtraction` method: one-line diagnostic naming both conflict-marker labels and a sample of the symbols each side contributed |
 
@@ -194,6 +195,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 24. The conflict check asks the extractor, not the bytes, which makes it correct for all 30+
     regex-only backends without a lexer: whatever a backend chooses to ignore, it ignores
     identically on the raw text and on both reconstructions
+25. Every read of a project file here, source files and the TypeScript files it follows for re-exports (8 MiB), the re-exports only beneath the root, goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-exports-011).
 
 ## Behavioral Examples
 
@@ -333,6 +335,7 @@ Each language backend exposes a single `extract_exports(content: &str) -> Vec<St
 | Binary or non-text file | Returns empty vector (read_to_string fails gracefully) |
 | Supplied TypeScript snapshot contains a wildcard re-export | Parses supplied text but skips ambient wildcard resolution |
 | Unresolved merge conflict contributing symbols on both sides | Returns `ExportScan::Conflicted`; the plain-vector entry points return an empty vector rather than the union |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

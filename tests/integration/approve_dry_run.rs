@@ -10,7 +10,7 @@
 //
 // These drive the built binary, so they read the bytes SpecSync prints and writes.
 
-use super::helpers::specsync;
+use super::helpers::{journal_folder, journal_root_json, specsync};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::fs;
@@ -111,6 +111,14 @@ impl Project {
             String::from_utf8_lossy(&output.stderr)
         );
         String::from_utf8(output.stdout).unwrap()
+    }
+
+    /// Plant a transaction journal where SpecSync keeps its own, in the user's state folder, as
+    /// an interrupted write leaves it (REQ-change-162).
+    fn write_journal(&self, content: &str) {
+        let path = journal_folder(&self.root).join("change-transaction.json");
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(path, content).unwrap();
     }
 
     fn write(&self, relative: &str, content: &str) {
@@ -779,22 +787,28 @@ fn the_dry_run_checks_the_relay_flags_as_the_approval_does() {
 fn the_dry_run_refuses_while_an_interrupted_write_is_waiting() {
     let project = Project::new();
     let id = project.clean_draft();
-    project.write(".specsync/change-transaction.json", "[]\n");
+    // A durable journal with no entries, as the change workflow writes one for this project.
+    project.write_journal(&format!(
+        "{{\"schema_version\":1,\"entry_count\":0,\"entries_digest\":\"4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945\",\"entries\":[],\"root\":{}}}",
+        journal_root_json(&project.root)
+    ));
     let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
     assert_eq!(code, 1, "{document}");
     let refused = refusals(&document);
     assert_eq!(refused.len(), 1, "{document}");
     assert_eq!(refused[0].0, "lifecycle_lock", "{document}");
     assert!(
-        refused[0].1.contains(".specsync/change-transaction.json"),
+        refused[0]
+            .1
+            .contains("the transaction journal in SpecSync's local state folder"),
         "the refusal names the waiting write: {document}"
     );
     // The whole sentence, once, as `--json` carries it and as the text output prints it: a
     // message built from a wrapped source string printed runs of spaces and no test noticed.
-    let waiting = "an interrupted lifecycle write is waiting to be recovered \
-                   (`.specsync/change-transaction.json`); the next lifecycle command that writes \
-                   recovers it before it checks anything, and a dry run writes nothing, so it \
-                   cannot say what `change approve` would find. Run the dry run again once that \
+    let waiting = "an interrupted lifecycle write is waiting to be recovered (the transaction \
+                   journal in SpecSync's local state folder); the next lifecycle command that \
+                   writes recovers it before it checks anything, and a dry run writes nothing, so \
+                   it cannot say what `change approve` would find. Run the dry run again once that \
                    write is recovered";
     assert_eq!(refused[0].1, waiting, "{document}");
     let output = project.invoke(&[
@@ -843,7 +857,7 @@ fn the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay() 
     ] {
         let project = Project::new();
         let id = project.clean_draft();
-        project.write(".specsync/change-transaction.json", journal);
+        project.write_journal(journal);
         let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
         assert_eq!(code, 1, "{case}: {document}");
         let refused = refusals(&document);
@@ -1160,5 +1174,26 @@ fn each_refused_check_is_one_line_of_text() {
             .count(),
         1,
         "{text}"
+    );
+}
+
+// REQ-change-162 and REQ-change-163: a journal in the work tree, where a repository can put one,
+// is never replayed, and `change approve` refuses while it is there. The dry run gives that same
+// refusal and leaves the file alone.
+#[test]
+fn the_dry_run_gives_the_approvals_own_refusal_for_a_journal_in_the_work_tree() {
+    let project = Project::new();
+    let id = project.clean_draft();
+    project.write(".specsync/change-transaction.json", "[]\n");
+    let (code, document) = project.dry_run_leaving_the_tree(&id, &ACTOR);
+    assert_eq!(code, 1, "{document}");
+    let refused = refusals(&document);
+    assert_eq!(refused.len(), 1, "{document}");
+    assert_eq!(refused[0].0, "lifecycle_lock", "{document}");
+    assert!(
+        refused[0]
+            .1
+            .contains(".specsync/change-transaction.json is in the work tree"),
+        "{document}"
     );
 }

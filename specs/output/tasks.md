@@ -16,6 +16,7 @@ spec: output.spec.md
 - [x] Inline unit tests for `print_summary` (underflow, zero/all-passed) and `print_coverage_line` color boundaries
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented
+- [x] Read project files only through the bounded project read of `util` (REQ-output-007). Evidence: `tests/integration/project_reads.rs`.
 
 ## Open
 

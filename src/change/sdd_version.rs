@@ -40,7 +40,11 @@ const BOOTSTRAP_RECORD_CANDIDATES: [&str; 4] = [
     ".specsync/version",
     POLICY_PATH,
 ];
+/// Where SpecSync 6.3 and earlier kept the transaction journal, in the work tree. A file there is
+/// never opened or replayed: a repository can put one there (REQ-change-162).
 const TRANSACTION_PATH: &str = ".specsync/change-transaction.json";
+/// The transaction journal's name in the project's local state folder (REQ-util-006).
+const TRANSACTION_FILE: &str = "change-transaction.json";
 const CORRECTIONS_FILE: &str = "corrections.json";
 const SCOPED_REVIEW_FILE: &str = "review.json";
 const SCOPED_REVIEW_ATTEMPTS_FILE: &str = "review-attempts.json";
@@ -640,10 +644,13 @@ fn acquire_project_lock(root: &Path) -> Result<ProjectLock, String> {
     // `change_adopt_rejects_symlinked_metadata_root_before_lock_write`).
     reject_symlink_components_for(root, &path, "lifecycle lock path")?;
     if let Some(parent) = path.parent() {
+        // checked project write: the lock path's components were refused as links just above, and are again below
         fs::create_dir_all(parent)
             .map_err(|error| format!("failed to create lifecycle metadata directory: {error}"))?;
     }
     reject_symlink_components_for(root, &path, "lifecycle lock path")?;
+    // checked project write: the lock path's components were refused as links just above
+    // not a project file read: opens the lifecycle lock to hold it; nothing is read
     let file = OpenOptions::new()
         .create(true)
         .read(true)
@@ -677,14 +684,46 @@ struct TransactionJournal {
     entry_count: usize,
     entries_digest: String,
     entries: Vec<TransactionEntry>,
+    /// The project root the journal was written for (REQ-change-162). SpecSync 6.4.0 wrote none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    root: Option<JournalRoot>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum TransactionJournalRead {
-    Durable(TransactionJournal),
-    Legacy(Vec<TransactionEntry>),
+/// The project root a journal belongs to: its canonical path, and on Unix its device and inode,
+/// so another project later placed at the same path is told apart (REQ-change-162).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+struct JournalRoot {
+    path: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    device: Option<u64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    inode: Option<u64>,
 }
+
+/// The identity of the project root at `root`, as a journal records it.
+fn journal_root(root: &Path) -> Result<JournalRoot, String> {
+    let canonical = root
+        .canonicalize()
+        .map_err(|error| format!("cannot resolve {}: {error}", root.display()))?;
+    let metadata = fs::metadata(&canonical)
+        .map_err(|error| format!("cannot inspect {}: {error}", canonical.display()))?;
+    #[cfg(unix)]
+    let (device, inode) = {
+        use std::os::unix::fs::MetadataExt;
+        (Some(metadata.dev()), Some(metadata.ino()))
+    };
+    #[cfg(not(unix))]
+    let (device, inode) = {
+        let _ = metadata;
+        (None, None)
+    };
+    Ok(JournalRoot {
+        path: canonical.to_string_lossy().into_owned(),
+        device,
+        inode,
+    })
+}
+
 
 /// The refusal for a journal that cannot be read or parsed: the path, and a set-aside
 /// command that runs as printed — both paths shell-quoted, so a project whose path contains a
@@ -698,62 +737,231 @@ fn invalid_journal_error(journal_path: &Path, detail: &str) -> String {
     )
 }
 
-/// The entries of the pending transaction journal, read and checked the way recovery reads it:
-/// `None` with no journal, the entries of one that reads, and recovery's own refusal for one that
-/// does not. It writes nothing, so `change approve --dry-run` asks it too (REQ-change-163).
-fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>, String> {
-    let journal_path = root.join(TRANSACTION_PATH);
-    if !journal_path.exists() {
-        return Ok(None);
-    }
-    let content = fs::read_to_string(&journal_path)
-        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
-    let journal: TransactionJournalRead = serde_json::from_str(&content)
-        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
-    let entries = match journal {
-        TransactionJournalRead::Legacy(entries) => entries,
-        TransactionJournalRead::Durable(journal) => {
-            if journal.schema_version != 1
-                || journal.entry_count != journal.entries.len()
-                || journal.entries_digest != transaction_entries_digest(&journal.entries)?
-            {
-                return Err(invalid_journal_error(
-                    &journal_path,
-                    "the integrity envelope does not hold",
-                ));
-            }
-            journal.entries
-        }
-    };
-    Ok(Some(entries))
+/// The project's local state folder, which holds the transaction journal (REQ-change-162).
+fn transaction_state(
+    root: &Path,
+    create: bool,
+) -> Result<Option<crate::util::local_state::LocalState>, String> {
+    crate::util::local_state::LocalState::open_journal(root, create).map_err(|error| {
+        format!("cannot open SpecSync's state folder for the transaction journal: {error}")
+    })
 }
 
-/// Where one journal entry is restored, or recovery's refusal of a path outside the project.
+/// A journal in the work tree came from a repository or from SpecSync 6.3 or earlier, and
+/// nothing can tell which: Git says "untracked" for a ZIP, a case variant or a failing Git. It is
+/// never opened or replayed, and while it is there no lifecycle command starts (REQ-change-162).
+fn refuse_journal_in_work_tree(root: &Path) -> Result<(), String> {
+    let planted = root.join(TRANSACTION_PATH);
+    let quoted = shell_quote(&planted.display().to_string());
+    match fs::symlink_metadata(&planted) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("cannot inspect {quoted}: {error}")),
+        Ok(_) => Err(format!(
+            "{TRANSACTION_PATH} is in the work tree, where a repository can put a transaction \
+             journal, so it is never replayed: SpecSync keeps its own journal outside the work \
+             tree. If an older SpecSync left it after an interrupted write, check the files it \
+             lists, then delete it with `rm {quoted}` and re-run the command"
+        )),
+    }
+}
+
+/// Whether a journaled path is one the change workflow writes, and so one a replay may put back
+/// (REQ-change-162): anything under `.specsync/`, the spec files, `requirements.md` and history
+/// fragments under the configured `specs_dir`, and for each spec the local registry maps to a
+/// `*.spec.md` path, that spec, the `requirements.md` beside it and its `history/` fragments. A `.git` component is refused in any letter case and with trailing dots
+/// or spaces, which some file systems ignore.
+fn replayable_transaction_path(root: &Path, relative: &str) -> Result<(), String> {
+    // The write normalizes a backslash into a separator (`normalize_project_path`), so the rule
+    // must judge the same path the write will reach: `.git\config` is `.git/config`.
+    let relative = relative.replace('\\', "/");
+    let relative = relative.as_str();
+    if relative.split('/').any(|component| {
+        component
+            .trim_end_matches(['.', ' '])
+            .eq_ignore_ascii_case(".git")
+    }) {
+        return Err("it names Git's own files, which a replay never touches".to_string());
+    }
+    let under = |directory: &str, path: &str| {
+        let directory = directory.trim_start_matches("./").trim_end_matches('/');
+        directory.is_empty()
+            || directory == "."
+            || path == directory
+            || path.starts_with(&format!("{directory}/"))
+    };
+    if under(".specsync", relative) {
+        return Ok(());
+    }
+    // Under `specs_dir` the workflow writes only spec files, `requirements.md` and history
+    // fragments, so only those are put back. A `specs_dir` of `.` then opens nothing else.
+    let file_name = relative.rsplit('/').next().unwrap_or(relative);
+    let in_history = relative
+        .rsplit('/')
+        .nth(1)
+        .is_some_and(|directory| directory == "history");
+    let spec_shaped = file_name.ends_with(".spec.md")
+        || file_name == "requirements.md"
+        || (in_history && file_name.ends_with(".md"));
+    let config = crate::config::load_config_allowing_unloadable(root);
+    if spec_shaped && under(&config.specs_dir, relative) {
+        return Ok(());
+    }
+    if let Ok(Some(registry)) = crate::registry::load_local_registry(root) {
+        for (_, spec) in &registry.specs {
+            let spec = spec.trim_start_matches("./");
+            // A registry entry is the repository's own text and may name any file; only a spec
+            // the workflow writes opens a replay, never `.env` or another file the person added.
+            if !spec.ends_with(".spec.md") {
+                continue;
+            }
+            let directory = spec.rsplit_once('/').map_or("", |(parent, _)| parent);
+            let beside = |name: &str| {
+                if directory.is_empty() {
+                    name.to_string()
+                } else {
+                    format!("{directory}/{name}")
+                }
+            };
+            if relative == spec
+                || relative == beside("requirements.md")
+                || relative.starts_with(&beside("history/"))
+            {
+                return Ok(());
+            }
+        }
+    }
+    Err("it is outside what the change workflow writes".to_string())
+}
+
+/// The entries of the pending transaction journal, read and checked the way recovery reads it:
+/// `None` with no journal, the entries of one that reads, and recovery's own refusal for one that
+/// does not, including a journal in the work tree, which is never read (REQ-change-162). It
+/// writes nothing, so `change approve --dry-run` asks it too (REQ-change-163).
+fn read_pending_transaction(root: &Path) -> Result<Option<Vec<TransactionEntry>>, String> {
+    refuse_journal_in_work_tree(root)?;
+    refuse_journal_in_cache_folder(root)?;
+    let Some(state) = transaction_state(root, false)? else {
+        return Ok(None);
+    };
+    let journal_path = state.file_path(TRANSACTION_FILE);
+    // not a project file read: the journal in SpecSync's own state folder outside the work tree, read through its no-follow, bounded handle (REQ-util-006)
+    let content = match state.read_file(TRANSACTION_FILE, crate::util::MAX_PROJECT_INPUT_BYTES) {
+        Ok(Some(bytes)) => String::from_utf8(bytes).map_err(|_| {
+            invalid_journal_error(&journal_path, "stream did not contain valid UTF-8")
+        })?,
+        Ok(None) => return Ok(None),
+        Err(error) => return Err(invalid_journal_error(&journal_path, &error.to_string())),
+    };
+    let value: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
+    // The bare-array form, written only by SpecSync 5.x, carries no envelope at all
+    // (REQ-change-162).
+    if value.is_array() {
+        return Err(invalid_journal_error(
+            &journal_path,
+            "a bare-array journal from SpecSync 5.x is no longer replayed",
+        ));
+    }
+    let journal: TransactionJournal = serde_json::from_value(value)
+        .map_err(|error| invalid_journal_error(&journal_path, &error.to_string()))?;
+    if journal.schema_version != 1
+        || journal.entry_count != journal.entries.len()
+        || journal.entries_digest != transaction_entries_digest(&journal.entries)?
+    {
+        return Err(invalid_journal_error(
+            &journal_path,
+            "the integrity envelope does not hold",
+        ));
+    }
+    // A journal is replayed only into the project it was written for: another project later
+    // placed at the same path, or a journal that records none, as SpecSync 6.4.0 wrote, never
+    // gets its contents (REQ-change-162).
+    let here = journal_root(root)?;
+    if journal.root.as_ref() != Some(&here) {
+        return Err(invalid_journal_error(
+            &journal_path,
+            &format!(
+                "it was not written for this project at {} ({}), so it is never replayed; check \
+                 the files it lists before you set it aside",
+                here.path,
+                match &journal.root {
+                    Some(recorded) => format!("it records the project at {}", recorded.path),
+                    None => "it records no project, as SpecSync 6.4.0 wrote it".to_string(),
+                }
+            ),
+        ));
+    }
+    Ok(Some(journal.entries))
+}
+
+/// Refuse while SpecSync 6.4.0's journal is still in the user's cache folder: it records no
+/// project, so it is never replayed (REQ-change-162).
+fn refuse_journal_in_cache_folder(root: &Path) -> Result<(), String> {
+    let Ok(Some(cache)) = crate::util::local_state::LocalState::open(root, false) else {
+        return Ok(());
+    };
+    // Where the cache and state folders are one folder (`%LOCALAPPDATA%` on Windows, or
+    // `XDG_STATE_HOME` set to `XDG_CACHE_HOME`), the journal there is this build's own, and the
+    // read below judges it by the project it records (REQ-change-162).
+    let same_folder = |state: &crate::util::local_state::LocalState| {
+        let folder = |path: PathBuf| path.parent().and_then(|parent| parent.canonicalize().ok());
+        folder(state.file_path(TRANSACTION_FILE)) == folder(cache.file_path(TRANSACTION_FILE))
+    };
+    if transaction_state(root, false)?.is_some_and(|state| same_folder(&state)) {
+        return Ok(());
+    }
+    match cache.metadata(TRANSACTION_FILE) {
+        Ok(None) => Ok(()),
+        _ => Err(invalid_journal_error(
+            &cache.file_path(TRANSACTION_FILE),
+            "SpecSync 6.4.0 kept its journal in the cache folder; it records no project, so it is \
+             never replayed; check the files it lists before you set it aside",
+        )),
+    }
+}
+
+/// Where one journal entry is restored, or recovery's refusal of it: a path outside the project,
+/// one the change workflow never writes, or one with a symbolic link on the way (REQ-change-162).
 fn pending_transaction_entry_path(root: &Path, entry: &TransactionEntry) -> Result<PathBuf, String> {
-    safe_project_path(root, &entry.path).map_err(|error| {
-        invalid_journal_error(
-            &root.join(TRANSACTION_PATH),
-            &format!("entry `{}`: {error}", entry.path),
-        )
-    })
+    let journal_path = transaction_state(root, false)
+        .ok()
+        .flatten()
+        .map(|state| state.file_path(TRANSACTION_FILE))
+        .unwrap_or_else(|| PathBuf::from(TRANSACTION_FILE));
+    let refused =
+        |reason: String| invalid_journal_error(&journal_path, &format!("entry `{}`: {reason}", entry.path));
+    let path = safe_project_path(root, &entry.path).map_err(refused)?;
+    replayable_transaction_path(root, &entry.path).map_err(refused)?;
+    reject_symlink_components_for(root, &path, "transaction journal entry").map_err(refused)?;
+    Ok(path)
 }
 
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     let Some(entries) = read_pending_transaction(root)? else {
         return Ok(());
     };
+    // Every entry is checked before any is applied: one entry the change workflow would never
+    // write refuses the whole journal, so nothing is half replayed (REQ-change-162).
+    let mut planned = Vec::with_capacity(entries.len());
     for entry in entries {
         let path = pending_transaction_entry_path(root, &entry)?;
-        if let Some(original) = entry.original {
-            atomic_write_durable(&path, original.as_bytes())
+        planned.push((path, entry.original));
+    }
+    for (path, original) in planned {
+        if let Some(original) = original {
+            atomic_write_durable(root, &path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
         } else if path.exists() {
-            remove_file_durable(&path)
+            remove_file_durable(root, &path)
                 .map_err(|error| format!("failed to remove {}: {error}", path.display()))?;
             remove_empty_transaction_directories(root, path.parent());
         }
     }
-    remove_file_durable(&root.join(TRANSACTION_PATH))
+    let Some(state) = transaction_state(root, false)? else {
+        return Ok(());
+    };
+    state
+        .remove(TRANSACTION_FILE, true)
         .map_err(|error| format!("failed to clear transaction journal: {error}"))
 }
 
@@ -1938,7 +2146,7 @@ fn load_policy_checked(root: &Path) -> Result<Option<SddPolicy>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read SDD policy {}: {error}", path.display()))?;
     let policy: SddPolicy = serde_json::from_str(&content)
         .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
@@ -1984,14 +2192,11 @@ fn disclose_inert_ignored_paths(root: &Path, policy: &SddPolicy) {
 
 pub fn write_default_policy(root: &Path, verification_commands: Vec<String>) -> Result<(), String> {
     let path = root.join(POLICY_PATH);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
-    }
     if path.exists() {
         return Ok(());
     }
     let policy = default_policy(root, verification_commands);
-    write_json(&path, &policy)
+    write_record_json(root, &path, &policy)
 }
 
 fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy {
@@ -2102,23 +2307,18 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
         legacy_archive_baseline_digest: None,
         answers: BTreeMap::new(),
     };
-    fs::create_dir_all(dir.join("deltas")).map_err(|error| error.to_string())?;
+    crate::util::create_project_dir(root, &dir.join("deltas"))
+        .map_err(|error| format!("failed to create {}: {error}", dir.join("deltas").display()))?;
     save_change(root, &record)?;
     write_change_markdown(root, &record)?;
-    write_json(&dir.join("approvals.json"), &ApprovalLedger::default())?;
-    for artifact in &record.selected_artifacts {
-        let path = dir.join(artifact.file_name());
-        if !path.exists() {
-            fs::write(&path, artifact_template(root, artifact, &record))
-                .map_err(|error| format!("failed to write {}: {error}", path.display()))?;
-        }
-    }
+    write_record_json(root, &dir.join("approvals.json"), &ApprovalLedger::default())?;
+    ensure_artifact_files(root, &record)?;
     Ok(record)
 }
 
 pub fn load_change(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let path = find_change_dir(root, id)?.join("state.json");
-    let content = match fs::read_to_string(&path) {
+    let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!(
@@ -2203,7 +2403,7 @@ fn list_changes_checked(root: &Path) -> Result<Vec<ChangeRecord>, String> {
 fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
     let mut roster = ChangeRoster::default();
     let dir = root.join(CHANGES_PATH);
-    let entries = match fs::read_dir(dir) {
+    let entries = match crate::util::read_project_dir_entries(root, &dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(roster),
         Err(error) => return Err(format!("failed to read active changes: {error}")),
@@ -2247,10 +2447,10 @@ fn list_changes_uncached(root: &Path) -> Result<ChangeRoster, String> {
         // directory that holds a file but no `state.json` is damaged and still
         // open: report it and keep enumerating. Every other read error is still
         // reported, so an unreadable state.json is never mistaken for an absent one.
-        let content = match fs::read_to_string(&path) {
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
             Ok(content) => content,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                if is_untrackable_husk(&entry.path()) {
+                if is_untrackable_husk(root, &entry.path()) {
                     continue;
                 }
                 roster.unreadable.push(UnreadableChange {
@@ -2347,7 +2547,7 @@ fn load_change_sequence_ledger(root: &Path) -> Result<Option<ChangeSequenceLedge
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read change sequence ledger: {error}"))?;
     let ledger: ChangeSequenceLedger = serde_json::from_str(&content)
         .map_err(|error| format!("invalid change sequence ledger: {error}"))?;
@@ -2464,7 +2664,7 @@ pub fn floor_sequence_ledger_to_committed(root: &Path) -> Result<Option<(u64, u6
         }
     }
     collisions.sort_by_key(|collision| collision.sequence);
-    write_json_keeping_unknown_members(
+    write_json_keeping_unknown_members(root, 
         &root.join(SEQUENCE_PATH),
         &ChangeSequenceLedger {
             schema_version: 1,
@@ -2482,7 +2682,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
         (root.join(CHANGES_PATH), false),
         (root.join(ARCHIVE_PATH), true),
     ] {
-        let entries = match fs::read_dir(&base) {
+        let entries = match crate::util::read_project_dir_entries(root, &base) {
             Ok(entries) => entries,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(error) => {
@@ -2502,13 +2702,13 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 continue;
             }
             let state_path = entry.path().join("state.json");
-            let content = match fs::read_to_string(&state_path) {
+            let content = match crate::util::read_project_string(root, &state_path, crate::util::MAX_STATE_FILE_BYTES) {
                 Ok(content) => content,
                 Err(error)
                     if archived
                         && error.kind() == std::io::ErrorKind::NotFound
-                        && (is_positive_legacy_tombstone(&entry.path())
-                            || is_untrackable_husk(&entry.path())) =>
+                        && (is_positive_legacy_tombstone(root, &entry.path())
+                            || is_untrackable_husk(root, &entry.path())) =>
                 {
                     continue;
                 }
@@ -2521,7 +2721,7 @@ fn located_change_sequences(root: &Path) -> Result<Vec<LocatedChangeSequence>, S
                 Err(error)
                     if !archived
                         && error.kind() == std::io::ErrorKind::NotFound
-                        && is_untrackable_husk(&entry.path()) =>
+                        && is_untrackable_husk(root, &entry.path()) =>
                 {
                     continue;
                 }
@@ -3287,6 +3487,7 @@ fn load_change_for_definition_mutation(
         .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
     validate_correction_records(&record, &ledger.corrections)
         .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+    ensure_change_files_writable(root, &record)?;
     Ok((record, ledger.corrections))
 }
 
@@ -3414,6 +3615,7 @@ fn validate_legacy_baseline_authority_cutoff(
 pub fn start_implementation(root: &Path, id: &str) -> Result<ChangeRecord, String> {
     let _lock = acquire_project_lock(root)?;
     let mut record = load_change(root, id)?;
+    ensure_change_files_writable(root, &record)?;
     require_state(
         &record,
         &[ChangeState::Approved, ChangeState::Implementing],
@@ -3536,9 +3738,9 @@ fn materialize_change_deltas_inner(
     record.state = ChangeState::Implementing;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(
+    let state = json_content_keeping_unknown_members(root, 
         &state_path,
-        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+        relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
     prepared.push((
@@ -3883,7 +4085,8 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
     // check entirely in a project whose specs all live in the registry).
     let registry = crate::registry::load_local_registry(root)
         .map_err(|error| format!("the spec registry cannot be read: {error}"))?;
-    let spec_files = crate::validator::find_spec_files(&root.join(&config.specs_dir));
+    let spec_files =
+        crate::validator::find_spec_files_checked(root, &root.join(&config.specs_dir))?;
     // Bootstrap, exactly as REQ-change-150 says: a project with no spec files and no registry
     // entries cannot typo against an empty set, so the declaration is provisional there.
     if spec_files.is_empty() && registry.as_ref().is_none_or(|registry| registry.specs.is_empty()) {
@@ -3920,7 +4123,7 @@ fn ensure_affected_specs_exist(root: &Path, modules: &[String]) -> Result<(), St
         // A spec that declares this module somewhere else is moved or registered, never
         // duplicated by a scaffold at the canonical path.
         if let Some(elsewhere) = spec_files.iter().find(|spec| {
-            fs::read_to_string(spec)
+            crate::util::read_project_string(root, spec, crate::util::MAX_SPEC_FILE_BYTES)
                 .ok()
                 .and_then(|content| crate::parser::parse_frontmatter(&content))
                 .and_then(|parsed| parsed.frontmatter.module)
@@ -3967,7 +4170,7 @@ fn module_has_canonical_spec(root: &Path, specs_dir: &str, module: &str) -> bool
     registered
         || spec_path
             .parent()
-            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(directory) && entry_is_not_an_ascii_case_variant(&spec_path))
+            .is_none_or(|directory| entry_is_not_an_ascii_case_variant(root, directory) && entry_is_not_an_ascii_case_variant(root, &spec_path))
 }
 
 /// Whether some component of `path` below `root` is a symlink.
@@ -3984,11 +4187,11 @@ fn path_traverses_symlink(root: &Path, path: &Path) -> bool {
 
 /// False when `path`'s directory holds an entry differing from its name only in ASCII case and
 /// none spelled exactly: the disk resolved a case variant.
-fn entry_is_not_an_ascii_case_variant(path: &Path) -> bool {
+fn entry_is_not_an_ascii_case_variant(root: &Path, path: &Path) -> bool {
     let (Some(parent), Some(name)) = (path.parent(), path.file_name()) else {
         return true;
     };
-    let Ok(entries) = fs::read_dir(parent) else {
+    let Ok(entries) = crate::util::read_project_dir_entries(root, parent) else {
         return true;
     };
     let names: Vec<std::ffi::OsString> = entries.flatten().map(|entry| entry.file_name()).collect();
@@ -4013,7 +4216,7 @@ fn known_module_names(root: &Path, specs_dir: &str) -> Vec<String> {
             candidates.insert(module.clone());
         }
     }
-    for spec in crate::validator::find_spec_files(&root.join(specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(specs_dir)) {
         let filter = spec_filter_name(&spec);
         if !filter.is_empty() {
             candidates.insert(filter);
@@ -4074,11 +4277,11 @@ fn scoped_spec_files(
             }
         }
     }
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
         if selected.contains_key(&spec) {
             continue;
         }
-        let Ok(content) = fs::read_to_string(&spec) else {
+        let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");
@@ -4174,7 +4377,7 @@ fn evaluate_spec_code_sync(
     for spec in &scope.files {
         let result =
             crate::validator::validate_spec(spec, root, &schema_tables, &schema_columns, &config);
-        let inline_ignores = fs::read_to_string(spec)
+        let inline_ignores = crate::util::read_project_string(root, spec, crate::util::MAX_SPEC_FILE_BYTES)
             .map(|content| crate::ignore::IgnoreRules::parse_inline(&content))
             .unwrap_or_default();
         errors += result.errors.len();
@@ -4256,7 +4459,7 @@ fn verification_commands_for_change(
 
 fn load_verification_routing(root: &Path) -> Result<VerificationRouting, String> {
     let path = root.join(POLICY_PATH);
-    let content = match fs::read_to_string(&path) {
+    let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => content,
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
             return Ok(VerificationRouting::default());
@@ -4334,7 +4537,7 @@ pub fn reopen_change(
         Ok(result) => return Ok(result),
         Err(error) => error,
     };
-    match rename_durable(&change_dir(root, id), &archived_location) {
+    match rename_durable(root, &change_dir(root, id), &archived_location) {
         Ok(()) => Err(format!("{error}; archive restored")),
         Err(restore_error) => Err(format!(
             "{error}; and the un-archived package could not be restored to {} ({restore_error}); move it back by hand before retrying",
@@ -4357,9 +4560,10 @@ fn unarchive_change_workspace(root: &Path, record: &ChangeRecord) -> Result<Path
         ));
     }
     if let Some(parent) = active.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        crate::util::create_project_dir(root, parent)
+            .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
     }
-    rename_durable(&archived_location, &active)
+    rename_durable(root, &archived_location, &active)
         .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
     Ok(archived_location)
 }
@@ -4512,16 +4716,16 @@ fn reopen_unarchived_change(
         &[
             {
                 let path = change_dir(root, &record.id).join("approvals.json");
-                let content = json_content_keeping_unknown_members(&path, &ledger)?;
+                let content = json_content_keeping_unknown_members(root, &path, &ledger)?;
                 (path, content)
             },
             {
                 let workspace = change_dir(root, &record.id);
                 let path = workspace.join("state.json");
                 // A reopened change that holds a relay stays gated (REQ-change-158).
-                let content = json_content_keeping_unknown_members(
+                let content = json_content_keeping_unknown_members(root, 
                     &path,
-                    relay_gated_record(&workspace, &record).as_ref(),
+                    relay_gated_record(root, &workspace, &record).as_ref(),
                 )?;
                 (path, content)
             },
@@ -4566,7 +4770,7 @@ pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackf
     };
     for workspace in change_workspaces_for_backfill(root)? {
         let approvals_path = workspace.join("approvals.json");
-        let Ok(content) = fs::read_to_string(&approvals_path) else {
+        let Ok(content) = crate::util::read_project_string(root, &approvals_path, crate::util::MAX_STATE_FILE_BYTES) else {
             continue;
         };
         let id = workspace
@@ -4592,7 +4796,7 @@ pub fn backfill_reopen_digests(root: &Path, dry_run: bool) -> Result<ReopenBackf
 fn change_workspaces_for_backfill(root: &Path) -> Result<Vec<PathBuf>, String> {
     let mut workspaces = Vec::new();
     for base in [root.join(CHANGES_PATH), root.join(ARCHIVE_PATH)] {
-        let Ok(entries) = fs::read_dir(&base) else {
+        let Ok(entries) = crate::util::read_project_dir_entries(root, &base) else {
             continue;
         };
         for entry in entries.flatten() {
@@ -4653,7 +4857,7 @@ fn backfill_change_ledger(
             .get("timestamp")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or_default();
-        let current = match superseding_acceptance_digest(workspace, reopen_timestamp)? {
+        let current = match superseding_acceptance_digest(root, workspace, reopen_timestamp)? {
             Some(digest) => digest,
             None => match live_acceptance_digest(root, workspace) {
                 Ok(digest) => digest,
@@ -4686,7 +4890,7 @@ fn backfill_change_ledger(
     if !dry_run {
         let mut bytes = bytes;
         bytes.push(b'\n');
-        fs::write(workspace.join("approvals.json"), bytes)
+        crate::util::write_project_file(root, &workspace.join("approvals.json"), &bytes)
             .map_err(|error| format!("failed to write repaired approvals ledger: {error}"))?;
     }
     Ok(Ok(true))
@@ -4695,11 +4899,12 @@ fn backfill_change_ledger(
 /// Returns the signed acceptance-input digest of the change's current verification record when
 /// it supersedes the reopening (recorded after it), matching the rollout-proven repair.
 fn superseding_acceptance_digest(
+    root: &Path,
     workspace: &Path,
     reopen_timestamp: u64,
 ) -> Result<Option<String>, String> {
     let verification_path = workspace.join("verification.json");
-    let Ok(content) = fs::read_to_string(&verification_path) else {
+    let Ok(content) = crate::util::read_project_string(root, &verification_path, crate::util::MAX_STATE_FILE_BYTES) else {
         return Ok(None);
     };
     let verification: serde_json::Value = serde_json::from_str(&content)
@@ -4721,7 +4926,7 @@ fn superseding_acceptance_digest(
 /// using the same manifest-aware path as the 5.1 reopen flow.
 fn live_acceptance_digest(root: &Path, workspace: &Path) -> Result<String, String> {
     let state: ChangeRecord = serde_json::from_str(
-        &fs::read_to_string(workspace.join("state.json"))
+        &crate::util::read_project_string(root, &workspace.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|error| format!("failed to read change state: {error}"))?,
     )
     .map_err(|error| format!("change state is not valid: {error}"))?;
@@ -5109,7 +5314,7 @@ pub fn add_acceptance_owner_corrections(
     write_prepared_files(
         root,
         &[
-            (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
+            (json_content_keeping_unknown_members(root, &dir.join("state.json"), relay_gated_record(root, &dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
             (dir.join("change.md"), change_markdown_content(&record)),
         ],
     )?;
@@ -5942,7 +6147,7 @@ impl SpecListingIndex {
         let mut visited = 0usize;
         let mut truncated = false;
         'walk: while let Some(directory) = stack.pop() {
-            let Ok(entries) = fs::read_dir(&directory) else {
+            let Ok(entries) = crate::util::read_project_dir_entries(root, &directory) else {
                 continue;
             };
             for entry in entries.flatten() {
@@ -5967,7 +6172,7 @@ impl SpecListingIndex {
                 {
                     continue;
                 }
-                let Some(parsed) = fs::read_to_string(&entry_path)
+                let Some(parsed) = crate::util::read_project_string(root, &entry_path, crate::util::MAX_SPEC_FILE_BYTES)
                     .ok()
                     .and_then(|content| crate::parser::parse_frontmatter(&content))
                 else {
@@ -5998,7 +6203,7 @@ impl SpecListingIndex {
                 if specs.iter().any(|(spec, _, _)| spec == &portable) {
                     continue;
                 }
-                let Some(parsed) = fs::read_to_string(&spec_path)
+                let Some(parsed) = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
                     .ok()
                     .and_then(|content| crate::parser::parse_frontmatter(&content))
                 else {
@@ -6052,7 +6257,7 @@ fn closest_declared_spec_hint(
         let Ok((spec_path, _)) = canonical_module_paths(root, &config.specs_dir, module) else {
             continue;
         };
-        let depth = fs::read_to_string(&spec_path)
+        let depth = crate::util::read_project_string(root, &spec_path, crate::util::MAX_SPEC_FILE_BYTES)
             .ok()
             .and_then(|content| crate::parser::parse_frontmatter(&content))
             .map(|parsed| {

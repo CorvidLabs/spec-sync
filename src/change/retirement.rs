@@ -333,7 +333,7 @@ fn validate_retirement_with_records(
         return Err("change is not retired".into());
     }
     let directory = find_change_dir(root, &record.id)?;
-    let receipt: RetirementRecord = serde_json::from_str(&read_bounded_change_text(
+    let receipt: RetirementRecord = serde_json::from_str(&read_bounded_change_text(root, 
         &directory.join(RETIREMENT_FILE),
         "retirement receipt",
     )?)
@@ -629,7 +629,7 @@ pub fn retire_change_with_source(
         // original. All immutable receipt/history and replacement checks still run before writes.
         if record.state != ChangeState::Retired {
             if current != change_dir(root, id)
-                || fs::read(current.join("state.json")).map_err(|e| e.to_string())?
+                || crate::util::read_project_bytes(root, &current.join("state.json"), crate::util::MAX_STATE_FILE_BYTES).map_err(|e| e.to_string())?
                     != receipt.original_state.as_bytes()
             {
                 return Err(
@@ -645,7 +645,7 @@ pub fn retire_change_with_source(
         if current == change_dir(root, id) {
             write_prepared_files(
                 root,
-                &[(json_content_keeping_unknown_members(&current.join("state.json"), relay_gated_record(&current, &record).as_ref())
+                &[(json_content_keeping_unknown_members(root, &current.join("state.json"), relay_gated_record(root, &current, &record).as_ref())
                     .map(|content| (current.join("state.json"), content))?)],
             )?;
             finish_retirement_move(root, &current, &receipt)?;
@@ -708,7 +708,7 @@ pub fn retire_change_with_source(
         .join(format!("{}-{id}", utc_date(receipt.timestamp)));
     validate_late_close_destination(root, &destination)?;
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        crate::util::create_project_dir(root, parent).map_err(|e| e.to_string())?;
     }
     validate_late_close_destination(root, &destination)?;
     record.state = ChangeState::Retired;
@@ -716,7 +716,7 @@ pub fn retire_change_with_source(
     write_prepared_files(
         root,
         &[
-            (json_content_keeping_unknown_members(&source.join("state.json"), relay_gated_record(&source, &record).as_ref()).map(|content| (source.join("state.json"), content))?),
+            (json_content_keeping_unknown_members(root, &source.join("state.json"), relay_gated_record(root, &source, &record).as_ref()).map(|content| (source.join("state.json"), content))?),
             (source.join(RETIREMENT_FILE), encoded_receipt),
         ],
     )?;
@@ -856,7 +856,7 @@ fn validate_retired_records(
                 "committed retirement history for {id} was rolled back"
             ));
         }
-        let bytes = fs::read(find_change_dir(root, &id)?.join(RETIREMENT_FILE))
+        let bytes = crate::util::read_project_bytes(root, &find_change_dir(root, &id)?.join(RETIREMENT_FILE), crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|e| format!("committed retirement receipt is missing: {e}"))?;
         if bytes != committed {
             return Err(format!(
@@ -872,7 +872,7 @@ fn validate_retired_records(
 
 /// Read disposition details after the caller validates retirement custody.
 pub fn retirement_record(root: &Path, record: &ChangeRecord) -> Result<RetirementRecord, String> {
-    serde_json::from_str(&read_bounded_change_text(
+    serde_json::from_str(&read_bounded_change_text(root, 
         &find_change_dir(root, &record.id)?.join(RETIREMENT_FILE),
         "retirement receipt",
     )?)
@@ -898,14 +898,14 @@ fn finish_retirement_move(
         reject_symlink_components_for(root, source, "retirement source")?;
         validate_late_close_destination(root, &destination)?;
         if let Some(parent) = destination.parent() {
-            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            crate::util::create_project_dir(root, parent).map_err(|e| e.to_string())?;
         }
         validate_late_close_destination(root, &destination)?;
         #[cfg(test)]
         if RETIREMENT_TEST_FAIL_MOVE.with(|value| value.get()) {
             return Err("injected retirement move failure".to_string());
         }
-        rename_durable(source, &destination).map_err(|e| e.to_string())
+        rename_durable(root, source, &destination).map_err(|e| e.to_string())
     })();
     moved.map_err(|error| format!(
         "retirement custody is recorded but archive move is pending: {error}; rerun the identical change retire command to finish; no implementation acceptance was recorded"))

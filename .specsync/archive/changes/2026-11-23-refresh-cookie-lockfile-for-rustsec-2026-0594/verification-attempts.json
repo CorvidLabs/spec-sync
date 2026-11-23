@@ -42,6 +42,38 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795448475,
+      "commit": "28e05731184c42ab4b45f991359c3ac97fb3a90d",
+      "contract_digest": "8dc7c7024aa220c5d9581b746d8589caffdfe611d87c824b166149ce27581899",
+      "execution_digest": "21911fa36449811a57a0cdbcb97e51139b705b72955deaebaa50fb79812de416",
+      "workspace_digest": "48471be6545ec395bdd5f4cad2423d165e82f588a288b674d1d6461e1bff5147",
+      "acceptance_input_digest": "e7acd7c21ac7d1efbf3b5ae7c6732a335de6efe66b334a560156526eebe0919d",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "Cargo.lock",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fd179f866cc280c591eeb1451189e4dc3b6a5dc282931c63b4ad984f9b85464e",
+            "entry_digest": "d7644d718e66f54d97be445ee73fd1262a1be9a3dd56ce1c8ff86beb1bd22829",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

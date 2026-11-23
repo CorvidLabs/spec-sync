@@ -38,6 +38,13 @@
         "where": "SpecSync scope-approval conversation on 2026-11-23, relayed by the coordinating Codex agent",
         "recorded_by": "codex:state_check"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795470074,
+      "digest": "7c135653de5f7849e814dc6b59cd7a30586657ddec9fc42fb7e83f582555e165",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

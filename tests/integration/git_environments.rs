@@ -420,6 +420,16 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
 /// only the user's global `url.<x>.insteadOf` in `config` resolves it, as only the user's
 /// credential helper reaches a private HTTPS remote.
 fn blobless_clone(temp: &Path, source: &Path, clone: &Path) -> PathBuf {
+    filtered_clone(temp, source, clone, "--filter=blob:none", &[])
+}
+
+fn filtered_clone(
+    temp: &Path,
+    source: &Path,
+    clone: &Path,
+    filter: &str,
+    extra: &[&str],
+) -> PathBuf {
     git(source, &["config", "uploadpack.allowFilter", "true"]);
     git(source, &["config", "uploadpack.allowAnySHA1InWant", "true"]);
     let config = temp.join("user-remote.gitconfig");
@@ -433,13 +443,9 @@ fn blobless_clone(temp: &Path, source: &Path, clone: &Path) -> PathBuf {
     .unwrap();
     let output = Command::new("git")
         .env("GIT_CONFIG_GLOBAL", &config)
-        .args([
-            "clone",
-            "-q",
-            "--filter=blob:none",
-            "https://example.invalid/project",
-            clone.to_str().unwrap(),
-        ])
+        .args(["clone", "-q", filter])
+        .args(extra)
+        .args(["https://example.invalid/project", clone.to_str().unwrap()])
         .output()
         .unwrap();
     assert!(
@@ -1033,4 +1039,132 @@ fn the_one_fetch_brings_history_from_merged_side_branches_too() {
 
     assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
     assert!(present(), "{audit}");
+}
+
+#[test]
+fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let first = adopted_project(&source);
+    git(
+        &source,
+        &["rm", "-qr", &format!(".specsync/changes/{first}")],
+    );
+    git(&source, &["mv", "specs", " old specs"]);
+    write(&source, ".specsync.toml", "specs_dir = \" old specs\"\n");
+    git(&source, &["add", "--all"]);
+    git(&source, &["commit", "-qm", "historical requirements scope"]);
+    run(
+        &source,
+        &[],
+        &[
+            "change",
+            "new",
+            "Rotate session keys",
+            "--spec",
+            "auth",
+            "--path",
+            "src/auth.rs",
+        ],
+    );
+    git(&source, &["add", "--all"]);
+    git(
+        &source,
+        &["commit", "-qm", "a draft based on the old scope"],
+    );
+    git(&source, &["mv", " old specs", "specs"]);
+    write(&source, ".specsync.toml", "specs_dir = \"specs\"\n");
+    let requirements = source.join("specs/auth/requirements.md");
+    let current = fs::read_to_string(&requirements).unwrap();
+    fs::write(
+        &requirements,
+        current.replace("log every sign-in", "record every sign-in"),
+    )
+    .unwrap();
+    git(
+        &source,
+        &["commit", "-qam", "move and reword the requirements"],
+    );
+    let clone = temp.path().join("clone");
+    let config = blobless_clone(temp.path(), &source, &clone);
+
+    let audit = run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", config.to_str().unwrap())],
+        &["change", "audit", "--strict"],
+    );
+    assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+}
+
+#[test]
+fn a_treeless_partial_clone_names_a_fetch_that_restores_history() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    let clone = temp.path().join("clone");
+    let config = filtered_clone(temp.path(), &source, &clone, "--filter=tree:0", &[]);
+    let before = git(&clone, &["rev-parse", "HEAD"]);
+    let unreachable = temp.path().join("nothing.gitconfig");
+    fs::write(&unreachable, "").unwrap();
+
+    let refused = invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+    let text = combined(&refused);
+    assert!(!refused.status.success(), "{text}");
+    assert!(text.contains("partial clone"), "{text}");
+    let command = text
+        .split('`')
+        .find(|part| part.contains("git -C ") && part.contains(" fetch "))
+        .unwrap_or_else(|| panic!("no fetch command: {text}"));
+    let recovered = Command::new("sh")
+        .args(["-c", command])
+        .env("GIT_CONFIG_GLOBAL", &config)
+        .output()
+        .unwrap();
+    assert!(
+        recovered.status.success(),
+        "{command}: {}",
+        combined(&recovered)
+    );
+    assert_eq!(git(&clone, &["rev-parse", "HEAD"]), before);
+    run(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+}
+
+#[test]
+fn a_shallow_partial_clone_names_the_fetch_that_restores_history_first() {
+    let temp = TempDir::new().unwrap();
+    let source = temp.path().join("source");
+    let id = adopted_project(&source);
+    for version in ["old", "new"] {
+        write(&source, ".specsync/history-note.md", version);
+        git(&source, &["add", "--all"]);
+        git(&source, &["commit", "-qm", version]);
+    }
+    let clone = temp.path().join("clone");
+    filtered_clone(
+        temp.path(),
+        &source,
+        &clone,
+        "--filter=blob:none",
+        &["--depth=2"],
+    );
+    assert!(missing_objects(&clone) > 0);
+    let unreachable = temp.path().join("nothing.gitconfig");
+    fs::write(&unreachable, "").unwrap();
+
+    let refused = invoke(
+        &clone,
+        &[("GIT_CONFIG_GLOBAL", unreachable.to_str().unwrap())],
+        &["change", "status", &id],
+    );
+    let text = combined(&refused);
+    assert!(!refused.status.success(), "{text}");
+    assert!(text.contains("git fetch --unshallow origin"), "{text}");
 }

@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "refresh-cookie-lockfile-for-rustsec-2026-0594",
+  "slug": "refresh-cookie-lockfile-for-rustsec-2026-0594",
+  "title": "Refresh cookie lockfile for RUSTSEC-2026-0594",
+  "description": "Refresh cookie lockfile for RUSTSEC-2026-0594",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "71f1867d7ddcf2b075b49c421d2f87ea0b760be1",
+  "created_at": 1795446188,
+  "updated_at": 1795470077,
+  "affected_specs": [],
+  "affected_paths": [
+    "Cargo.lock"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Resolve a compatible transitive dependency patch through Cargo.lock without changing the SpecSync contract.",
+  "acceptance_criteria": [
+    "Cargo.lock resolves cookie 0.18.3 instead of 0.18.1. Only the version and checksum in the existing cookie entry change.",
+    "The resolved features and dependency graph match the baseline apart from the cookie version, and audit runs with the existing policy and clears RUSTSEC-2026-0594.",
+    "The full project verification lane passes on the pinned Rust toolchain."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

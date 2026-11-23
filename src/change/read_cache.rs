@@ -237,6 +237,7 @@ fn partial_clone_download_refusal(root: &Path) -> Option<String> {
 }
 
 fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
+    // git writes no project file: --get-regexp only reads the promisor configuration.
     let Some(config) = git_output(
         root,
         &["config", "--get-regexp", r"^(extensions\.partialclone|remote\..*\.promisor)$"],

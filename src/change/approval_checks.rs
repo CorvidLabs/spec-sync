@@ -244,7 +244,11 @@ impl<'a> ApprovalRun<'a> {
             }
             ApprovalStep::LifecycleLock => lifecycle_lock_could_be_taken(self.root),
             ApprovalStep::Change => {
-                self.record = Some(load_change(self.root, self.id)?);
+                let record = load_change(self.root, self.id)?;
+                // A change record that leads out of the repository or into the Git directory is
+                // refused before anything is written (REQ-change-165).
+                ensure_change_files_writable(self.root, &record)?;
+                self.record = Some(record);
                 Ok(())
             }
             ApprovalStep::Sequence => ensure_no_sequence_collision(self.root, self.loaded()?),
@@ -393,6 +397,8 @@ fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
     // anything, so a lock the approval cannot open, such as a directory, is refused in the
     // approval's own words (Codex on #1100). Opening it changes no byte and no timestamp.
     if fs::symlink_metadata(&path).is_ok() {
+        // not a project file read: opens the lifecycle lock as the approval opens it, only to test it; nothing is read
+        // not a project file write: the same open, without create or truncate; nothing is written
         OpenOptions::new()
             .read(true)
             .write(true)
@@ -409,12 +415,13 @@ fn lifecycle_lock_could_be_taken(root: &Path) -> Result<(), String> {
     for entry in &entries {
         pending_transaction_entry_path(root, entry)?;
     }
-    Err(format!(
-        "an interrupted lifecycle write is waiting to be recovered (`{TRANSACTION_PATH}`); the next \
-         lifecycle command that writes recovers it before it checks anything, and a dry run writes \
-         nothing, so it cannot say what `change approve` would find. Run the dry run again once that \
-         write is recovered"
-    ))
+    Err(
+        "an interrupted lifecycle write is waiting to be recovered (the transaction journal in \
+         SpecSync's local state folder); the next lifecycle command that writes recovers it before \
+         it checks anything, and a dry run writes nothing, so it cannot say what `change approve` \
+         would find. Run the dry run again once that write is recovered"
+            .to_string(),
+    )
 }
 
 /// Whether the approval could create a missing lock file, asked without creating anything

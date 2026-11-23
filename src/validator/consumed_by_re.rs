@@ -24,7 +24,6 @@ use std::io::Write;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::sync::LazyLock;
-use walkdir::WalkDir;
 
 static CONSUMED_BY_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?s)### Consumed By\s*\n(.*?)(?:\n## |\n### |$)").unwrap());
@@ -86,7 +85,7 @@ pub fn get_schema_table_names(root: &Path, config: &SpecSyncConfig) -> HashSet<S
         None => return HashSet::new(),
     };
 
-    let snapshot = match schema::build_schema_snapshot(&schema_dir) {
+    let snapshot = match schema::build_schema_snapshot(root, &schema_dir) {
         Ok(snapshot) => snapshot,
         // The schema could not be replayed. Returning an empty set here would be read by
         // `add_missing_db_table_error` as "these tables do not exist", which is a different
@@ -109,7 +108,7 @@ fn schema_table_names_available(root: &Path, config: &SpecSyncConfig) -> bool {
     let Some(schema_dir) = config.schema_dir.as_ref().map(|dir| root.join(dir)) else {
         return false;
     };
-    let Ok(snapshot) = schema::build_schema_snapshot(&schema_dir) else {
+    let Ok(snapshot) = schema::build_schema_snapshot(root, &schema_dir) else {
         return false;
     };
     schema_table_names_from_snapshot(&snapshot, config).is_ok()
@@ -259,25 +258,46 @@ fn add_schema_resolution_error(error: String, result: &mut ValidationResult) {
 
 // ─── File Discovery ──────────────────────────────────────────────────────
 
-/// Find all *.spec.md files in a directory recursively.
-pub fn find_spec_files(dir: &Path) -> Vec<PathBuf> {
-    let mut results = Vec::new();
-    if !dir.exists() {
-        return results;
-    }
+/// Every `*.spec.md` under the project directory `dir`, sorted (REQ-validator-050).
+///
+/// The walk is confined and budgeted like coverage's: `dir` follows the project rule, so a
+/// `specs` link that leaves the repository is refused instead of walked, and a tree with more
+/// entries or levels than coverage allows stops the walk with the reason.
+pub fn find_spec_files_checked(root: &Path, dir: &Path) -> Result<Vec<PathBuf>, String> {
+    crate::util::find_project_files(
+        root,
+        dir,
+        ".spec.md",
+        MAX_COVERAGE_ENTRIES,
+        MAX_COVERAGE_DEPTH,
+    )
+    .map_err(|error| format!("spec discovery stopped: {error}"))
+}
 
-    for entry in WalkDir::new(dir).into_iter().filter_map(|e| e.ok()) {
-        let path = entry.path();
-        if path.is_file()
-            && let Some(name) = path.file_name().and_then(|n| n.to_str())
-            && name.ends_with(".spec.md")
-        {
-            results.push(path.to_path_buf());
-        }
-    }
+/// Every file named exactly `name` under the project directory `dir`, sorted, through the same
+/// confined, budgeted walk as [`find_spec_files_checked`], so a folder that leads out of the
+/// project is refused instead of walked (REQ-validator-053).
+pub(crate) fn find_files_named(root: &Path, dir: &Path, name: &str) -> Result<Vec<PathBuf>, String> {
+    Ok(crate::util::find_project_files(
+        root,
+        dir,
+        name,
+        MAX_COVERAGE_ENTRIES,
+        MAX_COVERAGE_DEPTH,
+    )
+    .map_err(|error| format!("spec discovery stopped: {error}"))?
+    .into_iter()
+    .filter(|path| path.file_name().is_some_and(|file| file == name))
+    .collect())
+}
 
-    results.sort();
-    results
+/// [`find_spec_files_checked`] for a command: a refused or over-budget walk ends the command
+/// with the reason, as an unloadable config does.
+pub fn find_spec_files(root: &Path, dir: &Path) -> Vec<PathBuf> {
+    find_spec_files_checked(root, dir).unwrap_or_else(|error| {
+        eprintln!("error: {error}");
+        std::process::exit(1);
+    })
 }
 
 /// Load CLI discovery inputs through one retained project-root capability.
@@ -1113,6 +1133,8 @@ fn coverage_snapshot_test_barrier(checkpoint: CoverageSnapshotCheckpoint) -> Res
     }
     let directory = PathBuf::from(directory);
     let marker = checkpoint.marker();
+    // not a project file write: a test barrier file in the directory a test names
+    // not a project file read: the same open, for writing a test barrier only
     let mut ready = fs::OpenOptions::new()
         .write(true)
         .create_new(true)
@@ -1296,6 +1318,7 @@ fn read_coverage_entry_names(
     relative: &Path,
     budget: &mut CoverageTraversalBudget,
 ) -> Result<Vec<OsString>, String> {
+    // not a project file read: lists through the confined directory handle, which never leaves the project
     let entries = directory.read_dir(".").map_err(|error| {
         format!(
             "Cannot read retained coverage source directory {}: {error}",
@@ -1475,6 +1498,7 @@ fn open_coverage_child_directory(
     name: &std::ffi::OsStr,
     display: &Path,
 ) -> Result<Dir, String> {
+    // not a project file read: a directory handle beneath the retained coverage traversal's handle, checked against the entry it listed
     let child = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot open retained coverage source directory {}: {error}",
@@ -1565,6 +1589,7 @@ fn verify_coverage_child_directory(
             display.display()
         ));
     }
+    // not a project file read: re-opens the same directory beneath the retained handle to check its identity
     let observed = parent.open_dir(name).map_err(|error| {
         format!(
             "Cannot re-open coverage source directory {}: {error}",
@@ -1688,10 +1713,12 @@ where
     }
     before_open();
     let mut options = OpenOptions::new();
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     options
         .read(true)
         ._cap_fs_ext_nonblock(true)
         ._cap_fs_ext_follow(FollowSymlinks::No);
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     let mut file = directory.open_with(name, &options).map_err(|error| {
         format!(
             "Cannot open retained coverage source file {}: {error}",
@@ -1713,6 +1740,7 @@ where
     verify_coverage_file_edge(directory, name, display, identity)?;
     let mut bytes = Vec::new();
     let read_limit = max_file_bytes.min(remaining_input_bytes);
+    // not a project file read: reads the retained handle opened above, at most the bound plus one byte
     Read::by_ref(&mut file)
         .take(read_limit.saturating_add(1))
         .read_to_end(&mut bytes)
@@ -1764,10 +1792,12 @@ fn verify_coverage_file_edge(
         ));
     }
     let mut options = OpenOptions::new();
+    // not a project file read: the retained coverage traversal's no-follow, non-blocking handle, bounded below
     options
         .read(true)
         ._cap_fs_ext_nonblock(true)
         ._cap_fs_ext_follow(FollowSymlinks::No);
+    // not a project file read: re-opens the same file through the retained no-follow handle to check its identity
     let observed = directory.open_with(name, &options).map_err(|error| {
         format!(
             "Cannot re-open coverage source file {}: {error}",
@@ -1809,6 +1839,7 @@ fn coverage_relative_path_text(path: &Path) -> Result<String, String> {
 }
 
 fn open_coverage_project_root(root: &Path) -> Result<Dir, String> {
+    // not a project file read: retains a handle on the project root itself, the base of the coverage traversal
     Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
         format!(
             "Cannot open coverage project root {} as a retained directory: {error}",
@@ -1820,6 +1851,7 @@ fn open_coverage_project_root(root: &Path) -> Result<Dir, String> {
 fn verify_coverage_project_root(root: &Path, retained: &Dir) -> Result<(), String> {
     let expected = coverage_directory_identity(retained)
         .map_err(|error| format!("Cannot identify retained coverage project root: {error}"))?;
+    // not a project file read: re-opens the project root to check it is the folder retained for the traversal
     let observed = Dir::open_ambient_dir(root, ambient_authority()).map_err(|error| {
         format!(
             "Coverage project root {} changed during retained traversal: {error}",
@@ -2011,6 +2043,29 @@ pub(crate) enum SourceSnapshot {
     Directory,
 }
 
+/// Read a spec, or a companion beside it, within a bound (REQ-util-003): through the project read
+/// when it lies in the project, or within its own directory when it is a temporary effective
+/// contract this run wrote outside it.
+fn read_spec_input(root: &Path, path: &Path) -> std::io::Result<String> {
+    if path.starts_with(root) {
+        return crate::util::read_project_string(root, path, crate::util::MAX_SPEC_FILE_BYTES);
+    }
+    let directory = path.parent().unwrap_or_else(|| Path::new("."));
+    let bytes = crate::util::read_file_within(directory, path, crate::util::MAX_SPEC_FILE_BYTES)?
+        .ok_or_else(|| {
+            std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                format!("{} does not exist", path.display()),
+            )
+        })?;
+    String::from_utf8(bytes).map_err(|_| {
+        std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "stream did not contain valid UTF-8",
+        )
+    })
+}
+
 /// Validate a single spec file against source code.
 pub fn validate_spec(
     spec_path: &Path,
@@ -2019,7 +2074,7 @@ pub fn validate_spec(
     schema_columns: &HashMap<String, SchemaTable>,
     config: &SpecSyncConfig,
 ) -> ValidationResult {
-    let content = match fs::read_to_string(spec_path) {
+    let content = match read_spec_input(root, spec_path) {
         Ok(content) => content,
         Err(error) => {
             let rel_path = spec_path
@@ -2198,7 +2253,7 @@ fn validate_spec_content_internal(
             .parent()
             .map(|parent| parent.join("requirements.md"));
         if let Some(requirements_path) = requirements_path
-            && let Ok(text) = fs::read_to_string(&requirements_path)
+            && let Ok(text) = read_spec_input(root, &requirements_path)
         {
             let relative = requirements_path
                 .strip_prefix(root)
@@ -2376,7 +2431,20 @@ fn validate_spec_content_internal(
             let ext = full_path.extension().and_then(|e| e.to_str()).unwrap_or("");
             let is_supported = crate::types::Language::from_extension(ext).is_some();
             if is_supported {
-                if let Err(err) = fs::read_to_string(&full_path) {
+                let read = crate::util::read_project_bytes(
+                    root,
+                    &full_path,
+                    crate::util::MAX_SOURCE_FILE_BYTES,
+                )
+                .and_then(|bytes| {
+                    String::from_utf8(bytes).map(drop).map_err(|_| {
+                        std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            "stream did not contain valid UTF-8",
+                        )
+                    })
+                });
+                if let Err(err) = read {
                     result.errors.push(format!(
                         "Source file `{file}` could not be read as UTF-8 for validation: {err}"
                     ));
@@ -2384,7 +2452,11 @@ fn validate_spec_content_internal(
                         "Re-save `{file}` as UTF-8 (specsync validates UTF-8 source), or remove it from the files list"
                     ));
                 }
-            } else if let Err(err) = fs::File::open(&full_path) {
+            } else if let Err(err) = match crate::util::project_path_refusal(root, &full_path) {
+                Some(reason) => Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, reason)),
+                // not a project file read: opens only to test permission, after the project rule
+                None => fs::File::open(&full_path).map(drop),
+            } {
                 result.errors.push(format!(
                     "Source file `{file}` could not be read for validation: {err}"
                 ));
@@ -2623,7 +2695,7 @@ fn validate_spec_content_internal(
                 if !source_within_root(root, file) {
                     continue;
                 }
-                crate::exports::scan_exported_symbols_full(
+                crate::exports::scan_exported_symbols_full(root, 
                     &full_path,
                     config.export_level,
                     config.parse_mode,
@@ -2872,7 +2944,7 @@ fn validate_companion_scaffold_markers(
     };
     for (file_name, marker, correction) in MARKERS {
         let path = directory.join(file_name);
-        let Ok(content) = fs::read_to_string(&path) else {
+        let Ok(content) = read_spec_input(root, &path) else {
             continue;
         };
         let mut fence: Option<char> = None;
@@ -3113,16 +3185,16 @@ fn suggest_similar_file(root: &Path, missing_file: &str) -> Option<String> {
 
     let parent = Path::new(missing_file).parent()?;
     let search_dir = root.join(parent);
-    if !search_dir.exists() {
-        return None;
-    }
-
-    let entries = std::fs::read_dir(&search_dir).ok()?;
+    // The folder comes from the repository's own `files:` text, so it is listed only by the
+    // project rule: `..` or a link out of the project lists nothing (REQ-validator-053).
+    let entries = crate::util::read_project_dir(root, &search_dir).ok()?;
     let mut best: Option<(String, usize)> = None;
 
-    for entry in entries.flatten() {
-        let name = entry.file_name().to_string_lossy().to_string();
-        if !entry.path().is_file() {
+    for entry in entries {
+        let Some(name) = entry.file_name().map(|name| name.to_string_lossy().to_string()) else {
+            continue;
+        };
+        if !entry.is_file() {
             continue;
         }
         let dist = levenshtein(missing_name, &name);

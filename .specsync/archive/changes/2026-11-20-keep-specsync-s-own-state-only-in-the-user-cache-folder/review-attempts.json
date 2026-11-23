@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-specsync-s-own-state-only-in-the-user-cache-folder",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "7943890ab12ee5c8dcbf394a4d3683ac2d1f3872",
+      "contract_digest": "9a7ce342e15a76a0c8610055138b82f5c578cb6a46ad86867b92e33c8a017e44",
+      "execution_digest": "891329212c7f6681e2c37f498b94e2a20bb5976a959f064d7c9f8ec1f605198e",
+      "workspace_digest": "d4a3ca10a4790e3e0e33f8bf48ea4af5be322f4e326f6caee98c8060fb5a76c1",
+      "timestamp": 1795183835,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Pass (Recommended)",
+        "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. Since that review, this change's code and tests are unchanged; its deltas carry only the five clauses he approved at about 14:07Z ('Yes, add them (Recommended)', exactly security/change7-delta-rebase.diff). Relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

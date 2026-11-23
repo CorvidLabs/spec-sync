@@ -1,0 +1,105 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795064349,
+      "digest": "9b8710ab478c336ea5f18f4907a5c45fd7c2197585f949b578cf7151ceefa30c",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of never-write-a-project-file-through-a-symbolic-link\": \"Fold into the same private fix. Yes, fold them in. OK as proposed. Allow links that stay inside.\" (Four Claude Code chat answers to his planning session (hc t4c), each relayed by t4c over hc to t5r. 2026-11-18 evening MST: 'Fold into the same private fix', on the six other symlink-following writes the private sweep found. 2026-11-19 at about 04:50Z: 'Yes, fold them in', on the sibling spec-creating commands the builder found, and 'OK as proposed', on refusing with an error that names the path and skipping the resolve --remote cache with a stderr warning. 2026-11-19 at about 04:53Z: 'Allow links that stay inside', narrowing the refusal to links that leave the repository, dangling links and non-regular targets. lifecycle promote and demote, named among the siblings, were dropped after a test on 6.3.0 showed they are not affected). Relayed and recorded by claude-code-t5r at 2026-11-19T04:59:05Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "never-write-a-project-file-through-a-symbolic-link",
+        "title": "Never write a project file through a symbolic link",
+        "description": "Never write a project file through a symbolic link",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "agents",
+          "cmd_import",
+          "cmd_migrate",
+          "cmd_new",
+          "cmd_resolve",
+          "cmd_scaffold",
+          "cmd_wizard",
+          "generator",
+          "hooks",
+          "mcp",
+          "registry",
+          "util"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/setup.md",
+          "site/src/content/docs/cli.md",
+          "specs/agents/",
+          "specs/cmd_import/",
+          "specs/cmd_migrate/",
+          "specs/cmd_new/",
+          "specs/cmd_resolve/",
+          "specs/cmd_scaffold/",
+          "specs/cmd_wizard/",
+          "specs/generator/",
+          "specs/hooks/",
+          "specs/mcp/",
+          "specs/registry/",
+          "specs/util/",
+          "src/agents.rs",
+          "src/commands/import.rs",
+          "src/commands/migrate.rs",
+          "src/commands/new.rs",
+          "src/commands/resolve.rs",
+          "src/commands/scaffold.rs",
+          "src/commands/wizard.rs",
+          "src/generator.rs",
+          "src/hooks.rs",
+          "src/mcp_tools_lock.rs",
+          "src/registry.rs",
+          "src/util.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "For each of hooks install and uninstall, agents install and uninstall, mcp lock --write, the scaffold registry append, migrate, new, scaffold, add-spec, wizard and import: with the file it writes, or a directory on the way to it, a symbolic link that leaves the project, a dangling link, or a non-regular file, the command refuses with an error naming the path, the link's target is unchanged and nothing is created outside the project; with a link to a regular file inside the project (CLAUDE.md to AGENTS.md) it writes through the link; the resolve --remote cache is never read or written through any link and says so once on stderr; each new test fails on 7b6e4779 and passes with the fix"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "hooks.3md: installing is idempotent and appends, never overwrites; the pre-commit, .gitignore and .gitattributes writers already refuse a symbolic link, and this change gives the other writers one rule. hash_cache.3md lesson from GHSA-7q5v-8jcc-rx54: a path this tool creates is still a path the repository chose, and a check followed by a path write leaves the window the check was for, so every write goes through a directory handle on the project root.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "agents": "72a0a4be30927d45aa3b8021147ab1f361f70ff0ad003ca8e91edf6c6911e70a",
+        "cmd_import": "eccb38f1eda60844556eb6f8ee5601dfbeaeabea88360207606ddd917aff14b1",
+        "cmd_migrate": "3a1b695a566821f39175573110f4dc4433d74470fa64f4f633b16ab82830541f",
+        "cmd_new": "b5188d17d35f4d92f14b2da25c02e0f41341307133f139893318bded9309bc1d",
+        "cmd_resolve": "cd0b913d2f863b99297d78fe52c8bedbcc746423823797dbc2b9ee4830ab8974",
+        "cmd_scaffold": "d02d0fb54828999badf08efb04b7da36ddcd88dda6a5422154b481d2f9220775",
+        "cmd_wizard": "7c06deca5d0b9be6b20ed7c7ff055611fc1997559505ea25835983df3b971d69",
+        "generator": "f355a841419a771294e20e51843f3d9ae7fa658de0f93a08a6e876a1d2d73346",
+        "hooks": "b7862797bcfc12a995476ab2a34d26021ad0224d29cd0e163d610ccd2df79598",
+        "mcp": "b881b23e0f99d1f02d908379a80c7e27bc8a1890d288b0a73c8daac28d88221a",
+        "registry": "643736b7f9d68f8feb7edffb1cc13fcd109b0a1177a34d29aad3d1eec311af9c",
+        "util": "233c71f61d1df2be52c6636427b0eb8e46b74c953818d33341c68e675439aa23"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Fold into the same private fix. Yes, fold them in. OK as proposed. Allow links that stay inside.",
+        "where": "Four Claude Code chat answers to his planning session (hc t4c), each relayed by t4c over hc to t5r. 2026-11-18 evening MST: 'Fold into the same private fix', on the six other symlink-following writes the private sweep found. 2026-11-19 at about 04:50Z: 'Yes, fold them in', on the sibling spec-creating commands the builder found, and 'OK as proposed', on refusing with an error that names the path and skipping the resolve --remote cache with a stderr warning. 2026-11-19 at about 04:53Z: 'Allow links that stay inside', narrowing the refusal to links that leave the repository, dangling links and non-regular targets. lifecycle promote and demote, named among the siblings, were dropped after a test on 6.3.0 showed they are not affected",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795097268,
+      "digest": "3fe436220f3e6d59477af826f7889e6554b3f0f84d57967698f1f0499d7f248b",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

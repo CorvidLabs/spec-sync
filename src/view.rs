@@ -1,3 +1,4 @@
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 
@@ -33,7 +34,7 @@ pub fn valid_roles() -> &'static [&'static str] {
 
 /// Filter a spec file to show only sections relevant to a given role.
 /// Returns the filtered markdown content.
-pub fn view_spec(spec_path: &Path, role: &str) -> Result<String, String> {
+pub fn view_spec(root: &Path, spec_path: &Path, role: &str) -> Result<String, String> {
     let allowed = sections_for_role(role).ok_or_else(|| {
         format!(
             "Unknown role '{}' — valid roles: {}",
@@ -42,8 +43,9 @@ pub fn view_spec(spec_path: &Path, role: &str) -> Result<String, String> {
         )
     })?;
 
-    let content = fs::read_to_string(spec_path)
-        .map_err(|e| format!("Cannot read {}: {e}", spec_path.display()))?;
+    let content =
+        crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
+            .map_err(|e| format!("Cannot read {}: {e}", spec_path.display()))?;
 
     let parsed =
         parse_frontmatter(&content).ok_or_else(|| "Cannot parse frontmatter".to_string())?;
@@ -77,7 +79,8 @@ pub fn view_spec(spec_path: &Path, role: &str) -> Result<String, String> {
     {
         let req_path = parent.join("requirements.md");
         if req_path.exists()
-            && let Ok(req_content) = fs::read_to_string(&req_path)
+            && let Ok(req_content) =
+                crate::util::read_project_string(root, &req_path, crate::util::MAX_SPEC_FILE_BYTES)
         {
             // Strip frontmatter from requirements.md
             let req_body = strip_frontmatter(&req_content);
@@ -165,7 +168,8 @@ mod tests {
         let spec_path = temp.path().join("winmod.spec.md");
         fs::write(&spec_path, SPEC).expect("write");
 
-        let rendered = view_spec(&spec_path, "product").expect("LF spec renders");
+        let rendered =
+            view_spec(spec_path.parent().unwrap(), &spec_path, "product").expect("LF spec renders");
 
         assert!(rendered.contains("Tracks account balances."));
         assert!(!rendered.contains("module: winmod"));
@@ -184,7 +188,7 @@ mod tests {
         let spec_path = temp.path().join("winmod.spec.md");
         fs::write(&spec_path, SPEC.replace('\n', "\r\n")).expect("write");
 
-        let rendered = view_spec(&spec_path, "product")
+        let rendered = view_spec(spec_path.parent().unwrap(), &spec_path, "product")
             .expect("a CRLF spec must render, not fail with 'Cannot parse frontmatter'");
 
         assert!(
@@ -212,7 +216,8 @@ mod tests {
         )
         .expect("write");
 
-        let rendered = view_spec(&spec_path, "product").expect("renders");
+        let rendered =
+            view_spec(spec_path.parent().unwrap(), &spec_path, "product").expect("renders");
 
         assert!(rendered.contains("Balances must never go negative."));
         assert!(

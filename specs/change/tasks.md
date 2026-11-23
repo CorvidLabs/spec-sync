@@ -114,3 +114,11 @@ spec: change.spec.md
 - [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
 
 - [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).
+- [x] Read project files only through the bounded project read of `util` (REQ-change-161). Evidence: `tests/integration/project_reads.rs`.
+- [x] Replay the transaction journal only when this machine can have written it and only into files the workflow writes (REQ-change-162). Evidence: `src/change_tests/journal_replay_targets.rs`, `change_new_never_replays_a_committed_journal_into_git`.
+- [x] Write change records and workspaces only through the confined helpers, and refuse a linked record before writing (REQ-change-165). Evidence: the `change_*` tests in `tests/integration/project_writes.rs`.
+- [x] Keep the transaction journal in the local state folder and never replay one in the work tree (REQ-change-162). Evidence: `a_journal_in_the_work_tree_is_never_replayed`, `a_running_transaction_keeps_its_journal_outside_the_work_tree`.
+- [x] Never read a journal under a Git directory, and open a registry replay only for a `*.spec.md` path (REQ-change-162). Evidence: `a_journal_under_the_git_directory_is_never_replayed`, `a_registry_entry_that_is_not_a_spec_never_opens_a_replay`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
+- [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
+- [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).

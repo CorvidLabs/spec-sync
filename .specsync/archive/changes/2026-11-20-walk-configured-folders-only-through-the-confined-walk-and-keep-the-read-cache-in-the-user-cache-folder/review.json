@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "3c466fd114df448dcb4fac7e1eeab314d5666b7b",
+  "contract_digest": "1f93f72e0fb07daf84266ebc9740d487295286fd935a790762a11ef7b476d87b",
+  "execution_digest": "1139f26e65b92ed717f34de1f389bb65846e7b08dd4e5f84c32217f266242ca3",
+  "workspace_digest": "2097a6c142c465c6e5676341fab61401525981a1498c45bf2d7b2ab685f8e029",
+  "timestamp": 1795184275,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "Pass (Recommended)",
+    "where": "Claude Code question dialog with his planning session (hc t4c) on 2026-11-20 at about 06:04Z, answering 'Security fix, your one review of changes 5-8. ... The reviewer says your bar is MET ... Confidence 75% that the fix is complete, 90% that the bar holds. What's left is 13 low items for 6.4.1. ... Does your review pass?' with 'Pass (Recommended)'; under his earlier answer (about 04:16Z) 'Yes, one review (Recommended)' to 'Does your one review cover all four [changes 5-8], each shipped in order as long as its own lines haven't changed since you reviewed?'. Reviewed tip e843776a. This change's own lines are unchanged since; only its native check, which materializes its deltas, ran after the earlier change's archive. Relayed by t4c over hc to t5r",
+    "recorded_by": "claude-code-t5r"
+  }
+}

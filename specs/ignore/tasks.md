@@ -20,6 +20,7 @@ spec: ignore.spec.md
 - [x] Inline unit tests for classify ordering, aliases, parse_inline, all suppression scopes, and load (present/absent)
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented
+- [x] Read project files only through the bounded project read of `util` (REQ-ignore-002). Evidence: `tests/integration/project_reads.rs`.
 
 ## Open
 

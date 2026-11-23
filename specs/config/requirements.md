@@ -173,3 +173,26 @@ Acceptance Criteria
 - `load_toml_config` parses through `parse_config_content_checked` (real `toml::from_str` plus `validate_toml_config_types`) rather than calling `parse_toml_config` directly.
 - Callers that opt into `load_config_allowing_unloadable` still see the standing-in defaults plus the recorded error.
 
+### REQ-config-016
+
+Configuration loading SHALL read `.specsync/config.toml`, `.specsync/config.json`, `.specsync/config.local.toml`, `specsync.json` and `.specsync.toml` only through the bounded project read of `util` (REQ-util-003), with a bound of 4 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/config.toml` a FIFO, `check` finishes without waiting on it and reports the config as unreadable.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-config-017
+
+`specs_dir`, every `source_dirs` entry and `schema_dir` SHALL be relative paths with no `..` component. Any other value SHALL make the config unloadable, with a message that names the field and the value, for TOML and JSON configs alike. The MCP server SHALL refuse such a config for the one request, as an error that names the field, and keep serving.
+
+Acceptance Criteria
+- `specs_dir` as `../outside/specs`, an absolute path or `specs/../../outside/specs`, a `source_dirs` entry `../outside` and a `schema_dir` of `../outside` each make `deps` fail naming the field, and nothing outside is listed.
+- The MCP server answers `specsync_generate` with a `specs_dir` of `../outside/specs`, and `specsync_coverage` with a `source_dirs` entry of `../outside/src`, with a tool error naming the field, and writes nothing outside.
+
+### REQ-config-018
+
+Source auto-detection SHALL skip a child of the project root that is a symbolic link and SHALL never follow a link at the root of its walk.
+
+Acceptance Criteria
+- A committed `lib -> ../outside/lib` is not detected as a source folder.
+

@@ -35,3 +35,19 @@ spec: registry.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an error message changes, update the matching Regression Matrix row and test assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## Symbolic links (REQ-registry-003)
+
+Every fixture is one temporary directory with the project and an `outside` directory in it, so no link in a test reaches a real file. The link tests are Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A path this module writes leaves the project through a link, dangles, or is not a regular file | Refused with an error naming the path; nothing outside the project changes | `src/registry.rs`: `register_module_refuses_a_registry_linked_outside_the_project`, `register_module_appends_once_to_a_regular_registry`; `tests/integration/project_links.rs`: `scaffold_refuses_a_registry_linked_outside_the_project` |
+
+## Bounded reads (REQ-registry-004)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

@@ -774,6 +774,7 @@ fn run_check(root: &Path, strict: bool, require_coverage: Option<usize>, force: 
 
     let start = Instant::now();
     let args = build_check_args(root, strict, require_coverage, force);
+    // spawned command writes no project file: reruns this SpecSync binary, whose own writes go through the confined helpers
     let mut cmd = Command::new(std::env::current_exe().expect("Cannot find current executable"));
     for arg in &args {
         cmd.arg(arg);

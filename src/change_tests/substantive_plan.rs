@@ -704,7 +704,7 @@ fn change_adopt_rolls_back_when_comparison_ref_moves_during_publication() {
     assert!(error.contains("comparison reference changed"));
     assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
     assert!(!root.join(".specsync/adoption-report.json").exists());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
     assert_eq!(fs::read(root.join(POLICY_PATH)).unwrap(), policy_before);
     assert_eq!(load_change(root, &legacy.id).unwrap(), legacy);
 
@@ -766,13 +766,13 @@ fn change_adopt_rolls_back_injected_publication_failure_and_retries_cleanly() {
     assert!(!root.join(POLICY_PATH).exists());
     assert!(!root.join(".specsync/adoption-report.json").exists());
     assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 
     adopt(root, false, None).unwrap();
     assert!(root.join(POLICY_PATH).is_file());
     assert!(root.join(".specsync/adoption-report.json").is_file());
     assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -803,8 +803,9 @@ fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
         entry_count: entries.len(),
         entries_digest: transaction_entries_digest(&entries).unwrap(),
         entries,
+        root: Some(journal_root(root).unwrap()),
     };
-    write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+    write_json(&transaction_journal_path(root), &journal).unwrap();
     write_json(&root.join(POLICY_PATH), &default_policy(root, Vec::new())).unwrap();
     fs::write(
         root.join(".specsync/adoption-report.json"),
@@ -827,7 +828,7 @@ fn change_adopt_recovers_interrupted_publication_before_idempotent_retry() {
         fs::read_to_string(root.join(POLICY_PATH)).unwrap(),
         original_policy
     );
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
     assert!(root.join(".specsync/adoption-report.json").is_file());
     assert!(root.join(WORKFLOW_V2_BASELINE_PATH).is_file());
     adopt(root, false, None).unwrap();
@@ -866,7 +867,7 @@ fn change_adopt_rejects_symlinked_import_destination_without_writes() {
     assert!(!root.join(POLICY_PATH).exists());
     assert!(!root.join(".specsync/adoption-report.json").exists());
     assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
     assert_eq!(external.path().read_dir().unwrap().count(), 0);
 }
 
@@ -910,7 +911,7 @@ fn change_adopt_rejects_non_utf8_import_target_before_transaction() {
     assert!(!root.join(POLICY_PATH).exists());
     assert!(!root.join(".specsync/adoption-report.json").exists());
     assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
     assert!(!root.join(".specsync/imports").exists());
 }
 
@@ -929,7 +930,7 @@ fn non_utf8_transaction_target_is_rejected_before_filesystem_lookup() {
 
     assert!(error.contains("not valid UTF-8"));
     assert!(error.contains("cannot be journaled losslessly"));
-    assert!(!temp.path().join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(temp.path()).exists());
 }
 
 #[cfg(unix)]
@@ -948,7 +949,7 @@ fn change_adopt_rejects_backslash_import_target_before_transaction() {
     assert!(!root.join(POLICY_PATH).exists());
     assert!(!root.join(".specsync/adoption-report.json").exists());
     assert!(!root.join(WORKFLOW_V2_BASELINE_PATH).exists());
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
     assert!(!root.join(".specsync/imports").exists());
 }
 
@@ -1356,9 +1357,11 @@ fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval(
     let markdown_path = destination.join("change.md");
     let original_state = fs::read_to_string(&state_path).unwrap();
     let original_markdown = fs::read_to_string(&markdown_path).unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::write(
+        transaction_journal_path(root),
+        durable_journal(root, vec![
             TransactionEntry {
                 path: portable_project_path(root, &state_path),
                 original: Some(original_state),
@@ -1367,7 +1370,7 @@ fn post_move_same_pr_finalization_resumes_across_dates_without_another_approval(
                 path: portable_project_path(root, &markdown_path),
                 original: Some(original_markdown),
             },
-        ],
+        ]),
     )
     .unwrap();
     let mut interrupted = load_change(root, &record.id).unwrap();

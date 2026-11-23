@@ -1,6 +1,6 @@
 ---
 id: refresh-url-lockfile-for-rustsec-2026-0592
-state: implementing
+state: archived
 type: bug_fix
 base_commit: ba729a08dde0b269518fb9a5b9037155d1febcd3
 ---

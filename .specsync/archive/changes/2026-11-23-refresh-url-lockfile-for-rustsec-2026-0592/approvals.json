@@ -37,6 +37,13 @@
         "where": "This Codex conversation, responding to the separately presented scope for the SpecSync RUSTSEC-2026-0592 lockfile-only fix, relayed by the coordinating Codex agent",
         "recorded_by": "Codex delta_block"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795404015,
+      "digest": "d404a89426380ccc9253337e63f18fdd039b560e25de4388d02897ceb5253ae3",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

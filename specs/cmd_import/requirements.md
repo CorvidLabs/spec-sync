@@ -69,3 +69,20 @@ Acceptance Criteria
 - Directory imports stamp the Change Log with the local directory source and the source file name, never `Imported from Confluence`.
 - Any import verb that writes a spec with an empty files list prints the empty-files warning instead of reporting unqualified success.
 
+### REQ-cmd-import-003
+
+`import`, for one item and for a batch, SHALL create each spec file only through `create_project_file` of `util` (REQ-util-002) and its companions through the generator (REQ-generator-010). A target that is a symbolic link to a regular file inside the project SHALL be written through. A target, or a directory on the way to it, that leaves the project through a symbolic link, a dangling link, and a target that is not a regular file SHALL be refused with an error that names the path, leaving the link and what it points at unchanged and creating nothing outside the project.
+
+Acceptance Criteria
+- A dangling link at the spec path of an imported item: the item fails with an error naming the path and nothing is created at the link's target.
+- The spec directory of an item linked to a directory outside the project: the item fails and nothing is created there.
+- An item with no link is imported as before.
+
+### REQ-cmd-import-004
+
+`import --from-dir` SHALL read each entry within the spec bound: by the project rule when the directory, as the person wrote it, lies in the project, and within that directory itself when it lies outside. An entry refused there SHALL be reported as a failed read, with the reason, and SHALL never reach a spec draft.
+
+Acceptance Criteria
+- An entry linked outside the repository in `docs/` is refused, and its text is in no spec; the other entries are imported.
+- In an outside directory, a link inside it is imported and a link out of it is refused.
+

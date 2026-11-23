@@ -8,6 +8,7 @@ db_tables: []
 tracks: [94]
 depends_on:
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Compact
@@ -51,6 +52,7 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 13. Staging failures retain every planned result/count with zero writes; late publish failures retain all results and report exact partial progress
 14. Indented pipe code terminates table data, indented separators fail before writes, and a generated summary is valid only as the first data row
 15. Summary rows are written as `<first> to <last>` with `-` placeholders and contain no U+2013 or U+2014; a summary row in the 6.1.1 form (U+2014 range separator and placeholders) is still recognized and is rewritten in the current form only when more rows fold. A row mixing the two placeholder forms is user history
+16. Every read of a project file here, spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-compact-002).
 
 ## Behavioral Examples
 
@@ -89,6 +91,7 @@ Reduces changelog table size in spec files by keeping only the last N entries an
 | Staging failure | Records the failing path/operation and performs no writes |
 | Late atomic publish failure | Reports an incomplete/partial outcome and never claims complete success |
 | No changelog section found | Spec is silently skipped |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

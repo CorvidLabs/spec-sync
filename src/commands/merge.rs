@@ -100,7 +100,21 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
         ));
     }
     let attributes_path = root.join(".gitattributes");
-    let previous_attributes = match fs::read(&attributes_path) {
+    // The write below refuses a linked `.gitattributes`; refuse it here too, before the read, so
+    // the refusal reads the same whichever step meets it first.
+    if fs::symlink_metadata(&attributes_path)
+        .is_ok_and(|metadata| metadata.file_type().is_symlink())
+    {
+        return Err(
+            "refusing to update symlinked .gitattributes; add the merge=specsync rules manually"
+                .to_string(),
+        );
+    }
+    let previous_attributes = match crate::util::read_project_bytes(
+        root,
+        &attributes_path,
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) {
         Ok(bytes) => Some(bytes),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
         Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
@@ -114,8 +128,8 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
         .and_then(|()| git_config(root, keys[1], &driver));
     if let Err(error) = configured {
         let restored = match &previous_attributes {
-            Some(bytes) => fs::write(&attributes_path, bytes),
-            None => fs::remove_file(&attributes_path),
+            Some(bytes) => crate::util::write_project_file(root, &attributes_path, bytes),
+            None => crate::util::remove_project_file(root, &attributes_path),
         };
         for (key, value) in keys.iter().zip(&previous_config) {
             let _ = match value {
@@ -132,6 +146,7 @@ fn install_merge_driver(root: &Path) -> Result<MergeDriverInstall, String> {
 }
 
 fn git_config_get(root: &Path, key: &str) -> Option<String> {
+    // git writes no project file: reads one key of the repository's Git config
     let output = git_cmd(root)
         .args(["config", "--local", "--get", key])
         .output()
@@ -144,6 +159,7 @@ fn git_config_get(root: &Path, key: &str) -> Option<String> {
 }
 
 fn git_config_unset(root: &Path, key: &str) -> Result<(), String> {
+    // git writes no project file: `merge uninstall` removes only its own merge-driver key from the repository's Git config, which it exists to do
     let output = git_cmd(root)
         .args(["config", "--local", "--unset", key])
         .output()
@@ -225,11 +241,12 @@ fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
                 .into(),
         );
     }
-    let mut content = match fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
-        Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
-    };
+    let mut content =
+        match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => String::new(),
+            Err(error) => return Err(format!("failed to read .gitattributes: {error}")),
+        };
     let mut changed = false;
     if !content.is_empty() && !content.ends_with('\n') {
         content.push('\n');
@@ -244,7 +261,7 @@ fn write_attribute_lines(root: &Path, lines: &[String]) -> Result<(), String> {
         changed = true;
     }
     if changed {
-        fs::write(&path, content)
+        crate::util::write_project_file(root, &path, content.as_bytes())
             .map_err(|error| format!("failed to write .gitattributes: {error}"))?;
     }
     Ok(())
@@ -266,6 +283,7 @@ fn shell_quote(text: &str) -> String {
 }
 
 fn git_config(root: &Path, key: &str, value: &str) -> Result<(), String> {
+    // git writes no project file: `merge install` sets only its own merge-driver keys in the repository's Git config, which it exists to do
     let output = git_cmd(root)
         .args(["config", key, value])
         .output()
@@ -284,6 +302,7 @@ fn git_config(root: &Path, key: &str, value: &str) -> Result<(), String> {
 /// so the unmerged path still shows both sides.
 pub fn cmd_merge_file(ancestor: &Path, current: &Path, other: &Path, pathname: Option<&str>) {
     let read = |path: &Path, label: &str| -> Result<String, String> {
+        // not a project file read: a file Git hands the merge driver, not a project file
         fs::read_to_string(path)
             .map_err(|error| format!("cannot read merge {label} {}: {error}", path.display()))
     };
@@ -300,6 +319,7 @@ pub fn cmd_merge_file(ancestor: &Path, current: &Path, other: &Path, pathname: O
             process::exit(1);
         }
     };
+    // not a project file write: the temporary file Git hands the merge driver as %A
     if let Err(error) = fs::write(current, &merged.content) {
         eprintln!(
             "{} cannot write merge result {}: {error}",

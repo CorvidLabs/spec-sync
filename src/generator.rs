@@ -2,7 +2,6 @@ use crate::exports::{has_configured_extension, is_test_file};
 use crate::types::{CoverageReport, Language, SpecSyncConfig};
 use cap_std::fs::{Dir, OpenOptions};
 use colored::Colorize;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 
@@ -570,6 +569,7 @@ impl<'a> CreationSources<'a> {
     fn new(root: &'a Path, config: &'a SpecSyncConfig) -> Option<Self> {
         Some(Self {
             root,
+            // not a project file read: a handle on the project root, beneath which every creation source is opened without following a link
             project: Dir::open_ambient_dir(root, cap_std::ambient_authority()).ok()?,
             config,
             remaining_entries: 100_000,
@@ -606,6 +606,7 @@ impl<'a> CreationSources<'a> {
 
     fn child_directory(parent: &Dir, name: &std::ffi::OsStr) -> io::Result<Dir> {
         let handle = parent.try_clone()?.into_std_file();
+        // not a project file read: opens a directory handle without following a link at its name, beneath the retained project handle
         cap_primitives::fs::open_dir_nofollow(&handle, Path::new(name)).map(Dir::from_std_file)
     }
 
@@ -877,8 +878,10 @@ pub(crate) fn find_new_module_sources(
 /// two specs mapping one source is the double-mapping defect (#611).
 fn owned_source_files(root: &Path, config: &SpecSyncConfig) -> std::collections::HashSet<String> {
     let mut owned = std::collections::HashSet::new();
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
-        let Ok(content) = fs::read_to_string(&spec) else {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
+        let Ok(content) =
+            crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES)
+        else {
             continue;
         };
         let Some(parsed) = crate::parser::parse_frontmatter(&content.replace("\r\n", "\n")) else {
@@ -961,7 +964,8 @@ pub fn generate_spec(
     let template_path = specs_dir.join("_template.spec.md");
     let template = if template_path.exists() {
         // User-provided template takes priority
-        fs::read_to_string(&template_path).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
+        crate::util::read_project_string(root, &template_path, crate::util::MAX_SPEC_FILE_BYTES)
+            .unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
         // Use language-specific template
         match detect_primary_language(source_files) {
@@ -1074,6 +1078,7 @@ pub fn collect_exports_for_files(
         }
         let full_path = root.join(&rel);
         all_exports.extend(crate::exports::get_exported_symbols_full(
+            root,
             &full_path,
             config.export_level,
             config.parse_mode,
@@ -1116,9 +1121,35 @@ fn generate_module_spec(
     generate_spec(module_name, module_files, root, specs_dir, config)
 }
 
+/// Create a new spec file. `new`, `scaffold`, `add-spec`, the wizard and `import` all write
+/// theirs here, through `create_project_file`: the spec path, or its directory, can be committed
+/// as a symbolic link, and a check with `exists()` passes a dangling one (REQ-generator-010).
+/// A file already at the path is an error, since each caller has looked for one first.
+pub fn create_spec_file(root: &Path, spec_file: &Path, content: &str) -> std::io::Result<()> {
+    if crate::util::create_project_file(root, spec_file, content.as_bytes())? {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::AlreadyExists,
+            "a spec file is already there",
+        ))
+    }
+}
+
+/// Create one companion file and say so. An existing file is left as it is. The file is created
+/// through `create_project_file`, so a path that is a dangling link, or leaves the project
+/// through a link, is refused on stderr and the other companions go on (REQ-generator-010).
+fn write_new_companion(root: &Path, path: &Path, name: &str, content: &str) {
+    match crate::util::create_project_file(root, path, content.as_bytes()) {
+        Ok(true) => println!("    {} Generated {name}", "✓".green()),
+        Ok(false) => {}
+        Err(error) => eprintln!("    {} Skipped {name}: {error}", "error:".red().bold()),
+    }
+}
+
 /// Generate companion files (tasks.md, context.md, requirements.md, testing.md,
 /// and optionally design.md) alongside a spec file.
-fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: bool) {
+fn generate_companion_files(root: &Path, spec_dir: &Path, module_name: &str, design_enabled: bool) {
     let tasks_path = spec_dir.join("tasks.md");
     let context_path = spec_dir.join("context.md");
     let requirements_path = spec_dir.join("requirements.md");
@@ -1126,39 +1157,29 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
 
     if !tasks_path.exists() {
         let content = expand_companion_template(TASKS_TEMPLATE, module_name);
-        if fs::write(&tasks_path, &content).is_ok() {
-            println!("    {} Generated tasks.md", "✓".green());
-        }
+        write_new_companion(root, &tasks_path, "tasks.md", &content);
     }
 
     if !context_path.exists() {
         let content = expand_companion_template(CONTEXT_TEMPLATE, module_name);
-        if fs::write(&context_path, &content).is_ok() {
-            println!("    {} Generated context.md", "✓".green());
-        }
+        write_new_companion(root, &context_path, "context.md", &content);
     }
 
     if !requirements_path.exists() {
         let content = expand_companion_template(REQUIREMENTS_TEMPLATE, module_name);
-        if fs::write(&requirements_path, &content).is_ok() {
-            println!("    {} Generated requirements.md", "✓".green());
-        }
+        write_new_companion(root, &requirements_path, "requirements.md", &content);
     }
 
     if !testing_path.exists() {
         let content = expand_companion_template(TESTING_TEMPLATE, module_name);
-        if fs::write(&testing_path, &content).is_ok() {
-            println!("    {} Generated testing.md", "✓".green());
-        }
+        write_new_companion(root, &testing_path, "testing.md", &content);
     }
 
     if design_enabled {
         let design_path = spec_dir.join("design.md");
         if !design_path.exists() {
             let content = expand_companion_template(DESIGN_TEMPLATE, module_name);
-            if fs::write(&design_path, &content).is_ok() {
-                println!("    {} Generated design.md", "✓".green());
-            }
+            write_new_companion(root, &design_path, "design.md", &content);
         }
     }
 }
@@ -1166,8 +1187,50 @@ fn generate_companion_files(spec_dir: &Path, module_name: &str, design_enabled: 
 /// Generate companion files for a given spec.
 ///
 /// When `design_enabled` is true, a `design.md` companion is also generated.
-pub fn generate_companion_files_for_spec(spec_dir: &Path, module_name: &str, design_enabled: bool) {
-    generate_companion_files(spec_dir, module_name, design_enabled);
+pub fn generate_companion_files_for_spec(
+    root: &Path,
+    spec_dir: &Path,
+    module_name: &str,
+    design_enabled: bool,
+) {
+    generate_companion_files(root, spec_dir, module_name, design_enabled);
+}
+
+/// The template files `scaffold --template` reads from the directory the person names.
+const TEMPLATE_FILES: &[&str] = &[
+    "spec.md",
+    "tasks.md",
+    "context.md",
+    "requirements.md",
+    "testing.md",
+    "design.md",
+];
+
+/// A template in the directory the person names with `--template`, read without blocking and
+/// within the spec bound (REQ-cmd-scaffold-009, REQ-util-011).
+fn read_template(path: &Path) -> io::Result<String> {
+    let bytes = crate::util::read_typed_file(path, crate::util::MAX_SPEC_FILE_BYTES)?;
+    String::from_utf8(bytes).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("{} is not valid UTF-8", path.display()),
+        )
+    })
+}
+
+/// Check every template file `scaffold --template` would read before anything is written: a
+/// FIFO, a device or a file over the bound is refused with the path and the reason
+/// (REQ-cmd-scaffold-009).
+pub fn check_template_dir(template_dir: &Path) -> Result<(), String> {
+    for name in TEMPLATE_FILES {
+        let path = template_dir.join(name);
+        if !path.exists() {
+            continue;
+        }
+        read_template(&path)
+            .map_err(|error| format!("cannot use template {}: {error}", path.display()))?;
+    }
+    Ok(())
 }
 
 /// Generate a spec using templates from a custom template directory.
@@ -1182,7 +1245,7 @@ pub fn generate_spec_from_custom_template(
 ) -> String {
     let template_file = template_dir.join("spec.md");
     let template = if template_file.exists() {
-        fs::read_to_string(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
+        read_template(&template_file).unwrap_or_else(|_| DEFAULT_TEMPLATE.to_string())
     } else {
         // No custom spec template — use language-aware default
         match detect_primary_language(source_files) {
@@ -1250,6 +1313,7 @@ pub fn generate_spec_from_custom_template(
 /// Generate companion files from a custom template directory.
 /// Falls back to built-in templates for any missing files.
 pub fn generate_companion_files_from_template(
+    root: &Path,
     spec_dir: &Path,
     module_name: &str,
     template_dir: &Path,
@@ -1263,61 +1327,53 @@ pub fn generate_companion_files_from_template(
     if !tasks_path.exists() {
         let template_file = template_dir.join("tasks.md");
         let content = if template_file.exists() {
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| TASKS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
             expand_companion_template(TASKS_TEMPLATE, module_name)
         };
-        if fs::write(&tasks_path, &content).is_ok() {
-            println!("    {} Generated tasks.md", "✓".green());
-        }
+        write_new_companion(root, &tasks_path, "tasks.md", &content);
     }
 
     if !context_path.exists() {
         let template_file = template_dir.join("context.md");
         let content = if template_file.exists() {
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| CONTEXT_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
             expand_companion_template(CONTEXT_TEMPLATE, module_name)
         };
-        if fs::write(&context_path, &content).is_ok() {
-            println!("    {} Generated context.md", "✓".green());
-        }
+        write_new_companion(root, &context_path, "context.md", &content);
     }
 
     if !requirements_path.exists() {
         let template_file = template_dir.join("requirements.md");
         let content = if template_file.exists() {
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| REQUIREMENTS_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
             expand_companion_template(REQUIREMENTS_TEMPLATE, module_name)
         };
-        if fs::write(&requirements_path, &content).is_ok() {
-            println!("    {} Generated requirements.md", "✓".green());
-        }
+        write_new_companion(root, &requirements_path, "requirements.md", &content);
     }
 
     if !testing_path.exists() {
         let template_file = template_dir.join("testing.md");
         let content = if template_file.exists() {
-            fs::read_to_string(&template_file)
+            read_template(&template_file)
                 .unwrap_or_else(|_| TESTING_TEMPLATE.to_string())
                 .replace("{module}.spec.md", &module_spec_filename(module_name))
                 .replace("{module}", module_name)
         } else {
             expand_companion_template(TESTING_TEMPLATE, module_name)
         };
-        if fs::write(&testing_path, &content).is_ok() {
-            println!("    {} Generated testing.md", "✓".green());
-        }
+        write_new_companion(root, &testing_path, "testing.md", &content);
     }
 
     if design_enabled {
@@ -1325,16 +1381,14 @@ pub fn generate_companion_files_from_template(
         if !design_path.exists() {
             let template_file = template_dir.join("design.md");
             let content = if template_file.exists() {
-                fs::read_to_string(&template_file)
+                read_template(&template_file)
                     .unwrap_or_else(|_| DESIGN_TEMPLATE.to_string())
                     .replace("{module}.spec.md", &module_spec_filename(module_name))
                     .replace("{module}", module_name)
             } else {
                 expand_companion_template(DESIGN_TEMPLATE, module_name)
             };
-            if fs::write(&design_path, &content).is_ok() {
-                println!("    {} Generated design.md", "✓".green());
-            }
+            write_new_companion(root, &design_path, "design.md", &content);
         }
     }
 }
@@ -1401,6 +1455,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             continue;
         }
 
+        // checked project write: through the retained project directory handle, which cannot leave the project
         project.create_dir_all(&module_relative).map_err(|error| {
             format!(
                 "Cannot create retained generate directory {}: {error}",
@@ -1408,7 +1463,7 @@ pub(crate) fn generate_specs_for_unspecced_modules_retained(
             )
         })?;
 
-        let template = retained_generation_template(project, &specs_relative, &module_files);
+        let template = retained_generation_template(root, project, &specs_relative, &module_files);
         let spec_content = render_spec_template(module_name, &module_files, root, template, config);
         match write_new_retained_file(project, &spec_relative, spec_content.as_bytes()) {
             Ok(true) => {
@@ -1707,21 +1762,29 @@ fn named_module_files_from_coverage(
 }
 
 fn retained_generation_template(
+    root: &Path,
     project: &Dir,
     specs_relative: &Path,
     source_files: &[String],
 ) -> String {
-    project
-        .read_to_string(specs_relative.join("_template.spec.md"))
-        .unwrap_or_else(|_| match detect_primary_language(source_files) {
-            Some(language) => language_template(language).to_string(),
-            None => DEFAULT_TEMPLATE.to_string(),
-        })
+    let _ = project;
+    crate::util::read_project_string(
+        root,
+        &root.join(specs_relative).join("_template.spec.md"),
+        crate::util::MAX_SPEC_FILE_BYTES,
+    )
+    .unwrap_or_else(|_| match detect_primary_language(source_files) {
+        Some(language) => language_template(language).to_string(),
+        None => DEFAULT_TEMPLATE.to_string(),
+    })
 }
 
 fn write_new_retained_file(project: &Dir, relative: &Path, content: &[u8]) -> io::Result<bool> {
     let mut options = OpenOptions::new();
+    // checked project write: an exclusive create through the retained project directory handle
     options.write(true).create_new(true);
+    // checked project write: the exclusive create set up just above, through the retained project directory handle
+    // not a project file read: the same open, for writing only
     let mut file = match project.open_with(relative, &options) {
         Ok(file) => file,
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => return Ok(false),
@@ -1799,7 +1862,7 @@ pub fn generate_specs_for_unspecced_modules(
             continue;
         }
 
-        if let Err(e) = fs::create_dir_all(&spec_dir) {
+        if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
             eprintln!("  Failed to create {}: {e}", spec_dir.display());
             continue;
         }
@@ -1807,8 +1870,9 @@ pub fn generate_specs_for_unspecced_modules(
         let spec_content =
             generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
-        match fs::write(&spec_file, &spec_content) {
-            Ok(_) => {
+        // An exclusive, confined create: a dangling or outward link at the spec is refused.
+        match crate::util::create_project_file(root, &spec_file, spec_content.as_bytes()) {
+            Ok(true) => {
                 let rel = spec_file.strip_prefix(root).unwrap_or(&spec_file);
                 println!(
                     "  {} Generated {} ({} files)",
@@ -1816,13 +1880,15 @@ pub fn generate_specs_for_unspecced_modules(
                     rel.display(),
                     module_files.len()
                 );
-                generate_companion_files(&spec_dir, module_name, config.companions.design);
+                generate_companion_files(root, &spec_dir, module_name, config.companions.design);
                 let _ = std::io::stdout().flush();
                 outcome.generated += 1;
                 outcome
                     .generated_paths
                     .push(rel.to_string_lossy().to_string());
             }
+            // The spec appeared since the look above: it is kept.
+            Ok(false) => {}
             Err(e) => {
                 eprintln!("  Failed to write {}: {e}", spec_file.display());
             }
@@ -1862,14 +1928,16 @@ pub fn generate_specs_for_unspecced_modules_paths(
             continue;
         }
 
-        if fs::create_dir_all(&spec_dir).is_err() {
+        if crate::util::create_project_dir(root, &spec_dir).is_err() {
             continue;
         }
 
         let spec_content =
             generate_module_spec(module_name, &module_files, root, &specs_dir, config);
 
-        if fs::write(&spec_file, &spec_content).is_ok() {
+        if crate::util::create_project_file(root, &spec_file, spec_content.as_bytes())
+            .is_ok_and(|created| created)
+        {
             let rel = spec_file
                 .strip_prefix(root)
                 .unwrap_or(&spec_file)
@@ -2345,7 +2413,7 @@ mod tests {
             assert_eq!(yaml["module"], "@scope/demo");
         }
         let tmp = TempDir::new().unwrap();
-        generate_companion_files_for_spec(tmp.path(), "@scope/demo", true);
+        generate_companion_files_for_spec(tmp.path(), tmp.path(), "@scope/demo", true);
         assert_eq!(
             fs::read_to_string(tmp.path().join("context.md")).unwrap(),
             generated_context_scaffold("@scope/demo")
@@ -2363,7 +2431,13 @@ mod tests {
         )
         .unwrap();
         let output = TempDir::new().unwrap();
-        generate_companion_files_from_template(output.path(), "@scope/demo", tmp.path(), false);
+        generate_companion_files_from_template(
+            output.path(),
+            output.path(),
+            "@scope/demo",
+            tmp.path(),
+            false,
+        );
         assert!(
             fs::read_to_string(output.path().join("testing.md"))
                 .unwrap()
@@ -2629,12 +2703,57 @@ mod tests {
 
     // ── generate_companion_files ───────────────────────────────────
 
+    /// Verifies REQ-generator-010. A companion was guarded by `exists()`, which a dangling link
+    /// passes, and the spec directory can be a link: nothing is created outside the project, the
+    /// other companions are still created, and an existing one keeps its content.
+    #[cfg(unix)]
+    #[test]
+    fn companion_files_are_never_created_through_a_link_that_leaves_the_project() {
+        use std::os::unix::fs::symlink;
+        let tmp = TempDir::new().unwrap();
+        let root = tmp.path().join("project");
+        let outside = tmp.path().join("outside");
+        let spec_dir = root.join("specs/auth");
+        fs::create_dir_all(&spec_dir).unwrap();
+        fs::create_dir_all(outside.join("elsewhere")).unwrap();
+        symlink("../../../outside/planted.md", spec_dir.join("tasks.md")).unwrap();
+        fs::write(spec_dir.join("context.md"), "mine\n").unwrap();
+
+        generate_companion_files_for_spec(&root, &spec_dir, "auth", false);
+
+        assert!(
+            !outside.join("planted.md").exists(),
+            "a companion was created at a dangling link's target"
+        );
+        assert!(spec_dir.join("requirements.md").is_file());
+        assert!(spec_dir.join("testing.md").is_file());
+        assert_eq!(
+            fs::read_to_string(spec_dir.join("context.md")).unwrap(),
+            "mine\n"
+        );
+
+        symlink("../../outside/elsewhere", root.join("specs/billing")).unwrap();
+        generate_companion_files_for_spec(&root, &root.join("specs/billing"), "billing", true);
+        generate_companion_files_from_template(
+            &root,
+            &root.join("specs/billing"),
+            "billing",
+            &root.join("no-templates"),
+            true,
+        );
+        assert_eq!(
+            fs::read_dir(outside.join("elsewhere")).unwrap().count(),
+            0,
+            "companions were created in a directory outside the project"
+        );
+    }
+
     #[test]
     fn companion_files_created_when_absent() {
         let tmp = TempDir::new().unwrap();
         let spec_dir = tmp.path();
 
-        generate_companion_files(spec_dir, "auth", false);
+        generate_companion_files(spec_dir, spec_dir, "auth", false);
 
         assert!(spec_dir.join("tasks.md").exists());
         assert!(spec_dir.join("context.md").exists());
@@ -2659,7 +2778,7 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let spec_dir = tmp.path();
 
-        generate_companion_files(spec_dir, "auth", true);
+        generate_companion_files(spec_dir, spec_dir, "auth", true);
 
         assert!(spec_dir.join("tasks.md").exists());
         assert!(spec_dir.join("context.md").exists());
@@ -2683,7 +2802,7 @@ mod tests {
         fs::write(spec_dir.join("tasks.md"), "existing content").unwrap();
         fs::write(spec_dir.join("testing.md"), "existing tests").unwrap();
         fs::write(spec_dir.join("design.md"), "existing design").unwrap();
-        generate_companion_files(spec_dir, "auth", true);
+        generate_companion_files(spec_dir, spec_dir, "auth", true);
 
         let tasks = fs::read_to_string(spec_dir.join("tasks.md")).unwrap();
         assert_eq!(tasks, "existing content");
@@ -2704,7 +2823,7 @@ mod tests {
             "---\nspec: {module}.spec.md\n---\n\n## Custom Tests\n\nCustom testing template\n";
         fs::write(template_dir.join("testing.md"), custom).unwrap();
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir, false);
+        generate_companion_files_from_template(spec_dir, spec_dir, "auth", &template_dir, false);
 
         let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
         assert!(testing.contains("Custom testing template"));
@@ -2719,7 +2838,7 @@ mod tests {
         fs::create_dir_all(&template_dir).unwrap();
         // No testing.md in template dir — should fall back to built-in
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir, false);
+        generate_companion_files_from_template(spec_dir, spec_dir, "auth", &template_dir, false);
 
         let testing = fs::read_to_string(spec_dir.join("testing.md")).unwrap();
         assert!(testing.contains("## Automated Testing"));
@@ -2737,7 +2856,7 @@ mod tests {
             "---\nspec: {module}.spec.md\nsources: []\n---\n\n## Custom Design\n\nCustom layout\n";
         fs::write(template_dir.join("design.md"), custom).unwrap();
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir, true);
+        generate_companion_files_from_template(spec_dir, spec_dir, "auth", &template_dir, true);
 
         let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
         assert!(design.contains("Custom layout"));
@@ -2751,7 +2870,7 @@ mod tests {
         let template_dir = tmp.path().join("templates");
         fs::create_dir_all(&template_dir).unwrap();
 
-        generate_companion_files_from_template(spec_dir, "auth", &template_dir, true);
+        generate_companion_files_from_template(spec_dir, spec_dir, "auth", &template_dir, true);
 
         let design = fs::read_to_string(spec_dir.join("design.md")).unwrap();
         assert!(design.contains("## Layout"));

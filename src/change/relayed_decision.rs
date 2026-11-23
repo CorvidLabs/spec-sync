@@ -298,7 +298,7 @@ pub fn recorded_claims(root: &Path, record: &ChangeRecord) -> Result<Vec<Recorde
     }
     let review_path = workspace.join(SCOPED_REVIEW_FILE);
     if review_path.exists() {
-        let content = fs::read_to_string(&review_path)
+        let content = crate::util::read_project_string(root, &review_path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|error| format!("failed to read {}: {error}", review_path.display()))?;
         let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
             with_relayed_read_recovery(
@@ -579,7 +579,7 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
             )
         })?;
         let content =
-            fs::read_to_string(&path).map_err(|error| format!("failed to read {shown}: {error}"))?;
+            crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| format!("failed to read {shown}: {error}"))?;
         let current: serde_json::Value = serde_json::from_str(&content).map_err(|error| {
             let recovery = if committed_bytes.is_some() {
                 format!("restore it with `git checkout HEAD -- {}`", shell_quote(&shown))
@@ -706,19 +706,19 @@ pub fn repair_relayed_decisions(root: &Path, id: &str) -> Result<RelayRepairRepo
         };
         // A repair rewrites the same file, so members a newer SpecSync wrote stay (#1043).
         let content = if name == "approvals.json" {
-            json_content_keeping_unknown_members(
+            json_content_keeping_unknown_members(root, 
                 &file.path,
                 &serde_json::from_value::<ApprovalLedger>(file.current.clone())
                     .map_err(unreadable)?,
             )?
         } else if name == SCOPED_REVIEW_ATTEMPTS_FILE {
-            json_content_keeping_unknown_members(
+            json_content_keeping_unknown_members(root, 
                 &file.path,
                 &serde_json::from_value::<ScopedReviewAttemptLedger>(file.current.clone())
                     .map_err(unreadable)?,
             )?
         } else {
-            json_content_keeping_unknown_members(
+            json_content_keeping_unknown_members(root, 
                 &file.path,
                 &serde_json::from_value::<ScopedReviewRecord>(file.current.clone())
                     .map_err(unreadable)?,
@@ -792,15 +792,15 @@ fn ledger_holds_relay(bytes: &[u8]) -> bool {
 }
 
 /// Whether the change package in `workspace` holds a relayed decision in any decision ledger.
-fn workspace_holds_relayed_decision(workspace: &Path) -> bool {
+fn workspace_holds_relayed_decision(root: &Path, workspace: &Path) -> bool {
     RELAY_LEDGER_FILES.iter().any(|name| {
-        fs::read(workspace.join(name)).is_ok_and(|bytes| ledger_holds_relay(&bytes))
+        crate::util::read_project_bytes(root, &workspace.join(name), crate::util::MAX_STATE_FILE_BYTES).is_ok_and(|bytes| ledger_holds_relay(&bytes))
     })
 }
 
 /// Whether the `state.json` in `workspace` already records the relay-gated version.
-fn workspace_state_is_relay_gated(workspace: &Path) -> bool {
-    fs::read(workspace.join("state.json"))
+fn workspace_state_is_relay_gated(root: &Path, workspace: &Path) -> bool {
+    crate::util::read_project_bytes(root, &workspace.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
         .ok()
         .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
         .and_then(|state| state.get("workflow_version")?.as_u64())
@@ -812,11 +812,12 @@ fn workspace_state_is_relay_gated(workspace: &Path) -> bool {
 /// file it replaces already records that version, so a command holding a copy read before the
 /// raise never lowers it. Every other record is written as it is.
 fn relay_gated_record<'record>(
+    root: &Path,
     workspace: &Path,
     record: &'record ChangeRecord,
 ) -> Cow<'record, ChangeRecord> {
     if record.workflow_version == 2
-        && (workspace_holds_relayed_decision(workspace) || workspace_state_is_relay_gated(workspace))
+        && (workspace_holds_relayed_decision(root, workspace) || workspace_state_is_relay_gated(root, workspace))
     {
         let mut raised = record.clone();
         raised.workflow_version = RELAY_GATED_WORKFLOW_VERSION;

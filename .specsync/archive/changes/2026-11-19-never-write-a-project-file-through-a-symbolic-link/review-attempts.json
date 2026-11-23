@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "never-write-a-project-file-through-a-symbolic-link",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "b8e3558621e94aaa50cdd8f668b8cc7856fc60aa",
+      "contract_digest": "9b8710ab478c336ea5f18f4907a5c45fd7c2197585f949b578cf7151ceefa30c",
+      "execution_digest": "a6cfd8aadef7e0502651ddb4cc40104d39c73c6de578c30867946d7fa029dc99",
+      "workspace_digest": "fd86ee8fe25ae137fe35d4ba955723ce8235226b769b649b744abafbdc281c53",
+      "timestamp": 1795097247,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat answer to his planning session (hc t4c) on 2026-11-19 at about 14:04Z, after t4c walked him through the change in plain words from its own read of the code at a33dcc6f, with its side effects and limits (hooks uninstall exits 1 on a refused path, a specs_dir outside the project is refused, migrate refuses before its first step, hard links not caught, no x86 or Ubuntu run); relayed by t4c over hc to t5r as his implementation approval",
+        "recorded_by": "claude-code-t5r"
+      }
+    }
+  ]
+}

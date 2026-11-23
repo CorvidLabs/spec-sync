@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 
@@ -154,7 +155,11 @@ impl IgnoreRules {
     pub fn load(root: &Path) -> Self {
         let mut rules = Self::default();
         let ignore_path = root.join(".specsyncignore");
-        let bytes = match fs::read(&ignore_path) {
+        let bytes = match crate::util::read_project_bytes(
+            root,
+            &ignore_path,
+            crate::util::MAX_STATE_FILE_BYTES,
+        ) {
             Ok(bytes) => bytes,
             Err(_) => return rules,
         };

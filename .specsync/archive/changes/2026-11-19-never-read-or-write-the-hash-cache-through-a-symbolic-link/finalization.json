@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "never-read-or-write-the-hash-cache-through-a-symbolic-link",
+  "implementation_commit": "b60cac3895cb615daf9ce8a0426d398548dc2599",
+  "implementation_tree": "e421af316cd816f62cf277e82f09b801e7d6ce39",
+  "contract_digest": "97ad086a3daca40ce717abbbefc2a2ff3a3db89473468d4a959591171eb58c6d",
+  "workspace_digest": "b755b968881361257774a19601544a69df0d71fcc048885766fe07f06989b776",
+  "closing_digest": "3a0a1bf2a5378d8ef46258975980dfb7d5aeb7bd70e9ce64c7a8e60041a9c8c8",
+  "review_digest": "d9af646dcedc49a8dffebbaae19c1406c660a81a2d552ae5294becc19a2e6ec3",
+  "finalization_digest": "fa6c863f2c8955e3079fc22d9cfc2e173a7ff050df02d05e6f9a6d4eea2772e4",
+  "timestamp": 1795097121
+}

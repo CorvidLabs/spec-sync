@@ -26,6 +26,7 @@ spec: merge.spec.md
 - [x] `print_results` (colored text) and `results_to_json` output formats
 - [x] Custom zero-dep YAML field parser (`parse_yaml_fields`)
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Read project files only through the bounded project read of `util` (REQ-merge-007). Evidence: `tests/integration/project_reads.rs`.
 
 ## Review Status
 

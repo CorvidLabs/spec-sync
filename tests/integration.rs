@@ -132,5 +132,22 @@ mod spec_history;
 #[path = "integration/terminal_evidence_isolation.rs"]
 mod terminal_evidence_isolation;
 
+#[cfg(unix)]
+#[path = "integration/project_links.rs"]
+mod project_links;
+
+#[cfg(unix)]
+#[path = "integration/project_reads.rs"]
+mod project_reads;
+
+#[cfg(unix)]
+#[path = "integration/project_writes.rs"]
+mod project_writes;
+
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
+#[path = "integration/repository_inputs.rs"]
+mod repository_inputs;
+
+#[path = "integration/hardening_641.rs"]
+mod hardening_641;

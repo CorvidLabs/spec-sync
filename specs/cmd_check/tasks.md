@@ -23,7 +23,13 @@ spec: cmd_check.spec.md
 - [x] Validation outcomes covered: valid project, missing source file, undocumented export warn, phantom export error
 - [x] Git staleness migrated to `git_commits_since` (N+1 fix over the old `git_commits_between`)
 - [x] Remove embedded regeneration so `--fix` is deterministic and local
+- [x] Warn once and run with no cache when the hash cache location is a symbolic link or not a regular file (REQ-cmd-check-018). Evidence: `check_never_writes_the_hash_cache_through_a_link`.
 - [x] Fail closed on malformed Gradle coverage discovery and preserve structured JSON failure output — Evidence: `malformed_gradle_is_inconclusive_for_coverage_gating_commands`.
+- [x] Read project files only through the bounded project read of `util` (REQ-cmd-check-019). Evidence: `tests/integration/project_reads.rs`.
+- [x] Write `--fix --backup` backups confined, and never use a hash cache Git tracks (REQ-cmd-check-020, REQ-cmd-check-021). Evidence: `tests/integration/project_writes.rs`, `tests/integration/repository_inputs.rs`.
+- [x] Use only the cache in the local state folder and name its real path (REQ-cmd-check-021). Evidence: `check_never_uses_a_hash_cache_an_unpacked_tree_ships`.
+- [x] Refuse a cache folder inside the project and never read a cache an archive ships in `.git` (REQ-cmd-check-021). Evidence: the two change 7 tests in `tests/integration/repository_inputs.rs`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-cmd-check-022).
 
 ## Gaps
 

@@ -338,6 +338,7 @@ fn splice_unknown_members(new_text: &str, mut carried: Vec<CarriedMember>) -> Re
 /// unreadable previous file has nothing to keep, so the value is written as `json_content` writes
 /// it; anything this binary cannot carry over refuses the write instead of losing it.
 fn json_content_keeping_unknown_members<Record>(
+    root: &Path,
     previous: &Path,
     value: &Record,
 ) -> Result<String, String>
@@ -345,7 +346,7 @@ where
     Record: Serialize + serde::de::DeserializeOwned,
 {
     let new_text = json_content(value)?;
-    let Ok(previous_bytes) = fs::read(previous) else {
+    let Ok(previous_bytes) = crate::util::read_project_bytes(root, previous, crate::util::MAX_STATE_FILE_BYTES) else {
         return Ok(new_text);
     };
     let Ok(previous_record) = serde_json::from_slice::<Record>(&previous_bytes) else {

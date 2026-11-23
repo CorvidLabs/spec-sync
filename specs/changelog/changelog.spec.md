@@ -50,6 +50,7 @@ Automated changelog generation for spec changes between git refs. Compares specs
 5. A spec is "modified" only if at least one frontmatter field changed between the two refs
 6. Output formatters (text, json, markdown) share the same ChangelogReport — formatting is decoupled from analysis
 7. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
+8. `read_file_at_ref` asks Git for a spec blob's size (`git cat-file -s`) before reading it, and reads at most the spec bound (8 MiB) of `git show` output; a blob over the bound is skipped at that ref with one warning naming the spec, the ref and the bound, and the rest of the changelog is printed (REQ-changelog-002).
 
 ## Behavioral Examples
 
@@ -78,6 +79,7 @@ Automated changelog generation for spec changes between git refs. Compares specs
 | Git ref doesn't exist | `list_specs_at_ref` returns empty list — no crash |
 | Range string has no `..` separator | `parse_range` returns `None` |
 | Spec frontmatter unparseable at a ref | Spec is silently skipped in diff |
+| A spec blob at a ref is larger than the 8 MiB spec bound | `warning: skipped <spec> at <ref>: larger than <n> bytes, the spec bound`; that spec is left out at that ref and the rest prints |
 
 ## Dependencies
 

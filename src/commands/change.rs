@@ -1,5 +1,6 @@
 use colored::Colorize;
 use std::collections::BTreeSet;
+#[cfg(test)]
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
@@ -14,11 +15,12 @@ const INVALID_CORRECTION_LEDGER_TEXT: &str = "correction ledger integrity is inv
 
 fn configured_commands_not_run(root: &Path) -> Result<Vec<String>, String> {
     let path = root.join(".specsync/sdd.json");
-    let content = match fs::read_to_string(&path) {
-        Ok(content) => content,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
-    };
+    let content =
+        match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(format!("failed to read {}: {error}", path.display())),
+        };
     let policy: serde_json::Value = serde_json::from_str(&content)
         .map_err(|error| format!("invalid SDD policy {}: {error}", path.display()))?;
     let mut commands = Vec::new();
@@ -580,7 +582,7 @@ pub fn cmd_change(root: &Path, action: ChangeAction, format: OutputFormat, stric
             )?;
             disclose_left_out(&archive_commit.left_out, &mut Vec::new(), None);
             let finalization_path = path.join("finalization.json");
-            let content = fs::read_to_string(&finalization_path).map_err(|error| {
+            let content = crate::util::read_project_string(root, &finalization_path, crate::util::MAX_STATE_FILE_BYTES).map_err(|error| {
                 format!("failed to read {}: {error}", finalization_path.display())
             })?;
             let finalization: change::FinalizationRecord =
@@ -1482,10 +1484,14 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             // into rc=1 on a repository whose archived evidence is already damaged — the fix
             // for an inspection command must not be the thing that bricks inspection. An
             // unreadable or unparseable artifact degrades to "no evidence recorded".
-            let value = fs::read_to_string(&verification_path)
-                .ok()
-                .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
-                .unwrap_or(serde_json::Value::Null);
+            let value = crate::util::read_project_string(
+                root,
+                &verification_path,
+                crate::util::MAX_STATE_FILE_BYTES,
+            )
+            .ok()
+            .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+            .unwrap_or(serde_json::Value::Null);
             let commit = value
                 .get("commit")
                 .and_then(|value| value.as_str())
@@ -2105,7 +2111,11 @@ fn archive_candidate_can_ship(root: &Path, record: &ChangeRecord, dir: &Path) ->
     if !dir.join("verification.json").is_file() {
         return false;
     }
-    let Ok(text) = fs::read_to_string(dir.join("review.json")) else {
+    let Ok(text) = crate::util::read_project_string(
+        root,
+        &dir.join("review.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
         return false;
     };
     let Ok(review) = serde_json::from_str::<serde_json::Value>(&text) else {
@@ -2478,10 +2488,13 @@ fn classify_head_tip(root: &Path) -> Result<HeadTip, String> {
 /// The `id` and workflow version an archived package's `state.json` records, the identity CI's
 /// classifier reads too. A state with no `workflow_version` is workflow v1, as it is there.
 fn archived_package_identity(root: &Path, directory: &str) -> Option<(String, u64)> {
-    let state = fs::read_to_string(
-        root.join(".specsync/archive/changes")
+    let state = crate::util::read_project_string(
+        root,
+        &root
+            .join(".specsync/archive/changes")
             .join(directory)
             .join("state.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
     )
     .ok()?;
     let state = serde_json::from_str::<serde_json::Value>(&state).ok()?;
@@ -2815,6 +2828,7 @@ fn run_prepare_pr(root: &Path, id: Option<&str>, format: OutputFormat) -> Result
 }
 
 fn run_pre_push_gate(root: &Path) -> Result<(), String> {
+    // spawned command writes no project file: `change pr` runs the repository's own `fledge lanes run pre-push`, by design and documented
     let status = std::process::Command::new("fledge")
         .args(["lanes", "run", "pre-push"])
         .current_dir(root)
@@ -2879,6 +2893,7 @@ fn push_current_branch(root: &Path) -> Result<(), String> {
 }
 
 fn ensure_pull_request(root: &Path, title: &str, body: &str) -> Result<String, String> {
+    // spawned command writes no project file: `gh` asks GitHub about open pull requests and writes no file
     let existing = std::process::Command::new("gh")
         .args(["pr", "view", "--json", "url,state"])
         .current_dir(root)
@@ -2892,6 +2907,7 @@ fn ensure_pull_request(root: &Path, title: &str, body: &str) -> Result<String, S
     {
         return Ok(url.to_string());
     }
+    // spawned command writes no project file: `gh pr create` opens a pull request on GitHub and writes no file
     let mut command = std::process::Command::new("gh");
     command
         .args(["pr", "create", "--title", title, "--body", body])
@@ -3751,12 +3767,20 @@ fn resolve_correct_owner_entries(
 }
 
 fn parse_owner_manifest(path: &Path) -> Result<Vec<(String, String)>, String> {
-    let content = fs::read_to_string(path).map_err(|error| {
-        format!(
-            "failed to read correct-owner manifest {}: {error}",
-            path.display()
-        )
-    })?;
+    // A path the person names: links are followed, but it is never waited on or read past the
+    // bound (REQ-cmd-change-041).
+    let content = crate::util::read_typed_file(path, crate::util::MAX_STATE_FILE_BYTES)
+        .and_then(|bytes| {
+            String::from_utf8(bytes).map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "not valid UTF-8")
+            })
+        })
+        .map_err(|error| {
+            format!(
+                "failed to read correct-owner manifest {}: {error}",
+                path.display()
+            )
+        })?;
     let trimmed = content.trim();
     if trimmed.is_empty() {
         return Err("correct-owner manifest is empty".into());

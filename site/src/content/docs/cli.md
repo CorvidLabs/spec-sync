@@ -146,6 +146,8 @@ Supports Claude Code (`CLAUDE.md`), Cursor (`.cursorrules`), GitHub Copilot (`.g
 
 To refresh an existing pre-commit hook after upgrading the generator, run `specsync hooks uninstall --precommit` followed by `specsync hooks install --precommit` from the same project root. Use the same `--root <project>` on both commands for a nested project. Installing alone preserves an existing managed block; uninstalling removes only the selected project's managed block and preserves other hook content. See [Pre-commit hook](workflow.md#pre-commit-hook) for the quoting-fix upgrade guidance.
 
+> **Symbolic links.** A command that writes into your project never writes outside it through a link. This covers `hooks`, `agents`, `mcp lock --write`, `scaffold`, `add-spec`, `new`, `wizard`, `import` and `migrate`. A link that stays inside the project is followed, so `CLAUDE.md` as a link to `AGENTS.md` works. A link that leaves the project, a dangling link, or a path that is not a regular file is refused with an error that names it, and nothing is written. The two caches, `.specsync/hashes.json` and the `resolve --remote` cache, are stricter: they are never read or written through any link. Reads follow the same rule: SpecSync never reads a project file through a link that leaves the project, never waits on a file that is not a regular file (a FIFO or a device), and never reads past a bound: 4 MiB for config, policy and state files and change records, 8 MiB for specs and source files, 64 MiB for the transaction journal and the hash cache.
+
 ### `agents`
 
 Install native SDD skills and supported slash commands for coding agents. This is separate from repository instruction snippets and Git hooks managed by `hooks`.
@@ -241,10 +243,12 @@ The backfill is deterministic (`stale` reproduces the embedded prior-verificatio
 Regenerate the hash cache for all specs. Useful after `git pull`, branch switches, or manual spec edits to reset the incremental validation baseline.
 
 ```bash
-specsync rehash                            # rebuild .specsync/hashes.json
+specsync rehash                            # rebuild the hash cache
 ```
 
-> **Note:** The hash cache (`.specsync/hashes.json`) should **not** be committed to git — it is a local-only optimization for incremental validation. Both `specsync init` and `specsync migrate` automatically add it to `.gitignore`. In CI, use `specsync check --force` (the GitHub Action does this by default).
+> **Note:** The hash cache is a local-only optimization for incremental validation, and SpecSync keeps it only in your user cache folder (`$XDG_CACHE_HOME`, else `~/Library/Caches` on macOS or `~/.cache`, under `specsync/projects/<key>/`), never in your work tree or Git directory, so no clone or archive of a repository can ship one. The remote spec cache and the change read cache live there too; the transaction journal is kept in your user state folder (`$XDG_STATE_HOME`, else `~/Library/Application Support` on macOS or `~/.local/state`), which cleanup tools do not purge, and records the project it belongs to. A user cache folder inside the project, as in CI that sets `HOME` to the checkout, is refused: `check` warns once and validates every spec, and lifecycle (`specsync change`) commands stop, writing nothing, until `XDG_CACHE_HOME` points outside the project. A `.specsync/hashes.json` in the work tree, which SpecSync 6.3 and earlier wrote, is never read; `specsync init` and `specsync migrate` still add it to `.gitignore` for older versions. In CI, use `specsync check --force` (the GitHub Action does this by default).
+>
+> The cache is never read or written through a symbolic link. If SpecSync's own folder there is a link, or the cache file is not a regular file, `check` prints `warning: hash cache not used` on stderr and runs without a cache, with the same result and exit code. A `.specsync/change-transaction.json` in the work tree stops every lifecycle command with its path until you check the files it lists and delete it.
 
 ### `stale`
 
@@ -375,7 +379,27 @@ Auto-resolve git merge conflicts in spec files. Understands spec structure to ma
 specsync merge                             # resolve conflicts in conflicted specs
 specsync merge --dry-run                   # preview resolutions without writing
 specsync merge --all                       # process all conflicted files
+specsync merge --install                   # register the merge driver for this clone
 ```
+
+`merge --install` registers SpecSync's merge driver for this clone. It adds `merge=specsync`
+rules for `specs/**/*.spec.md` and `specs/**/requirements.md` to `.gitattributes`, and sets
+`merge.specsync.driver` in the repository's Git config to `<this specsync> merge-file %O %A %B
+%P`. Git then merges those files with `specsync merge-file`, which, unlike a conflict hunk, sees
+the common ancestor: a module spec unions `files`, `db_tables`, `depends_on` and Change Log rows
+and counts each side's `version` bump, and a requirements file unions blocks by ID. A block both
+sides edited differently, or other prose both changed differently, stays a conflict. The Git
+config lives in each clone, so run `--install` once per clone.
+
+### `merge-file`
+
+```bash
+specsync merge-file <ancestor> <current> <other> [pathname]   # Git runs this; you do not
+```
+
+The merge driver `merge --install` registers: Git calls it as `specsync merge-file %O %A %B %P`.
+It writes the merge into `<current>` and exits `0` when the contract merged, or `1` when a
+conflict remains (its markers are left in the file) or a side could not be read.
 
 ### `rules`
 
@@ -431,6 +455,7 @@ specsync change audit             # add --archives to also re-walk every archive
 specsync change review add-passkeys --reviewer "Ada"
 specsync change finalize add-passkeys
 # finalize commits the archive; push it and wait for checks before GitHub merges
+specsync change pr add-passkeys   # archive when ready, push the branch, open or reuse its PR; never merges
 ```
 
 `change answer` checks an answer before it stores anything. An unknown question id is refused
@@ -445,6 +470,72 @@ unless the project has no specs yet. A new module's spec must exist before the m
 declared, including a module that so far exists only under `[modules]` in the config. An `--actor` is trimmed
 and refused when it holds a newline, a control character or an invisible character other than
 ZWNJ and ZWJ.
+
+`change approve <id> --dry-run` says whether the approval would be accepted, and writes nothing:
+no approval, no `state.json`, no cache, not even the lifecycle lock. It runs the approval's own
+checks in the approval's order, so it cannot disagree with `change approve`. A real approval stops
+at its first refusal. The dry run goes on: every check that can run does, and reports its first
+problem in the words `change approve` uses. A check that cannot run without a refused one is
+skipped and names it. It takes the flags `change approve` takes and checks them the same way.
+
+```bash
+specsync change approve add-passkeys --dry-run --actor "Ada"
+#   deltas: requirement `REQ-auth-002` must include Acceptance Criteria
+#   approval_record: skipped, it waits on `deltas`
+# ✗ add-passkeys would be refused (dry run: nothing was written)
+specsync --json change approve add-passkeys --dry-run --actor "Ada"
+```
+
+It exits `0` when no check refuses and `1` when any does. With `--json` it prints one document
+in both cases, never the `error` document a real refusal prints:
+
+```json
+{
+  "id": "add-passkeys",
+  "dry_run": true,
+  "would_approve": false,
+  "checks": [
+    { "check": "relay", "result": "passed" },
+    { "check": "lifecycle_lock", "result": "passed" },
+    { "check": "change", "result": "passed" },
+    { "check": "sequence", "result": "passed" },
+    { "check": "state", "result": "passed" },
+    { "check": "roster", "result": "passed" },
+    { "check": "baseline", "result": "passed" },
+    { "check": "definition", "result": "passed" },
+    { "check": "deltas", "result": "refused", "message": "requirement `REQ-auth-002` must include Acceptance Criteria" },
+    { "check": "ownership", "result": "passed" },
+    { "check": "verification_ignored_paths", "result": "passed" },
+    { "check": "approval_record", "result": "skipped", "skipped_because": "deltas" },
+    { "check": "actor", "result": "passed" }
+  ]
+}
+```
+
+The thirteen `check` names are stable, and they come in the order the approval makes them. The
+first `refused` entry carries the message a real `change approve` with the same flags prints.
+Only a few things skip a check. When the lifecycle-lock check refuses, the change does not load,
+or its state does not admit approval, every later check is skipped. When `deltas` refuses,
+`approval_record` is skipped, because it digests the same delta bodies. `lifecycle_lock` asks
+what taking the lock asks, without taking it: a symlink in the lock path, an existing lock path
+the approval cannot open, such as a directory, and a missing lock file the approval could not
+create, as in a `.specsync` that is not writable, are refused in the approval's own words. It
+also refuses when an interrupted lifecycle write is waiting to be recovered: a real approval
+recovers it first, which is a write, so the dry run says so, runs nothing else, and leaves it
+alone. A journal that cannot be replayed, because it does not read or names a path outside the
+project, is different: `change approve` refuses it with `invalid transaction journal at <path>`,
+and the dry run gives that same refusal. Without `--actor` the actor comes from Git or `$USER`,
+as in a real approval, and `actor` is its own check so a caller can set it aside.
+
+A refused `definition` or `ownership` entry whose message names the `specsync change answer`
+command that fixes it also carries that command as `fix`, as plain text, so a tool need not read
+it out of the message. For a draft with no acceptance criterion it is
+`specsync change answer <id> acceptance_criteria "<observable outcome>"`; for an open question
+with choices, such as `public_contract`, the choices are the placeholder: `<yes|no>`. **A `fix`
+may hold such a placeholder, so do not run it blindly:** fill the placeholder in, or show the
+command to a person. The `affected_specs` command for an ownership refusal runs as printed. No
+other entry carries a `fix`. In text, each refused check is one line, with a message's line
+breaks joined, and no `fix` is printed, because the message already names the command.
 
 For a separately created draft successor called `update-ui`, dependency and exact succession
 are declared before its scope approval. Set `PREDECESSOR_ENTRY_DIGEST` to the full
@@ -700,6 +791,8 @@ specsync watch
 |:-----|:--------|
 | `0` | All checks passed |
 | `1` | Errors found, warnings with `--strict`, or coverage below threshold |
+
+`change ship-status` prints its whole report first, then exits `1` when the report names a blocker, for one change or for any change in the roster. With `--json` the output stays one document. A report with no blocker exits `0`.
 
 ---
 

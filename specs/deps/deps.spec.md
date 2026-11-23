@@ -10,6 +10,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Deps
@@ -49,6 +50,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 5. Undeclared imports (found in source but not in `depends_on`) are reported as warnings, not errors
 6. Module names in `depends_on` paths are extracted from the path's directory component
 7. A spec or declared source file that exists but cannot be read as UTF-8 is a hard error (not a silent skip): an unreadable spec would otherwise be dropped from the graph — defeating cycle and missing-dependency detection for that module — and an unreadable source would contribute no imports, hiding undeclared-import violations. Both are recorded in `report.errors`, so `cmd_deps` exits 1 rather than under-validating silently
+8. Every read of a project file here, spec files and the source files read for imports (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-deps-004).
 
 ## Behavioral Examples
 
@@ -78,6 +80,7 @@ Cross-module dependency validation. Parses `depends_on` declarations from spec f
 | Spec file exists but unreadable as UTF-8 | Hard error recorded in `report.errors`; node is not silently dropped from the graph; `cmd_deps` exits 1 |
 | Spec frontmatter unparseable | Module excluded from dependency graph |
 | No specs found in specs_dir | Returns empty graph and clean DepsReport |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

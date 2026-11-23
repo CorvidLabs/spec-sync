@@ -509,6 +509,9 @@ pub enum ChangeAction {
         /// Relayed decision: the agent recording it
         #[arg(long)]
         recorded_by: Option<String>,
+        /// Say whether the approval would be accepted and why not, and write nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Compatibility alias for projects created before approval entered implementation automatically
     #[command(hide = true)]
@@ -1172,6 +1175,42 @@ mod tests {
                     portable_5_0_1: false,
                     ..
                 }
+            })
+        ));
+    }
+
+    /// REQ-cli-args-027 (#1091): `change approve` accepts `--dry-run` with its other flags and
+    /// the global output flags.
+    #[test]
+    fn change_approve_accepts_a_dry_run() {
+        for arguments in [
+            &["specsync", "change", "approve", "add-passkeys", "--dry-run"][..],
+            &[
+                "specsync",
+                "--json",
+                "change",
+                "approve",
+                "add-passkeys",
+                "--dry-run",
+                "--actor",
+                "Ada",
+            ][..],
+        ] {
+            let parsed = Cli::try_parse_from(arguments);
+            assert!(parsed.is_ok(), "{arguments:?} does not parse");
+            assert!(matches!(
+                parsed.ok().and_then(|cli| cli.command),
+                Some(Command::Change {
+                    action: ChangeAction::Approve { dry_run: true, .. }
+                })
+            ));
+        }
+        // The dry run is off unless it is asked for.
+        let plain = Cli::try_parse_from(["specsync", "change", "approve", "add-passkeys"]);
+        assert!(matches!(
+            plain.ok().and_then(|cli| cli.command),
+            Some(Command::Change {
+                action: ChangeAction::Approve { dry_run: false, .. }
             })
         ));
     }

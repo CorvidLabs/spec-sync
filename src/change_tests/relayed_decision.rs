@@ -1454,18 +1454,18 @@ fn a_relay_anywhere_in_a_decision_ledger_gates_the_change() {
     let mut record = minimal_archived_record("gate-it", vec!["README.md".into()]);
     record.workflow_version = 2;
     record.workflow_origin_version = Some(2);
-    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 2);
+    assert_eq!(relay_gated_record(workspace, workspace, &record).workflow_version, 2);
     fs::write(workspace.join(CORRECTIONS_FILE), embedded.to_string()).unwrap();
-    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 3);
+    assert_eq!(relay_gated_record(workspace, workspace, &record).workflow_version, 3);
     fs::remove_file(workspace.join(CORRECTIONS_FILE)).unwrap();
     fs::write(workspace.join("state.json"), r#"{"workflow_version": 3}"#).unwrap();
     assert_eq!(
-        relay_gated_record(workspace, &record).workflow_version,
+        relay_gated_record(workspace, workspace, &record).workflow_version,
         3,
         "a copy read before the raise never lowers the file it replaces"
     );
     record.workflow_version = 1;
     record.workflow_origin_version = Some(1);
     fs::write(workspace.join(CORRECTIONS_FILE), embedded.to_string()).unwrap();
-    assert_eq!(relay_gated_record(workspace, &record).workflow_version, 1);
+    assert_eq!(relay_gated_record(workspace, workspace, &record).workflow_version, 1);
 }

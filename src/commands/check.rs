@@ -1,6 +1,5 @@
 use colored::Colorize;
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -135,11 +134,12 @@ fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<
     if let Some(cfg) = &config.config_path {
         inputs.push(normalize(cfg));
     }
+    // Listed only by the project rule, so a schema folder that leads out adds nothing
+    // (REQ-cmd-check-022).
     if let Some(dir) = &config.schema_dir
-        && let Ok(entries) = fs::read_dir(root.join(dir))
+        && let Ok(entries) = crate::util::read_project_dir(root, &root.join(dir))
     {
-        for entry in entries.flatten() {
-            let path = entry.path();
+        for path in entries {
             if path.is_file() {
                 inputs.push(normalize(&path));
             }
@@ -277,6 +277,18 @@ pub fn cmd_check(
         );
     }
 
+    // The cache lives in the project's local state folder outside the work tree, so whatever a
+    // repository ships at `.specsync/hashes.json` is never looked at (REQ-cmd-check-021). When
+    // that folder cannot be found or holds something the cache will not read or write, say so
+    // once, before anything can end the run, then run as with no cache (REQ-cmd-check-018).
+    let cache_refusal = hash_cache::HashCache::refusal(root);
+    if let Some(reason) = &cache_refusal {
+        eprintln!(
+            "{} hash cache not used: {reason}",
+            "warning:".yellow().bold()
+        );
+    }
+
     // Always allow the empty-specs case through: `check` handles it itself below,
     // where a requested coverage/enforcement gate is still evaluated (the shared
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
@@ -289,7 +301,7 @@ pub fn cmd_check(
     // change(s)" on the default path made history look like part of the product.
     // REQ-cmd-check-004: exit status derives solely from spec validation.
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
-    let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
@@ -450,12 +462,13 @@ pub fn cmd_check(
 
     let skipped = spec_files.len() - specs_to_validate.len();
     if skipped > 0 && matches!(format, Text) {
-        let cache_path = root.join(".specsync").join("hashes.json");
         println!(
             "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
-        println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        if let Some(cache_path) = hash_cache::HashCache::cache_path(root) {
+            println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        }
     }
 
     let replayed_has_findings = replayed.iter().any(|snapshot| snapshot.has_findings());
@@ -537,8 +550,11 @@ pub fn cmd_check(
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         if backup && !dry_run {
+            // The backup tree is written through the confined project write: a committed
+            // `backup-fix`, or a file in it, linked out of the repository is refused and `--fix`
+            // stops before it changes a spec (REQ-cmd-check-020).
             let backup_dir = root.join(".specsync/backup-fix");
-            if let Err(e) = fs::create_dir_all(&backup_dir) {
+            if let Err(e) = crate::util::create_project_dir(root, &backup_dir) {
                 eprintln!(
                     "{} Failed to create backup directory {}: {e}",
                     "✗".red(),
@@ -561,17 +577,13 @@ pub fn cmd_check(
                     }
                 };
                 let dest = backup_dir.join(rel);
-                if let Some(parent) = dest.parent()
-                    && let Err(e) = fs::create_dir_all(parent)
-                {
-                    eprintln!(
-                        "{} Failed to create backup subdirectory {}: {e}",
-                        "✗".red(),
-                        parent.display()
-                    );
-                    process::exit(1);
-                }
-                if let Err(e) = fs::copy(spec_file, &dest) {
+                let copied = crate::util::read_project_bytes(
+                    root,
+                    spec_file,
+                    crate::util::MAX_SPEC_FILE_BYTES,
+                )
+                .and_then(|bytes| crate::util::write_project_file(root, &dest, &bytes));
+                if let Err(e) = copied {
                     eprintln!(
                         "{} Failed to backup {}: {e}",
                         "✗".red(),
@@ -697,7 +709,11 @@ pub fn cmd_check(
         && history_missing.is_none()
     {
         for spec_file in &spec_files {
-            let content = match fs::read_to_string(spec_file) {
+            let content = match crate::util::read_project_string(
+                root,
+                spec_file,
+                crate::util::MAX_SPEC_FILE_BYTES,
+            ) {
                 Ok(c) => c.replace("\r\n", "\n"),
                 Err(_) => continue,
             };
@@ -819,7 +835,7 @@ pub fn cmd_check(
     // of re-validation, not a claim that there were no problems. --fix,
     // --strict, and --force still bypass the skip so an explicit request
     // never trusts hashes alone.
-    if total_errors == 0 {
+    if total_errors == 0 && cache_refusal.is_none() {
         record_validation_snapshots(&mut cache, root, &global_inputs, &inventory, outcomes);
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
         // Record global inputs (config + schema files) so a later unchanged run
@@ -827,7 +843,12 @@ pub fn cmd_check(
         for input in &global_inputs {
             cache.update(root, input);
         }
-        let _ = cache.save(root);
+        // A cache that cannot be saved, such as one over the bound every later load refuses, is
+        // said once; the run's verdict and the cache already there are unchanged
+        // (REQ-hash-cache-007).
+        if let Err(error) = cache.save(root) {
+            eprintln!("warning: hash cache not saved: {error}");
+        }
     }
 
     // --create-issues: create GitHub issues for specs with validation errors
@@ -1363,7 +1384,11 @@ fn auto_fix_specs(
     };
 
     for spec_file in spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(error) => {
                 // `--fix` is a mutation request. A spec it could not even read
@@ -1387,7 +1412,7 @@ fn auto_fix_specs(
                 "✓".green()
             ));
             if !dry_run {
-                let _ = fs::write(spec_file, &content);
+                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
             }
         }
 
@@ -1400,7 +1425,7 @@ fn auto_fix_specs(
                 "✓".green()
             ));
             if !dry_run {
-                let _ = fs::write(spec_file, &content);
+                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
             }
         }
 
@@ -1424,6 +1449,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             all_exports.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 config.export_level,
                 config.parse_mode,
@@ -1473,6 +1499,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             type_names.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 types::ExportLevel::Type,
                 config.parse_mode,
@@ -1638,7 +1665,7 @@ fn auto_fix_specs(
             ));
         } else {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            match fs::write(spec_file, &new_content) {
+            match crate::util::write_project_file(root, spec_file, new_content.as_bytes()) {
                 Ok(()) => {
                     fixed_count += 1;
                     report(format!(

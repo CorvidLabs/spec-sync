@@ -1,4 +1,5 @@
 use colored::Colorize;
+#[cfg(test)]
 use std::fs;
 use std::path::Path;
 use std::process;
@@ -16,7 +17,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     }
     let config = load_config(root);
     let specs_dir = root.join(&config.specs_dir);
-    if let Err(e) = check_case_collision(&specs_dir, module_name) {
+    if let Err(e) = check_case_collision(root, &specs_dir, module_name) {
         eprintln!("{e}");
         process::exit(1);
     }
@@ -32,7 +33,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
         process::exit(1);
     }
 
-    if let Err(e) = fs::create_dir_all(&spec_dir) {
+    if let Err(e) = crate::util::create_project_dir(root, &spec_dir) {
         eprintln!("{} Failed to create directory: {e}", "Error:".red());
         process::exit(1);
     }
@@ -57,7 +58,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
     let spec_content =
         generator::generate_spec(module_name, &source_files, root, &specs_dir, &config);
 
-    if let Err(e) = fs::write(&spec_file, &spec_content) {
+    if let Err(e) = generator::create_spec_file(root, &spec_file, &spec_content) {
         eprintln!("{} Failed to write spec: {e}", "Error:".red());
         process::exit(1);
     }
@@ -82,6 +83,7 @@ pub fn cmd_new(root: &Path, module_name: &str, full: bool) {
 
     if full {
         generator::generate_companion_files_for_spec(
+            root,
             &spec_dir,
             module_name,
             config.companions.design,

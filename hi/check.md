@@ -11,6 +11,10 @@ The point of the whole product: a document that says what a module does should n
 
 CHECK-1.d was drafted by the agent from issue #878 (a validation snapshot cached by an earlier build of the same version replayed a pass over a duplicate-ID refusal the current build makes). Leif approved it as written in the Herdr orc tab on 2026-11-05 at 20:20 MST ("Approve"), relayed by the orc (t18), and chose approach B, a build fingerprint; at 22:10 MST he chose "Both in one", so the persistent read cache is bound to the same fingerprint. Recorded by the ss-testgaps agent.
 
+CHECK-1.e was drafted by the agent from a private security report (GHSA-7q5v-8jcc-rx54: `check` saved its hash cache through a committed symbolic link, so a cloned repository could overwrite a file outside it). Leif approved it as written in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 04:25Z ("OK as written"), relayed by t4c. Recorded by the security builder agent (hc t5r).
+
+CHECK-1.f was drafted by the agent from an independent review of the same fix (GHSA-7q5v-8jcc-rx54: a `.specsync/hashes.json` committed to the repository carried stored passes that `check` replayed without validating, so a spec that fails could pass). Leif approved it as written ("yes") in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 16:00Z, relayed by t4c. Recorded by the security builder agent (hc t5r).
+
 ## Criteria
 
 - **CHECK-1**  One command tells me whether every module's written contract still matches the code it claims to describe.
@@ -18,6 +22,8 @@ CHECK-1.d was drafted by the agent from issue #878 (a validation snapshot cached
   - **CHECK-1.b**  Re-running it on a tree I have not touched is fast enough to keep in my inner loop.
   - **CHECK-1.c**  I can point the check at a single module while I am working inside it.
   - **CHECK-1.d**  A result remembered from an earlier build never hides a failure the build I am running would report.
+  - **CHECK-1.e**  Running the check on a repository somebody else wrote never changes a file outside that repository.
+  - **CHECK-1.f**  A result that a repository somebody else wrote carries along never hides a failure my check would report.
 - **CHECK-2**  A contract that names something the code no longer has is an error, because the document is lying.
 - **CHECK-3**  Code that exports something the contract never mentions is a warning, because the document is merely incomplete.
   - **CHECK-3.a**  I can promote every warning to a failure when nothing undocumented should slip through.

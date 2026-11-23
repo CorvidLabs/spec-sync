@@ -1415,6 +1415,7 @@ fn line_merge(ancestor: &str, ours: &str, theirs: &str) -> Result<String, String
         if !stored.ends_with('\n') {
             stored.push('\n');
         }
+        // not a project file write: a merge input in the temporary directory this function made
         fs::write(path, stored).map_err(|error| error.to_string())
     };
     if let Err(error) = write(&base_path, ancestor)

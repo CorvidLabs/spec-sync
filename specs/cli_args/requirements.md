@@ -304,3 +304,10 @@ The `history` subcommand SHALL take one required positional `<module>`, together
 Acceptance Criteria
 - `specsync history auth` and `specsync --format json history auth` parse; `specsync history` with no module is refused by argument parsing.
 
+### REQ-cli-args-027
+
+The `change approve` subcommand SHALL accept `--dry-run` together with its existing flags and the global output flags.
+
+Acceptance Criteria
+- `specsync change approve <id> --dry-run` and `specsync --json change approve <id> --dry-run --actor Ada` parse; `specsync change approve <id>` still parses, with the dry run off.
+

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refresh-url-lockfile-for-rustsec-2026-0592",
+  "implementation_commit": "786f9362098e49a98e15b436a80154c0b61c3373",
+  "implementation_tree": "9e71ba6906c4cf76656901cfab2cf93f6faa2699",
+  "contract_digest": "c6776dc9de8ef837907febca5f9f72a9e80c2df0cef5959d08fb669a3060ff51",
+  "workspace_digest": "84f866bed706838effd64241102e2bbc7201b2b9abfbb1dbcaa31a725354177c",
+  "closing_digest": "d404a89426380ccc9253337e63f18fdd039b560e25de4388d02897ceb5253ae3",
+  "review_digest": "42ed1bbd643a735a60ed8c87e055be880b65b2321d20a7d31b9aa0e7121baec2",
+  "finalization_digest": "a4eb2a6301edc2abd8a018d076fb1e9f7707fc4862143cb567ffe0b2903559d9",
+  "timestamp": 1795404016
+}

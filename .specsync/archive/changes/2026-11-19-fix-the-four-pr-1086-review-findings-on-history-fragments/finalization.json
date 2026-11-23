@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "fix-the-four-pr-1086-review-findings-on-history-fragments",
+  "implementation_commit": "12a7e509b3b5492c2df49ea3231775f8c85f6b82",
+  "implementation_tree": "bc7472ff62cdc96adfe15c6745ef59dacf718eb3",
+  "contract_digest": "57ff43bb2e09d21903abb28da75802293dafbbb2d860ff9780b9157c0a80b000",
+  "workspace_digest": "235096f29e32251ca01c66f34c7be4eab2e0f527af8baea1914cef4ef5e8a862",
+  "closing_digest": "b32a20290b705add7a60f3b323fb79d809f2e3d63803decb17eec9a6cccf6c83",
+  "review_digest": "ec2d2d35748dcf42dd05e3c466fca74883cddab86248fc027595c961c58a71e3",
+  "finalization_digest": "dee4b709b2035d4899d383c47f482cb4c52fa87c0143c934f71ad79a2fd94af5",
+  "timestamp": 1795097211
+}

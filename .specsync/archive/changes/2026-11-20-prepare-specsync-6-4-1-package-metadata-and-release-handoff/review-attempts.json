@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "prepare-specsync-6-4-1-package-metadata-and-release-handoff",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "102022428a287fa154d7c717325b03e7d7382e5e",
+      "contract_digest": "78a6f2d39ae59efc9281516f4965246ffeab5c4394a5ba9e89550fcd64b6eaa0",
+      "execution_digest": "55a24db74fa7e8d6da7269e946b56a7fab258a12e1fa07fa0dd4b4cfd1630a43",
+      "workspace_digest": "b798edc5b5243ef95cdaba2161f9f3fecbb2c32cc3c419d487d8c88fe71892d5",
+      "timestamp": 1795218054,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Pass (Recommended)\", to his review of #1138 (the 6.4.1 prep, at 10202242, from ss-builder/gates/1138-review-request.md)",
+        "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 23:40Z; relayed by hc t4c",
+        "recorded_by": "claude-code-t59"
+      }
+    }
+  ]
+}

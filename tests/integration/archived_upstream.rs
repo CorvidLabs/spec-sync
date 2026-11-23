@@ -581,6 +581,75 @@ fn a_sequence_ledger_freeze_outranks_the_upstream_archive_guidance() {
     );
 }
 
+// #937. A project-wide sequence-ledger freeze outranks a `verification_ignored_paths` refusal in
+// JSON `next_action` (REQ-change-138), and text status must match JSON (REQ-cmd-change-034). Text
+// `Next:` named the policy repair while JSON named the freeze.
+#[test]
+fn a_sequence_ledger_freeze_outranks_the_verification_ignored_paths_repair_in_text_status() {
+    let temp = TempDir::new().unwrap();
+    let (root, _base, _verified) = verified_feature(&temp);
+
+    let policy_path = root.join(".specsync/sdd.json");
+    let mut policy: Value = serde_json::from_slice(&fs::read(&policy_path).unwrap()).unwrap();
+    policy["verification_ignored_paths"] = serde_json::json!(["src/auth.rs"]);
+    fs::write(&policy_path, serde_json::to_vec_pretty(&policy).unwrap()).unwrap();
+
+    let ledger_path = root.join(".specsync/change-sequence.json");
+    let unfrozen = fs::read(&ledger_path).ok();
+    let mut ledger: Value = unfrozen
+        .as_deref()
+        .and_then(|bytes| serde_json::from_slice(bytes).ok())
+        .unwrap_or_else(|| serde_json::json!({"schema_version": 1, "sequence": 0, "id": ID}));
+    ledger["acknowledged_collisions"] =
+        serde_json::json!([{"sequence": 1, "ids": ["CHG-0001-first", "CHG-0001-second"]}]);
+    fs::write(&ledger_path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+
+    let text_next = |root: &Path| {
+        let text = run_ok(root, &["change", "status", ID]);
+        text.lines()
+            .find(|line| line.trim_start().starts_with("Next:"))
+            .unwrap_or_default()
+            .to_string()
+    };
+
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(next.contains("sequence ledger"), "next_action: {next}");
+
+    let next_line = text_next(&root);
+    assert!(
+        next_line.contains("sequence ledger"),
+        "text status Next names something other than the freeze JSON names: {next_line}"
+    );
+    assert!(
+        !next_line.contains("verification_ignored_paths"),
+        "text status Next names the policy repair before the freeze: {next_line}"
+    );
+
+    // Without the freeze, the policy repair is the one next action again, in text and JSON.
+    match unfrozen {
+        Some(bytes) => fs::write(&ledger_path, bytes).unwrap(),
+        None => fs::remove_file(&ledger_path).unwrap(),
+    }
+    let status: Value =
+        serde_json::from_str(&run_ok(&root, &["--json", "change", "status", ID])).unwrap();
+    let next = status["summary"]["next_action"]
+        .as_str()
+        .unwrap_or_default();
+    assert!(
+        next.contains("verification_ignored_paths"),
+        "next_action: {next}"
+    );
+    let next_line = text_next(&root);
+    assert!(
+        next_line.contains("verification_ignored_paths"),
+        "text status Next without a freeze: {next_line}"
+    );
+}
+
 // #937 part 2, fixed in #934. A `verification_ignored_paths` refusal outranks the upstream
 // archive in `next_action`, so the JSON handoff must carry the same refusal instead of falling
 // back to a lifecycle-only verdict that never names it (and reads `safe` for some states).

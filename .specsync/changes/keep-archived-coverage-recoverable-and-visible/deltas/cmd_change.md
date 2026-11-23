@@ -1,6 +1,6 @@
 ## ADDED
 
-### REQUIREMENT REQ-cmd-change-044
+### REQUIREMENT REQ-cmd-change-archived-coverage-diagnostics-001
 
 For an archived change, `change status`, `change show`, and `change audit --archives` SHALL report a present invalid `coverage.json` as an advisory warning, naming the affected archive, receipt path and safe restore action. Status and show SHALL expose the diagnostic in an optional JSON field and render the same warning in text. Archive audit SHALL include it in its existing warning list. A genuinely absent receipt SHALL produce no diagnostic. Successful coverage rows, the independently authenticated terminal state, and the exit conventions for archive warnings SHALL remain unchanged. These commands SHALL NOT repair or remove the receipt.
 

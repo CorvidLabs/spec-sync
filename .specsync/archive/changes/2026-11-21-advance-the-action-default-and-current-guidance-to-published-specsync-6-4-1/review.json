@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-1",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "5e1e017895a46cab73668dbaaf6d2b53c592e91c",
+  "contract_digest": "4216dd8f82c5238f22027ddeeb607f626bec1190151a67c9132e1eb723ad8bb6",
+  "execution_digest": "0fc65b15a074b6a7d882a63c2b57cb2bcfbb0a47aec3c34c378284efc92add95",
+  "workspace_digest": "1e284ac00e01b3d8b2a685ab6d3a4d8972be18e0619f4cc1a2d81162c8cdabf1",
+  "timestamp": 1795228963,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "\"Pass (Recommended)\", to his review of #1142 (the 6.4.1 post-publication PR at 5e1e0178, from ss-builder/gates/1142-review-request.md)",
+    "where": "A Claude Code question dialog in his planning session (hc t4c), 2026-11-21 about 02:42Z; relayed by hc t4c",
+    "recorded_by": "claude-code-t59"
+  }
+}

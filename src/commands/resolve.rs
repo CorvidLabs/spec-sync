@@ -201,7 +201,16 @@ pub fn cmd_resolve(
             crate::util::MAX_SPEC_FILE_BYTES,
         ) {
             Ok(c) => c,
-            Err(_) => continue,
+            Err(error) => {
+                // A refused read is reported, never skipped silently with its `depends_on`
+                // (REQ-cmd-resolve-003).
+                println!(
+                    "  {} cannot read {}: {error}",
+                    "⚠".yellow(),
+                    spec_file.strip_prefix(root).unwrap_or(spec_file).display()
+                );
+                continue;
+            }
         };
         let parsed = match parser::parse_frontmatter(&content) {
             Some(p) => p,

@@ -484,7 +484,7 @@ fn check_extract_lifecycle(ctx: &MigrationContext) -> StepStatus {
 
     if any_remaining {
         // Lifecycle logs exist in frontmatter but lifecycle dir exists — might be partial
-        let has_json_files = fs::read_dir(&lifecycle_dir)
+        let has_json_files = crate::util::read_project_dir_entries(&ctx.root, &lifecycle_dir)
             .map(|entries| {
                 entries
                     .filter_map(|e| e.ok())
@@ -940,6 +940,7 @@ const MIGRATION_PATHS: &[&str] = &[
 
 /// Every symbolic link beneath `directory`, found without following one.
 fn links_beneath(directory: &Path, found: &mut Vec<PathBuf>) {
+    // not a project file read: lists without following a link: the folder is refused first when it leads out, and only real folders are entered
     let Ok(entries) = fs::read_dir(directory) else {
         return;
     };

@@ -2209,7 +2209,8 @@ Acceptance Criteria
 
 ### REQ-change-162
 
-The change workflow SHALL write, replay and remove its transaction journal only as `change-transaction.json` in the project's local state folder in the user's cache folder (REQ-util-006), no longer in a Git directory, and only into files the change workflow writes.
+The change workflow SHALL write, replay and remove its transaction journal only as `change-transaction.json` in the project's folder in the user's state folder (REQ-util-006), and only into files the change workflow writes.
+- Each journal SHALL record the device and inode of the project root and its canonical path when it is written. A journal that records another root, or none (every journal SpecSync 6.4.0 wrote, in the user's cache folder or the state folder), SHALL never be replayed: every command that takes the lifecycle lock SHALL refuse, name the journal's path, say that it was not written for this project, and say how to clear it (check the files it lists, then delete it).
 - A `.specsync/change-transaction.json` in the work tree, of any kind and whether or not Git tracks it, SHALL never be opened or replayed, and nor SHALL a journal under a Git directory. While one is in the work tree, every command that takes the lifecycle lock SHALL refuse, name the path, say that a journal in the work tree is never replayed because a repository can put one there, and say how to clear it (check the files it lists if an older SpecSync left it, then delete it).
 - A journal entry SHALL be replayed only when its path is under `.specsync/`, or is a spec file, `requirements.md` or `history/*.md` under the configured `specs_dir`, or is a registry-mapped spec whose mapped path ends in `.spec.md`, the `requirements.md` beside it, or a file in that spec's `history/` directory.
 - A path with a `.git` component SHALL be refused under ASCII case folding, after trailing dots and spaces are removed from each component.
@@ -2221,6 +2222,8 @@ Acceptance Criteria
 - A valid journal planted at `.specsync/change-transaction.json`, or under `.git/specsync/`, is not replayed.
 - A registry entry mapping a module to `.env` does not let a journal delete or rewrite `.env`.
 - While a transaction runs, its journal is in the local state folder and not in the work tree.
+- A journal left for an earlier project at the same path is not replayed, and the command names it.
+- A journal SpecSync 6.4.0 left in the user's cache folder is not replayed, and the command names it.
 
 ### REQ-change-163
 
@@ -2268,3 +2271,22 @@ Acceptance Criteria
 - A rewrite made on a branch that was merged in is refused at the merge commit that brought it onto the first-parent history.
 - The usual flow (approve, `check --commit`, review, finalize) archives as before.
 
+### REQ-change-170
+
+`change audit` SHALL report, for each approved, implementing or verifying change, the refusal REQ-change-159 gives a delta item that targets the frozen `## Change Log` section, with the message `change check` gives, prefixed by the change id, and SHALL ask it in the order `change check` asks it: after the definition approval and the delta files hold, and before the approved delta bodies and bases. An archived change SHALL NOT be judged again.
+
+Acceptance Criteria
+- An approved, implementing or verifying change whose approved delta holds a `SPEC SECTION Change Log` item, as an older SpecSync approved it, makes `change audit` report the refusal `change check` gives, prefixed by the change id, and `change audit --strict` exits 1.
+- An archived change whose package holds such an item is not reported.
+- An active change whose delta holds no such item audits as before, and so does a project with no active change.
+
+### REQ-change-check-summary-state-001
+
+When a scoped check records a completed verification, SpecSync SHALL publish its latest evidence, attempt ledger, and Verifying state in both state.json and change.md in one recoverable transaction.
+
+Acceptance Criteria
+
+- A passing verification and a completed spec-to-code failure both leave state.json, the change.md frontmatter, and change status at verifying.
+- Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
+- A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
+- check --commit commits the synchronized summary and passing evidence that still allows scoped review.

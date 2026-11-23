@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+  "slug": "route-and-mark-the-listing-and-spawn-sites-the-6-4-1-scans-found-outside-the-hardening-change-s-paths",
+  "title": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
+  "description": "Route and mark the listing and spawn sites the 6.4.1 scans found outside the hardening change's paths",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "6d155ce583e44b2411db84ec2ed307b1ed62bbdb",
+  "created_at": 1795211618,
+  "updated_at": 1795214989,
+  "affected_specs": [
+    "agents",
+    "cmd_comment",
+    "cmd_import",
+    "cmd_merge",
+    "cmd_migrate",
+    "config",
+    "generator",
+    "github",
+    "importer",
+    "mcp",
+    "watch",
+    "change",
+    "validator",
+    "cmd_check"
+  ],
+  "affected_paths": [
+    "specs/generator/generator.spec.md",
+    "src/agents.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/doctor.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/spec_history.rs",
+    "src/commands/comment.rs",
+    "src/commands/import.rs",
+    "src/commands/merge.rs",
+    "src/commands/migrate.rs",
+    "src/config.rs",
+    "src/generator.rs",
+    "src/github.rs",
+    "src/importer.rs",
+    "src/mcp/preflight.rs",
+    "src/validator/consumed_by_re.rs",
+    "src/watch.rs",
+    "src/commands/check.rs"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "No requirement text changes: these files carry the approved REQ-util-008, REQ-util-010, REQ-util-011 and REQ-cmd-scaffold-009 of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first, as scan markers, confined listings and typed-path reads",
+  "acceptance_criteria": [
+    "The read, write, Git and spawn scans of REQ-util-008 pass with every site in these 17 files routed through the confined listing (REQ-util-010) or marked with its reason; scaffold --template reads through read_typed_file (REQ-util-011, REQ-cmd-scaffold-009); change audit covers every changed path; no requirement text changes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "the approved requirements of close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first; Leif's 'Yes, two changes (Recommended)': no wording, one review covering both",
+    "public_contract": "no"
+  }
+}

@@ -1318,6 +1318,7 @@ fn read_coverage_entry_names(
     relative: &Path,
     budget: &mut CoverageTraversalBudget,
 ) -> Result<Vec<OsString>, String> {
+    // not a project file read: lists through the confined directory handle, which never leaves the project
     let entries = directory.read_dir(".").map_err(|error| {
         format!(
             "Cannot read retained coverage source directory {}: {error}",

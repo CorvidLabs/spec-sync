@@ -317,7 +317,7 @@ pub fn scan_history_fragments(
         }
         Ok(_) => {}
     }
-    let entries = match fs::read_dir(&directory) {
+    let entries = match crate::util::read_project_dir_entries(root, &directory) {
         Ok(entries) => entries,
         Err(error) => {
             errors.push(format!("cannot read `{}`: {error}", relative(&directory)));

@@ -326,7 +326,9 @@ How to read it, with the guards each command enforces:
   (`approve_definition_with_projection`). Approval is the first point a new session can resume
   from.
 - **Implementing.** The first `change check` materializes the approved semantic deltas into the
-  canonical specs (with a version bump and a Change Log row per module) and sets
+  canonical specs, records the change in a history fragment per module
+  (`specs/<module>/history/<change-id>.md`; the spec's `version:` and Change Log table are not
+  touched) and sets
   `canonical_applied` (`materialize_change_deltas`). It refuses if a delta body changed since it
   was approved, if dependencies are not yet accepted, if deltas conflict with another active
   change, or if tasks are incomplete. In CI it refuses to write and asks for the result to be
@@ -436,7 +438,7 @@ sequenceDiagram
     D->>D: take change.lock, recover any pending transaction
     D->>D: approval current? delta bodies unchanged? deps accepted? tasks done?
     alt deltas not yet in canonical specs
-        D->>D: apply deltas, bump version, add Change Log row (one transaction)
+        D->>D: apply deltas, write each module's history fragment (one transaction)
     end
     D->>V: compare this change's specs with code
     V-->>D: findings
@@ -525,7 +527,8 @@ sequenceDiagram
         CI->>CI: classify changed paths (full, site, vscode, archive_only, review_only)
         CI->>CI: preflight: verification commits exist and are ancestors of HEAD
         CI->>CI: lifecycle gate: specsync change audit --strict
-        CI->>CI: test + clippy, fmt, hi check, audit, coverage, spec-check, site, vscode, action consumer
+        CI->>CI: test + clippy, fmt, hi check, audit, coverage, spec-check, site, vscode
+        CI->>CI: validate Action, packaged Action consumer, closed-late compatibility (6.0.0, 6.2.0), Linux release baseline
         opt full-lane pull request
             CI->>CI: SpecSync scoped review (corvid-pet comment on the PR)
         end
@@ -537,6 +540,7 @@ sequenceDiagram
         T->>T: CorvidLabs Trust: contract (100% coverage), Augur risk, Attest provenance
     end
     GH-->>Dev: mergeable when Required CI gate is green
+    Note over CI: on a push to main after a green Required CI gate, CI also records an attestation
 ```
 
 Job names and dependencies come from [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) and
@@ -594,7 +598,7 @@ companions are described in [`site/src/content/docs/companion-files.md`](../site
 | `registry.toml` | Specs this repo publishes to others | yes | `init-registry` |
 | `hashes.json` | Never read: from SpecSync 6.4 the cache lives in the local state folder (§5.5) | no (gitignored) | SpecSync 6.3 and earlier |
 | `change.lock` | Exclusive lifecycle lock (`fs2` `lock_exclusive`, not re-entrant) | no | every lifecycle mutation |
-| `change-transaction.json` | Never replayed: from SpecSync 6.4 the journal lives in the local state folder (§5.5), and a file here stops lifecycle commands until it is deleted | no | SpecSync 6.3 and earlier |
+| `change-transaction.json` | Never replayed: from SpecSync 6.4 the journal lives outside the work tree, in the user state folder from 6.4.1 (§5.5), and a file here stops lifecycle commands until it is deleted | no | SpecSync 6.3 and earlier |
 | `change-sequence.json` | Historical `CHG-NNNN` ordinals; never allocated now, only raised to the committed value before lifecycle commits | yes | `floor_sequence_ledger_to_committed` |
 | `workflow-v2-baseline.json` | Immutable cutoff commit for recognising workflow-v1 history | yes | `change adopt` or the first v2 `change new` |
 | `bootstrap.json` | Protected paths created by bootstrap, exempt from coverage until edited | yes, when present | `init`, `adopt` |
@@ -698,8 +702,10 @@ parse error loads as an empty cache. `--force` bypasses it and `rehash` rebuilds
 saved after a run with no errors.
 
 The local state folder ([`src/util/local_state.rs`](../src/util/local_state.rs)) holds what
-SpecSync writes for itself: the hash cache, the transaction journal, the remote spec cache and,
-keyed by the Git common directory so worktrees share it, the change read cache. It
+SpecSync writes for itself: the hash cache, the remote spec cache and, keyed by the Git common
+directory so worktrees share it, the change read cache. The transaction journal, which records the
+project root it belongs to, is kept the same way in the user's state folder instead, which
+cleanup tools do not purge. It
 is never in the work tree, where a repository can put a file under any spelling a
 case-insensitive disk folds onto the real name, and never in a Git directory, which a tarball of
 a working copy carries whole. It is `specsync/projects/<key>/` in the user's cache folder, keyed
@@ -735,7 +741,8 @@ flowchart LR
     validate --> qualify[qualify<br/>Ubuntu + macOS<br/>fledge lanes run release-candidate]
     qualify --> record[record check run<br/>SpecSync release candidate]
     record --> dispatch{{workflow_dispatch<br/>from main with rc_tag}}
-    dispatch --> promote[promote<br/>create annotated vX.Y.Z]
+    dispatch --> authorize[authorize-release<br/>exact successful RC gate<br/>for the candidate SHA]
+    authorize --> promote[promote<br/>create annotated vX.Y.Z]
     promote --> build[build 6 targets<br/>linux x86_64, x86_64-musl,<br/>aarch64, aarch64-musl,<br/>macOS x86_64, aarch64]
     build --> release[GitHub Release<br/>tar.gz + .sha256]
     release -.->|manual| crates[crates.io]
@@ -823,7 +830,7 @@ does and does not enforce is written down in [`docs/ci-confidence.md`](ci-confid
 | A spec lists a symbol the code lacks | `check` error, exit 1 under the default `strict` enforcement | `validate_spec` |
 | Code exports a symbol the spec omits | Warning; fails with `--strict` | `validate_spec` |
 | Config file present but unloadable | Command stops, no silent defaults | `refuse_unloadable_config` in `commands/mod.rs` |
-| Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json` in the local state folder, verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
+| Process dies mid-write during a lifecycle mutation | The next lifecycle command takes `change.lock`, finds `change-transaction.json` in the user state folder (§5.5), verifies its integrity envelope and restores the original bytes | `recover_pending_transaction` |
 | Two lifecycle commands at once | The second blocks on the exclusive lock. A `check`, `change` or `lifecycle` that inherits `SPECSYNC_VERIFICATION_CONTEXT` from a caller is refused; SpecSync itself starts no verification child (REQ-change-023) | `acquire_project_lock`, `main.rs` |
 | Delta body edited after approval | Materialization and acceptance refuse and name the modules | invariant 38 |
 | Code or tests change after verification | Verification is stale; `change check` again | `recorded_verification_is_current` |
@@ -873,7 +880,7 @@ as plain criteria, lives in [`INTENT.md`](../INTENT.md) and [`hi/`](../hi/).
 | Companion | `requirements.md`, `context.md`, `tasks.md`, `testing.md`, `design.md` beside a spec |
 | Canonical spec | The living spec under `specs/`, as opposed to a change's proposed delta |
 | Semantic delta | `deltas/<module>.md` in a change: `## Added` / `## Modified` / `## Removed` items applied to the canonical spec on `change check` |
-| Materialize | Apply approved deltas to canonical specs, bump `version`, add a Change Log row |
+| Materialize | Apply approved deltas to canonical specs and record the change in each module's history fragment, `history/<change-id>.md` |
 | Scope digest | Hash of a change's stable intent and boundary; what a person approves |
 | Execution digest | Hash of the change's full definition and artifacts; moves with implementation |
 | Workspace digest | Hash of every project input file; binds evidence to one tree |

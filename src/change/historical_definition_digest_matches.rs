@@ -4299,6 +4299,7 @@ fn prune_empty_package_directories(package: &Path) {
 }
 
 fn collect_package_directories(directory: &Path, found: &mut Vec<PathBuf>) {
+    // not a project file read: lists the archived package SpecSync just moved, entering only real folders (file_type never follows a link)
     let Ok(entries) = fs::read_dir(directory) else {
         return;
     };
@@ -5168,8 +5169,8 @@ fn archived_workflow_history_errors(root: &Path) -> Vec<String> {
         Ok(records) => records,
         Err(error) => return vec![error],
     };
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
-        let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
+        let entries: Vec<std::io::Result<crate::util::ProjectDirEntry>> = entries.collect();
         prefetch_archived_workflow_histories(root, &entries);
     }
     records
@@ -5457,12 +5458,20 @@ fn check_project_with_command_output(
             if let Err(error) = &delta_files {
                 report.errors.push(format!("{}: {error}", record.id));
             }
-            // The refusal `change check` gives for a delta body edited after approval
-            // (REQ-change-111), asked in its order: only once the scope and the delta files hold.
+            // The refusal `change check` gives a delta item that targets the frozen `## Change
+            // Log` (REQ-change-159), asked where check asks it: once the scope and the delta files
+            // hold, and before the bodies and bases (REQ-change-170, #1090).
             if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = refuse_change_log_delta_items(root, record)
+            {
+                report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
                 && delta_files.is_ok()
                 && let Err(error) = ensure_approved_delta_bodies_unchanged(root, record)
             {
+                // The refusal `change check` gives for a delta body edited after approval
+                // (REQ-change-111), asked in its order.
                 report.errors.push(format!("{}: {error}", record.id));
             } else if approval.is_ok()
                 && delta_files.is_ok()

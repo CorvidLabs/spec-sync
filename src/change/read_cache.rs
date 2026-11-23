@@ -59,6 +59,9 @@ struct WorkflowHistoryCacheEntry {
 #[derive(Debug, Default)]
 struct PersistentReadCacheFrame {
     path: Option<PathBuf>,
+    /// The project root and the canonical Git common directory the cache folder is opened by,
+    /// through the local state handles (REQ-util-009).
+    folder: Option<(PathBuf, PathBuf)>,
     loaded: Option<PersistentReadCache>,
     dirty: bool,
     /// Commit to the set of lifecycle state paths touched in `commit..HEAD`, or `None` when that
@@ -83,7 +86,7 @@ fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
 /// `find_change_dir` matches them (unreadable or unparsable state never matches).
 fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     let mut index: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;
@@ -116,7 +119,21 @@ fn read_cache_build_identity() -> String {
 /// a shallow repository (deepening it could reveal history a verdict never saw), replace refs or
 /// grafts (they rewrite parents and trees without moving `HEAD`), and a partial clone (a missing
 /// blob could make a verdict depend on what happened to be fetched).
+#[cfg(test)]
 fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
+    let common_dir = persistent_read_cache_common_dir(root)?;
+    // Keyed by the common directory, not the worktree: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`. Kept in
+    // the user's cache folder, never in the Git directory, which an archive of a working copy
+    // carries whole (REQ-util-009, REQ-change-164).
+    crate::util::local_state::repository_state_dir(root, &common_dir)
+        .ok()
+        .map(|folder| folder.join(READ_CACHE_FILE))
+}
+
+/// The canonical Git common directory the read cache is kept for, or `None` when the cache is
+/// disabled for this repository.
+fn persistent_read_cache_common_dir(root: &Path) -> Option<PathBuf> {
     let probe = git_output(
         root,
         &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
@@ -163,13 +180,18 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     if promisor.status.code() != Some(1) {
         return None;
     }
-    // Keyed by the common directory, not the worktree: worktrees share one object graph, and an
-    // entry is only reused after proving it against the reading worktree's own `HEAD`. Kept in
-    // the user's cache folder, never in the Git directory, which an archive of a working copy
-    // carries whole (REQ-util-009, REQ-change-164).
-    crate::util::local_state::repository_state_dir(root, &common_dir)
+    Some(common_dir)
+}
+
+/// The read cache's folder, opened through the local state handles: no link is followed into
+/// it, and nothing there is waited on or read past the bound (REQ-util-009).
+fn read_cache_folder(
+    folder: &(PathBuf, PathBuf),
+    create: bool,
+) -> Option<crate::util::local_state::LocalState> {
+    crate::util::local_state::LocalState::open_repository(&folder.0, &folder.1, create)
         .ok()
-        .map(|folder| folder.join(READ_CACHE_FILE))
+        .flatten()
 }
 
 thread_local! {
@@ -463,7 +485,17 @@ fn with_persistent_read_cache<Value>(
 ) -> Option<Value> {
     let (in_read_scope, mut frame) = take_persistent_cache_frame(root)?;
     if frame.loaded.is_none() {
-        frame.path = persistent_read_cache_path(root);
+        let common_dir = persistent_read_cache_common_dir(root);
+        frame.path = common_dir.as_ref().and_then(|common_dir| {
+            crate::util::local_state::repository_state_dir(root, common_dir)
+                .ok()
+                .map(|folder| folder.join(READ_CACHE_FILE))
+        });
+        frame.folder = frame
+            .path
+            .as_ref()
+            .and(common_dir)
+            .map(|common_dir| (root.to_path_buf(), common_dir));
         frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
         let prefix = git_repo_prefix(root).unwrap_or_default();
         let fresh = PersistentReadCache {
@@ -476,10 +508,11 @@ fn with_persistent_read_cache<Value>(
             workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
-            .path
+            .folder
             .as_ref()
-            // not a project file read: the read cache in SpecSync's own folder in the user cache, which a repository does not control
-            .and_then(|path| fs::read(path).ok())
+            .and_then(|folder| read_cache_folder(folder, false))
+            // not a project file read: the read cache in SpecSync's own folder in the user cache, read through its no-follow, bounded handle (REQ-util-009)
+            .and_then(|state| state.read_file(READ_CACHE_FILE, crate::util::MAX_PROJECT_INPUT_BYTES).ok().flatten())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
                 cache.schema == fresh.schema
@@ -716,30 +749,17 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     if !frame.dirty {
         return;
     }
-    let (Some(path), Some(cache)) = (frame.path.as_ref(), frame.loaded.as_ref()) else {
+    let (Some(folder), Some(cache)) = (frame.folder.as_ref(), frame.loaded.as_ref()) else {
         return;
     };
     let Ok(bytes) = serde_json::to_vec(cache) else {
         return;
     };
-    // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
-    if let Some(parent) = path.parent()
-        && fs::create_dir_all(parent).is_err()
-    {
-        return;
-    }
-    // Unique per process and per flush, so concurrent writers (threads or processes) never share
-    // a temporary file; the rename stays atomic.
-    static FLUSH_NONCE: AtomicU64 = AtomicU64::new(0);
-    let temporary = path.with_extension(format!(
-        "tmp-{}-{}",
-        std::process::id(),
-        FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
-    if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
-        // not a project file write: the read cache in SpecSync's own folder in the user cache, which a repository does not control
-        let _ = fs::remove_file(&temporary);
+    // The local state handle stages a new file there and renames it over the name, so a link at
+    // the name is replaced, never written through, and concurrent writers never share a
+    // temporary file (REQ-util-009).
+    if let Some(state) = read_cache_folder(folder, true) {
+        let _ = state.write_file(READ_CACHE_FILE, &bytes, false);
     }
 }
 
@@ -944,7 +964,7 @@ fn archive_introductions_from_listing(
 /// about to need and the persistent cache cannot answer, several at a time, and memoizes them in
 /// the scope. The walk still visits every archive in order and returns the same first error; this
 /// only moves independent Git reads off the critical path. Outside a read scope it does nothing.
-fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<fs::DirEntry>]) {
+fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<crate::util::ProjectDirEntry>]) {
     let in_history_scope = HISTORY_CACHE_SCOPES.with(|scopes| {
         scopes
             .borrow()

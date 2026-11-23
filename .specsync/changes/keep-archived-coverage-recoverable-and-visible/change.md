@@ -1,6 +1,6 @@
 ---
 id: keep-archived-coverage-recoverable-and-visible
-state: draft
+state: approved
 type: bug_fix
 base_commit: 1abf8b806e1f6306c522710abfc8f975576b7941
 ---

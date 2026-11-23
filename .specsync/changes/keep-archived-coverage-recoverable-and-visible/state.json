@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "keep-archived-coverage-recoverable-and-visible",
   "slug": "keep-archived-coverage-recoverable-and-visible",
   "title": "Keep archived coverage recoverable and visible",
   "description": "Keep archived coverage recoverable and visible",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "1abf8b806e1f6306c522710abfc8f975576b7941",
   "created_at": 1795448691,
-  "updated_at": 1795448731,
+  "updated_at": 1795450067,
   "affected_specs": [
     "change",
     "cmd_change"

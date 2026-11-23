@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `specsync change audit --strict` now reports a delta item targeting the frozen `## Change Log` in an approved, implementing, or verifying change. The diagnostic names the change and matches `change check` (#1090, REQ-change-170).
 - A `## MODIFIED` delta now replaces the canonical requirement when a fenced example above it quotes the same ID. Headings inside a fenced example also leave the surrounding block intact during matching. If `change check` reports stale approval for an in-flight delta after upgrading, compare the approved delta with the full canonical requirement, edit the delta body, and request fresh approval (#1050).
 
 ## [6.4.1] - 2026-11-21

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-audit-reports-a-delta-item-that-targets-the-frozen-change-log",
+  "implementation_commit": "d0876030109e7e2d082d593210470798a8727328",
+  "implementation_tree": "09c488e598612ec0689d2a13b03b21de6f2dc9d0",
+  "contract_digest": "164b24d36d3b660d618ad4fe2b1623cade0622ba9ee1c57c5c7fb8002226498f",
+  "workspace_digest": "801b156bed41bfa4a2b7b749cf3f045e86ab96dbb7ee476cd9627b783147beae",
+  "closing_digest": "6834c374a4f8d7ad1f0a7e22fe209593f969b1b7f776807cbd6f4b036af247dd",
+  "review_digest": "f5f1cf2f0310b7c3654c17722407b95c9c730c88f81eea8f322ddb881cfb0a9f",
+  "finalization_digest": "12483c427b27f25de191d59bad9dc1475e62740c4cb6babb19a013344abb35ac",
+  "timestamp": 1795402064
+}

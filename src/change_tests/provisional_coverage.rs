@@ -1047,10 +1047,10 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
         ],
     );
     let predecessor = load_change(root, &predecessor.id).unwrap();
-    let assert_covered = |state| {
+    let assert_covered = |auth_state, shared_state| {
         let coverage = archived_provisional_coverage(root, &predecessor).unwrap();
         assert_eq!(coverage.len(), 2, "{archived:?}: {coverage:?}");
-        for successor in [&auth, &shared] {
+        for (successor, state) in [(&auth, auth_state), (&shared, shared_state)] {
             let entry = coverage
                 .iter()
                 .find(|item| item.path == input.path && item.change == successor.id)
@@ -1059,9 +1059,9 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
             assert!(entry.warning.is_none(), "{coverage:?}");
         }
     };
-    assert_covered(ChangeState::Implementing);
+    assert_covered(ChangeState::Implementing, ChangeState::Implementing);
 
-    for successor in [&auth, &shared] {
+    for (successor, shared_state) in [(&auth, ChangeState::Implementing), (&shared, ChangeState::Accepted)] {
         assert!(verify_change(root, &successor.id).unwrap().passed);
         accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
         quiet_git(root, &["add", "--all"]);
@@ -1069,8 +1069,8 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
             root,
             &["commit", "-m", "accept a successor for one signed owner"],
         );
+        assert_covered(ChangeState::Accepted, shared_state);
     }
-    assert_covered(ChangeState::Accepted);
 }
 
 #[test]

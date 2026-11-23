@@ -3141,7 +3141,7 @@ fn archived_provisional_coverage_with_roster(
         let mut rejected = BTreeMap::new();
         let mut historical = false;
         let mut proves = |owner: &str, covering: &ChangeRecord| {
-            if !terminal && in_flight_change_covers(root, &mut memo, covering, record, path, owner) {
+            if in_flight_change_covers(root, &mut memo, covering, record, path, owner) {
                 return true;
             }
             successor_covers_input(

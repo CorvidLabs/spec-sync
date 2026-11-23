@@ -7,4 +7,4 @@ artifact: tasks
 
 - [x] Inspect the blocking review and unresolved inline thread. Confirm the malformed fence hides the target on the reviewed build.
 - [x] Reuse the requirement reader's fence recognizer and confirm the three regressions pass.
-- [ ] Run the full Fledge verify lane, strict SpecSync validation and audit, pre-push, and Trust before requesting review.
+- [x] Run the full Fledge verify lane, strict SpecSync validation and audit, pre-push, and Trust before requesting review.

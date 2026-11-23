@@ -120,24 +120,31 @@ fn legacy_project(root: &Path) {
     commit(root, "a version-1 SDD policy");
 }
 
-/// A change over `module` and `src/<module>.rs`, defined, approved, implemented with `files`,
-/// checked and accepted.
-fn accepted_change(root: &Path, module: &str, title: &str, files: &[(&str, &str)]) -> String {
-    let printed = run_ok(
-        root,
-        &[
-            "--json",
-            "change",
-            "new",
-            title,
-            "--kind",
-            "bug-fix",
-            "--spec",
-            module,
-            "--path",
-            &format!("src/{module}.rs"),
-        ],
-    );
+/// Approve a change, commit its edits and accept the verified delivery.
+fn accepted_change(
+    root: &Path,
+    module: &str,
+    title: &str,
+    extra_scope: Option<&str>,
+    edit: impl FnOnce(),
+) -> String {
+    let module_path = format!("src/{module}.rs");
+    let mut args = vec![
+        "--json",
+        "change",
+        "new",
+        title,
+        "--kind",
+        "bug-fix",
+        "--spec",
+        module,
+        "--path",
+        &module_path,
+    ];
+    if let Some(path) = extra_scope {
+        args.extend(["--path", path]);
+    }
+    let printed = run_ok(root, &args);
     let document: Value =
         serde_json::Deserializer::from_str(&printed[printed.find('{').unwrap()..])
             .into_iter()
@@ -198,9 +205,7 @@ fn accepted_change(root: &Path, module: &str, title: &str, files: &[(&str, &str)
     commit(root, &format!("define {id}"));
     run_ok(root, &["change", "approve", &id, "--actor", "Scope owner"]);
     commit(root, &format!("approve {id}"));
-    for (path, text) in files {
-        write(&root.join(path), text);
-    }
+    edit();
     commit(root, &format!("code {id}"));
     run_ok(root, &["change", "check", &id]);
     run_ok(root, &["change", "accept", &id, "--actor", "Closer"]);
@@ -217,24 +222,16 @@ fn each_archive_refusal_over_one_stale_input_names_the_other_and_the_reopen_free
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     legacy_project(root);
-    let a = accepted_change(
-        root,
-        "a",
-        "Tune module a",
-        &[("src/a.rs", "pub fn ready() -> bool { false }\n")],
-    );
-    let b = accepted_change(
-        root,
-        "b",
-        "Later work on b",
-        &[
-            ("src/b.rs", "pub fn ready() -> bool { false }\n"),
-            (
-                "src/a.rs",
-                "pub fn ready() -> bool { true } // edited by B\n",
-            ),
-        ],
-    );
+    let a = accepted_change(root, "a", "Tune module a", None, || {
+        write(&root.join("src/a.rs"), "pub fn ready() -> bool { false }\n")
+    });
+    let b = accepted_change(root, "b", "Later work on b", None, || {
+        write(&root.join("src/b.rs"), "pub fn ready() -> bool { false }\n");
+        write(
+            &root.join("src/a.rs"),
+            "pub fn ready() -> bool { true } // edited by B\n",
+        );
+    });
     let reopen = format!("specsync change reopen {a}");
 
     let (archived, first) = run(root, &["change", "archive", &a]);
@@ -278,12 +275,9 @@ fn with_no_later_change_over_the_input_the_refusal_adds_nothing() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     legacy_project(root);
-    let a = accepted_change(
-        root,
-        "a",
-        "Tune module a",
-        &[("src/a.rs", "pub fn ready() -> bool { false }\n")],
-    );
+    let a = accepted_change(root, "a", "Tune module a", None, || {
+        write(&root.join("src/a.rs"), "pub fn ready() -> bool { false }\n")
+    });
     write(
         &root.join("src/a.rs"),
         "pub fn ready() -> bool { true } // a hand edit, no later change\n",
@@ -294,5 +288,33 @@ fn with_no_later_change_over_the_input_the_refusal_adds_nothing() {
     assert!(
         refused.contains(&format!("specsync change reopen {a}")) && !says_blocked(&refused),
         "{refused}"
+    );
+}
+
+#[test]
+fn deleting_an_exact_only_input_names_the_later_delivery_that_removed_it() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    legacy_project(root);
+    let path = "README.md";
+    let a = accepted_change(root, "a", "Tune module a", Some(path), || {
+        write(&root.join(path), "First delivery\n");
+    });
+    let b = accepted_change(root, "b", "Later work on b", None, || {
+        fs::remove_file(root.join(path)).unwrap();
+    });
+
+    let (archived, reason) = run(root, &["change", "archive", &a]);
+    assert!(!archived, "{reason}");
+    assert!(
+        reason.contains(path) && reason.contains(&format!("specsync change reopen {a}")),
+        "{reason}"
+    );
+    assert!(reason.contains(&b) && says_blocked(&reason), "{reason}");
+    let (archived, reason) = run(root, &["change", "archive", &b]);
+    assert!(!archived, "{reason}");
+    assert!(
+        reason.contains(&format!("specsync change reopen {a}")) && says_blocked(&reason),
+        "{reason}"
     );
 }

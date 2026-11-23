@@ -91,6 +91,117 @@ fn an_in_flight_change_that_declares_the_input_covers_it_for_now() {
 }
 
 #[test]
+fn an_exact_archive_refuses_stray_coverage_and_preserves_the_source() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (accepted, _) = accepted_change_with_moved_input(root, false);
+    quiet_git(root, &["checkout", "HEAD^", "--", "src/auth.rs"]);
+    quiet_git(root, &["commit", "-m", "restore the accepted bytes"]);
+    assert_eq!(
+        terminal_validity(root, &accepted).validity,
+        TerminalEvidenceValidity::Exact
+    );
+
+    let source = change_dir(root, &accepted.id);
+    let coverage_path = source.join(PROVISIONAL_COVERAGE_FILE);
+    let stray = json_content(&serde_json::json!({
+        "schema_version": 1,
+        "change_id": accepted.id,
+        "covered_by": [{"path": "src/auth.rs", "change": "fabricated-coverer"}],
+    }))
+    .unwrap();
+    fs::write(&coverage_path, &stray).unwrap();
+
+    let error = archive_change(root, &accepted.id).unwrap_err();
+    assert!(
+        error.contains(PROVISIONAL_COVERAGE_FILE) && error.contains("move it aside"),
+        "{error}"
+    );
+    assert_eq!(fs::read_to_string(&coverage_path).unwrap(), stray);
+    assert!(!source.join("accepted-state.json").exists());
+    assert_eq!(
+        load_change(root, &accepted.id).unwrap().state,
+        ChangeState::Accepted
+    );
+
+    fs::remove_file(coverage_path).unwrap();
+    let archived = archive_change(root, &accepted.id).unwrap();
+    assert!(!archived.join(PROVISIONAL_COVERAGE_FILE).exists());
+}
+
+#[test]
+fn a_moved_archive_retries_only_with_current_authoritative_coverage() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (accepted, in_flight) = accepted_change_with_moved_input(root, true);
+    let in_flight = in_flight.unwrap();
+    let source = change_dir(root, &accepted.id);
+    let destination = root
+        .join(ARCHIVE_PATH)
+        .join(format!("1900-01-01-{}", accepted.id));
+    fs::create_dir_all(destination.parent().unwrap()).unwrap();
+    fs::rename(&source, &destination).unwrap();
+
+    let coverage_path = destination.join(PROVISIONAL_COVERAGE_FILE);
+    let stray = "stale coverage bytes";
+    fs::write(&coverage_path, stray).unwrap();
+    let error = archive_change(root, &accepted.id).unwrap_err();
+    assert!(
+        error.contains(PROVISIONAL_COVERAGE_FILE) && error.contains("move it aside"),
+        "{error}"
+    );
+    assert_eq!(fs::read_to_string(&coverage_path).unwrap(), stray);
+    assert!(!source.exists());
+
+    let computed = json_content(&serde_json::json!({
+        "schema_version": 1,
+        "change_id": accepted.id,
+        "covered_by": [{"path": "src/auth.rs", "change": in_flight.id}],
+    }))
+    .unwrap();
+    fs::write(&coverage_path, &computed).unwrap();
+    assert_eq!(archive_change(root, &accepted.id).unwrap(), destination);
+    assert_eq!(fs::read_to_string(&coverage_path).unwrap(), computed);
+}
+
+#[test]
+fn a_failed_archive_integrity_check_rolls_back_new_coverage() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (accepted, _) = accepted_change_with_moved_input(root, true);
+    let source = change_dir(root, &accepted.id);
+    let destination = root
+        .join(ARCHIVE_PATH)
+        .join(format!("{}-{}", today(), accepted.id));
+    let state = fs::read(source.join("state.json")).unwrap();
+    let markdown = fs::read(source.join("change.md")).unwrap();
+    let verification = fs::read(source.join("verification.json")).unwrap();
+
+    let destination_verification = destination.join("verification.json");
+    inject_transaction_after_journal_hook(move || {
+        fs::write(
+            destination_verification,
+            "invalid verification after publication starts",
+        )
+        .unwrap();
+    });
+    let error = archive_change(root, &accepted.id).unwrap_err();
+    assert!(
+        error.contains("post-move validation") && error.contains("source restored"),
+        "{error}"
+    );
+    assert_eq!(fs::read(source.join("state.json")).unwrap(), state);
+    assert_eq!(fs::read(source.join("change.md")).unwrap(), markdown);
+    assert!(!source.join(PROVISIONAL_COVERAGE_FILE).exists());
+    assert!(!source.join("accepted-state.json").exists());
+    assert!(!destination.exists());
+
+    fs::write(source.join("verification.json"), verification).unwrap();
+    let archived = archive_change(root, &accepted.id).unwrap();
+    assert!(archived.join(PROVISIONAL_COVERAGE_FILE).is_file());
+}
+
+#[test]
 fn only_a_current_approval_can_supply_provisional_coverage() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();

@@ -247,6 +247,8 @@ Consult `change status <id>` before repairing that evidence.
 
 An accepted change whose signed input a later change is editing does not have to be re-verified while that later change is in flight. When an approved, implementing or verifying change created after it declares the input's owner module and a path scope that covers it, the accepted change's evidence reads `provisionally-covered`, and `change audit` reports a warning naming both changes instead of an error, so `change audit --strict` passes. The accepted change may archive, and its archive keeps a `coverage.json` naming the change that covered each file. The archive's own evidence stays `authenticated-history` whatever becomes of that change. `change status`, `change show` and `change audit --archives` print each recorded entry with the covering change's present state, and warn, naming `specsync change reopen <id> --actor <name> --reason <text>`, once it has been sent back or closed. When the covering change is accepted and declares the succession, the earlier change reads `successor-covered`. With no such change, the evidence is stale as before. When two accepted changes stop each other from being archived over one stale input, each refusal names the other change and says it is blocked too, and the `change reopen` it names frees both.
 
+SpecSync generates `coverage.json` during archival. If archival reports an unexpected copy in the change package, move that file outside the package and retry.
+
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
 
 ```bash

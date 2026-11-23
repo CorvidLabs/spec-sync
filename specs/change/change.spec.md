@@ -494,6 +494,8 @@ Acceptance Criteria
 
 | Condition | Behavior |
 |-----------|----------|
+| A later accepted delivery deleted an earlier change’s exact-only input | Both archive refusals name the blocked counterpart and the earlier change’s reopen command (#688). |
+| An active change package already contains `coverage.json` | Archival preserves the file and asks the operator to move it aside before retrying. A post-move retry accepts a previously generated file when its bytes match the recomputed coverage. |
 | Missing acceptance criteria or affected scope | Definition approval fails. A draft is told which answer finishes it: `specsync change answer <id> acceptance_criteria "<observable outcome>"`, `affected_paths "<path>"` or `affected_specs "<module>"`. A record past draft keeps the bare condition, because `change answer` refuses outside draft (REQ-change-133) |
 | Interview questions still open at approval | Approval fails. A draft is told every open question and the `specsync change answer <id> <question> <answer>` command for the first. Two or more choices are the placeholder (`<yes|no>`), one choice is the answer itself (`constraints none`, with the option to name constraining lessons or principles instead), and no choice takes `"<answer>"`; a record past draft keeps the bare condition (REQ-change-133) |
 | Missing or invalid semantic delta | Approval, verification, and unified check fail |

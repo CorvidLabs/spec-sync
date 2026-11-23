@@ -3780,6 +3780,37 @@ enum AcceptedInputValidity {
     HistoricallyReconciled,
 }
 
+/// A stale delivery entry carries its signed path and the owners that failed validation.
+#[derive(Clone, Debug)]
+struct AcceptedInputError {
+    reason: String,
+    stale_input: Option<(String, Vec<String>)>,
+}
+
+impl AcceptedInputError {
+    fn stale(reason: String, path: &str, owners: &[String]) -> Self {
+        Self {
+            reason,
+            stale_input: Some((path.to_owned(), owners.to_vec())),
+        }
+    }
+}
+
+impl From<String> for AcceptedInputError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            stale_input: None,
+        }
+    }
+}
+
+impl std::fmt::Display for AcceptedInputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
+    }
+}
+
 /// The first approved, implementing or verifying change created after `record` that declares
 /// `owner` and a scope covering `path`. It covers that changed input of `record` until it is
 /// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
@@ -4051,9 +4082,9 @@ fn terminal_evidence_summary_with_validation_state(
             )),
         },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
-        Err(reason) => TerminalEvidenceSummary {
+        Err(error) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
-            reason: Some(reason),
+            reason: Some(error.reason),
         },
     }
 }
@@ -4061,6 +4092,7 @@ fn terminal_evidence_summary_with_validation_state(
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
         .map(|_| ())
+        .map_err(|error| error.reason)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they
@@ -4073,14 +4105,32 @@ fn ensure_archiving_closing_approval_valid(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<Vec<(String, String)>, String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
+    let records = list_all_changes_structural(root)?;
+    ensure_closing_approval_valid_against(root, record, &records).map_err(|error| {
+        let Some((path, owners)) = error.stale_input else {
+            return error.reason;
+        };
+        let later = later_changes_blocked_by(root, &records, record, &path, &owners);
+        if later.is_empty() {
+            return error.reason;
+        }
+        let named = later
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{}. Later change {named} shares `{path}` and cannot be archived either while `{}` is stale",
+            error.reason, record.id
+        )
+    })
 }
 
 fn ensure_closing_approval_valid_against(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
-) -> Result<Vec<(String, String)>, String> {
+) -> Result<Vec<(String, String)>, AcceptedInputError> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
     validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)?;
@@ -5208,7 +5258,7 @@ fn validate_accepted_inputs_recursive(
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
-) -> Result<AcceptedInputValidity, String> {
+) -> Result<AcceptedInputValidity, AcceptedInputError> {
     if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
@@ -5216,13 +5266,13 @@ fn validate_accepted_inputs_recursive(
         return Err(format!(
             "successor `{}` is not accepted or archived",
             record.id
-        ));
+        ).into());
     }
     if !visiting.insert(record.id.clone()) {
         return Err(format!(
             "semantic succession cycle detected at `{}`",
             record.id
-        ));
+        ).into());
     }
     let result = (|| {
         let verification = memo.authenticate(root, record, pending)?;
@@ -5260,10 +5310,11 @@ fn validate_accepted_inputs_recursive(
         let mut provisional: Vec<(String, String)> = Vec::new();
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
-                format!(
+                let reason = format!(
                     "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
-                )
+                );
+                AcceptedInputError::stale(reason, &expected.path, &expected.owners)
             })?;
             if expected.kind == current.kind
                 && expected.mode == current.mode
@@ -5292,7 +5343,11 @@ fn validate_accepted_inputs_recursive(
                 // the successors, and each is judged exactly as a signed owner's successor is.
                 let claimants = succession_claimants(records, record, expected);
                 if claimants.is_empty() {
-                    return Err(exact_only_input_remediation_reason(record, &expected.path));
+                    return Err(AcceptedInputError::stale(
+                        exact_only_input_remediation_reason(record, &expected.path),
+                        &expected.path,
+                        &expected.owners,
+                    ));
                 }
                 let mut rejected_successors = BTreeMap::new();
                 if !claimants.iter().any(|module| {
@@ -5309,11 +5364,16 @@ fn validate_accepted_inputs_recursive(
                         &mut historically_reconciled,
                     )
                 }) {
-                    return Err(stale_input_remediation_reason(
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         &expected.owners.join("`, `"),
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
@@ -5338,11 +5398,16 @@ fn validate_accepted_inputs_recursive(
                         provisional.push((expected.path.clone(), coverer));
                         continue;
                     }
-                    return Err(stale_input_remediation_reason(
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         owner,
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        std::slice::from_ref(owner),
                     ));
                 }
                 successor_covered = true;

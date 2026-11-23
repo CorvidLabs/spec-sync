@@ -366,3 +366,6 @@ Every link points inside the test's own temporary directory.
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
 
 The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cover an approval that has become stale, a historical sequence owner whose coverage is provisional, and the status shown when the original transition is unproven.
+
+The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.
+Archive tests also check that a stray coverage file survives refusal, that a moved package can retry with matching coverage, and that a failed integrity check rolls back newly written coverage.

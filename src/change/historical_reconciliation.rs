@@ -437,7 +437,7 @@ type AcceptedTransitionProof = (String, Vec<u8>, ChangeRecord);
 /// as the existing graph-validity memo, not the report snapshot or an invocation-wide cache.
 #[derive(Default)]
 struct AcceptedInputValidationMemo {
-    validity: BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    validity: BTreeMap<String, Result<AcceptedInputValidity, AcceptedInputError>>,
     /// Per accepted change, each changed input an in-flight later change covers for now, as
     /// `(path, covering change)` (#657).
     provisional: BTreeMap<String, Vec<(String, String)>>,

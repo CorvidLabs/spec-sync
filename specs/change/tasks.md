@@ -121,3 +121,5 @@ spec: change.spec.md
 - [x] Never read a journal under a Git directory, and open a registry replay only for a `*.spec.md` path (REQ-change-162). Evidence: `a_journal_under_the_git_directory_is_never_replayed`, `a_registry_entry_that_is_not_a_spec_never_opens_a_replay`.
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
+- [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
+- [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).

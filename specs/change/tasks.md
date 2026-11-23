@@ -130,3 +130,5 @@ spec: change.spec.md
 - [x] Retire a valid coverage receipt during archived reopen and restore its bytes on publication failure (REQ-change-reopened-coverage-receipt-001).
 
 - [x] Check each owner’s current coverage as split successors move from implementation to acceptance (#657).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
+- [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).

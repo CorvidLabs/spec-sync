@@ -650,3 +650,11 @@ Acceptance Criteria
 - The commands expose a warning for truncated, oversized, wrongly identified, unsupported, or unreadable receipts in both formats. Valid and genuinely absent controls preserve their current outputs.
 - For an otherwise valid archive, reporting invalid auxiliary coverage does not change the terminal integrity classification or itself fail archive audit. Reporting it makes no project writes.
 
+### REQ-cmd-change-042
+
+`change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- On the starling-shaped branch, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the lost blocks restored, `ready_to_finalize` is true again.
+

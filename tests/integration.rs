@@ -128,6 +128,8 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+#[path = "integration/vanished_requirements.rs"]
+mod vanished_requirements;
 
 #[cfg(unix)]
 #[path = "integration/project_links.rs"]

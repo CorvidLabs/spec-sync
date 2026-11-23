@@ -259,32 +259,46 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
     }) else {
         return Ok(());
     };
-    let default = lost_requirements_default_ref(root);
-    // `.specsync` and the root configuration and registry files the loaders read, at the reference
-    // too (Codex on #1122, second round), then the canonical requirements.
-    let mut pathspecs: Vec<String> = [".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml"]
-        .iter()
-        .map(|path| format!(":(literal){path}"))
-        .collect();
-    pathspecs.extend(requirement_scope(root).pathspecs());
     let mut revisions = vec!["HEAD".to_string()];
-    revisions.extend(default);
-    // `--full-history`: a path-limited walk Git simplifies skips a side branch merged without its
-    // changes, whose files a later read can still name.
-    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "--full-history"];
+    revisions.extend(lost_requirements_default_ref(root));
+    let list = |args: &[&str], input| {
+        partial_clone_history_listing(root, args, input)
+            .map_err(|error| partial_clone_listing_refusal(root, &remote, &revisions, &error))
+    };
+    // Name candidates before looking for their missing objects. An object walk with a glob
+    // pathspec can drop a historical file, and the current config does not describe older scopes.
+    let mut args = vec![
+        "log", "--format=", "--name-only", "-z", "--full-history", "-m", "--root",
+        "--no-renames", "--relative",
+    ];
     args.extend(revisions.iter().map(String::as_str));
-    args.push("--");
-    args.extend(pathspecs.iter().map(String::as_str));
-    // `--missing=print` lists what is absent and never fetches it.
-    let listing = run_git_bounded(root, &args, None, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
-    if !listing.status.success() {
-        return Ok(());
+    args.extend(["--", ":(glob)**/requirements.md", ":(glob)**/*.req.md"]);
+    let historical = list(&args, None)?;
+    let mut pathspecs: BTreeSet<String> = [
+        ".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml",
+    ]
+    .into_iter()
+    .chain(nul_separated(&historical))
+    .map(|path| format!(":(literal){path}"))
+    .collect();
+    pathspecs.extend(requirement_scope(root).pathspecs());
+
+    // Feed paths to Git directly, so a large history does not exceed ARG_MAX. Keep paths
+    // containing line separators on the argument vector because rev-list's stdin is line-based.
+    let mut args = vec![
+        "rev-list", "--objects", "--missing=print", "--quiet", "--full-history", "--stdin", "--",
+    ];
+    let mut input = format!("{}\n--\n", revisions.join("\n"));
+    for pathspec in &pathspecs {
+        if pathspec.contains(['\n', '\r']) {
+            args.push(pathspec);
+        } else {
+            input.push_str(pathspec);
+            input.push('\n');
+        }
     }
-    let listing = String::from_utf8_lossy(&listing.stdout).into_owned();
-    let missing: Vec<&str> = listing
-        .lines()
-        .filter_map(|line| line.trim().strip_prefix('?'))
-        .collect();
+    let listing = list(&args, Some(input.into_bytes()))?;
+    let missing: Vec<&str> = missing_git_objects(&listing).collect();
     if missing.is_empty() {
         return Ok(());
     }
@@ -301,13 +315,70 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
         // fetch on standard input, so no program's argument list carries them and it runs as
         // printed however many objects are missing (Codex on #1122, second round).
         Err(reason) => Err(format!(
-            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `printf '%s\\n' {} | git -C {} fetch --no-tags --no-write-fetch-head --filter=blob:none --stdin -- {}`, then run the command again.",
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `{}`, then run the command again.",
             missing.len(),
-            missing.join(" "),
-            shell_word(&root.display().to_string()),
-            shell_word(&remote)
+            partial_clone_fetch_command(root, &remote, &missing, "--filter=blob:none"),
         )),
     }
+}
+
+/// Discover missing objects without starting any lazy fetch through isolated Git.
+fn partial_clone_history_listing(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<String, String> {
+    let mut command = configured_git_command(root);
+    command.env("GIT_NO_LAZY_FETCH", "1");
+    let output = run_git_command_bounded(&mut command, args, input, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(stderr.lines().rev().find(|line| !line.is_empty())
+            .unwrap_or("Git could not list the history objects").to_string());
+    }
+    String::from_utf8(output.stdout).map_err(|error| format!("Git's history listing is not UTF-8: {error}"))
+}
+
+fn missing_git_objects(listing: &str) -> impl Iterator<Item = &str> {
+    listing.lines().filter_map(|line| line.strip_prefix('?')).filter(|oid| {
+        matches!(oid.len(), 40 | 64) && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
+    })
+}
+
+fn partial_clone_fetch_command(root: &Path, remote: &str, ids: &[&str], filter: &str) -> String {
+    format!(
+        "printf '%s\\n' {} | git -C {} fetch --no-tags --no-write-fetch-head {filter} --stdin -- {}",
+        ids.join(" "),
+        shell_word(&root.display().to_string()),
+        shell_word(remote),
+    )
+}
+
+/// Missing trees prevent a path-limited walk. The unrestricted walk can still name the missing
+/// objects so the repair fetch can ask for them, including below unpublished local commits.
+fn partial_clone_listing_refusal(
+    root: &Path,
+    remote: &str,
+    revisions: &[String],
+    error: &str,
+) -> String {
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "--full-history"];
+    args.extend(revisions.iter().map(String::as_str));
+    let listing = partial_clone_history_listing(root, &args, None).unwrap_or_default();
+    let missing: Vec<&str> = missing_git_objects(&listing).collect();
+    let recovery = if missing.is_empty() {
+        format!(
+            "git -C {} fetch --refetch --no-filter --no-tags --no-write-fetch-head -- {}",
+            shell_word(&root.display().to_string()),
+            shell_word(remote),
+        )
+    } else {
+        // An unfiltered fetch of a missing tree also brings the objects below it.
+        partial_clone_fetch_command(root, remote, &missing, "--no-filter")
+    };
+    format!(
+        "this partial clone has history Git could not inspect: {error}. Restore it with your own Git: `{recovery}`, then run the command again."
+    )
 }
 
 /// One `git fetch --stdin -- <remote>` of `ids`, with the user's own configuration, rooted as

@@ -796,3 +796,6 @@ Once verification runs, publish its attempt, latest evidence, `state.json`, and 
 
 @plane z=63 label="Preserve Git names and record the refusal (#1108)"
 Use the bounded raw Git reader for paths and historical blobs. A leading space belongs to a path, and Markdown uses indentation to tell a code example from a fence. Remove only Git's terminating newline from the project prefix. On acceptance, check for a lost requirement before the workspace digest can reduce its deletion to a generic stale-evidence error. Record the refusal under the lifecycle lock when it stops acceptance, an active finalize retry, or a real ship preflight. Audit, status, and dry-run readers use the same check without appending attempts.
+
+@plane z=65 label="Keep checkout support and Git isolation together (#1122)"
+Read linked-worktree pointers with a regular-file bound. A trusted checkout's private Git configuration belongs in a private system temporary directory outside the worktree and Git directories. For partial clones, find historical requirements names before asking Git for missing object IDs. An incomplete tree walk gives a recovery fetch that can target missing objects below a local commit. When a baseline refusal occurs in a shallow partial clone, name the fetch that restores commit history first.

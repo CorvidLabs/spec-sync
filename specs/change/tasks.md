@@ -123,3 +123,5 @@ spec: change.spec.md
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
+
+- [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).

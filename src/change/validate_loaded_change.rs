@@ -3448,10 +3448,13 @@ fn validate_workflow_v2_baseline(root: &Path, record: &ChangeRecord) -> Result<(
         &current_bytes,
     )
     .map_err(|error| {
-        // A history that could not be read because a download failed is that refusal, which
-        // names the fetch (REQ-change-172); a shallow clone names its own (REQ-change-173).
-        partial_clone_download_refusal(root)
-            .unwrap_or_else(|| shallow_or(root, baseline.cutoff_commit.as_deref(), false, error))
+        // A fetch of existing objects cannot restore the missing commit history of a shallow
+        // clone. Give its remedy first, including when the clone is also partial.
+        if clone_is_shallow(root) {
+            shallow_history_refusal(baseline.cutoff_commit.as_deref(), false)
+        } else {
+            partial_clone_download_refusal(root).unwrap_or(error)
+        }
     })?;
     if record.workflow_version != 1 {
         return Ok(());

@@ -330,6 +330,18 @@ fn user_config(dir: &Path, safe: &[&str]) -> PathBuf {
     path
 }
 
+// Apple's Git launcher may leave an unrelated xcrun cache in TMPDIR.
+fn safe_directory_entries(directory: &Path) -> Vec<std::ffi::OsString> {
+    fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .filter(|name| {
+            name.to_string_lossy()
+                .starts_with("specsync-safe-directory-")
+        })
+        .collect()
+}
+
 /// REQ-change-171, with Git's own `GIT_TEST_ASSUME_DIFFERENT_OWNER` standing in for another
 /// owner, and the system configuration shut out (`GIT_CONFIG_NOSYSTEM`), since a machine's
 /// `/etc/gitconfig` may trust every directory: a repository the user's global file trusts passes `change status`, `change audit` and
@@ -350,7 +362,11 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
 
     // Owned by the user: no file is made.
     run(&root, &[("TMPDIR", tmp)], &["change", "status", &id]);
-    assert_eq!(fs::read_dir(&tmpdir).unwrap().count(), 0);
+    let files = safe_directory_entries(&tmpdir);
+    assert!(
+        files.is_empty(),
+        "temporary entries for the owner: {files:?}"
+    );
 
     for safe in [top.as_str(), "*"] {
         let config = user_config(temp.path(), &[safe]);
@@ -364,7 +380,7 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
         run(&root, &env, &["change", "audit"]);
         run(&root, &env, &["change", "check", &id]);
         assert_eq!(
-            fs::read_dir(&tmpdir).unwrap().count(),
+            safe_directory_entries(&tmpdir).len(),
             0,
             "safe.directory = {safe}"
         );
@@ -411,7 +427,7 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
             && !text.contains("Git repository detection failed"),
         "{text}"
     );
-    assert_eq!(fs::read_dir(&tmpdir).unwrap().count(), 0);
+    assert_eq!(safe_directory_entries(&tmpdir).len(), 0);
 }
 
 // ---- #1077 (REQ-change-172) ----
@@ -695,7 +711,8 @@ fn a_temporary_directory_inside_the_git_directory_is_refused_from_a_linked_workt
         text.contains("detected dubious ownership") && text.contains("Git directory"),
         "{text}"
     );
-    assert_eq!(fs::read_dir(&inside).unwrap().count(), 0, "{text}");
+    let files = safe_directory_entries(&inside);
+    assert!(files.is_empty(), "{text} left these entries: {files:?}");
 }
 
 /// Codex on #1122 (P2): the trusted top level is passed byte for byte, so a project whose
@@ -1051,6 +1068,13 @@ fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
         &["rm", "-qr", &format!(".specsync/changes/{first}")],
     );
     git(&source, &["mv", "specs", " old specs"]);
+    let historical_requirements = source.join(" old specs/auth/requirements.md");
+    let historical = fs::read_to_string(&historical_requirements).unwrap();
+    fs::write(
+        &historical_requirements,
+        historical.replace("log every sign-in", "log follow-up sign-ins"),
+    )
+    .unwrap();
     write(&source, ".specsync.toml", "specs_dir = \" old specs\"\n");
     git(&source, &["add", "--all"]);
     git(&source, &["commit", "-qm", "historical requirements scope"]);
@@ -1067,6 +1091,36 @@ fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
             "src/auth.rs",
         ],
     );
+    run(
+        &source,
+        &[],
+        &[
+            "change",
+            "answer",
+            "rotate-session-keys",
+            "acceptance_criteria",
+            "Existing requirements stay with the authentication module.",
+        ],
+    );
+    for question in ["public_contract", "architecture_risk"] {
+        run(
+            &source,
+            &[],
+            &["change", "answer", "rotate-session-keys", question, "no"],
+        );
+    }
+    let workspace = source.join(".specsync/changes/rotate-session-keys");
+    let record: Value =
+        serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
+    for artifact in record["selected_artifacts"].as_array().unwrap() {
+        let name = artifact.as_str().unwrap();
+        let body = match name {
+            "plan" => super::helpers::SUBSTANTIVE_PLAN,
+            "tasks" => "# Tasks\n\n- [x] Prepare the requirements fixture.\n",
+            _ => "# Context\n\nAuthentication requirements stay with the module.\n",
+        };
+        fs::write(workspace.join(format!("{name}.md")), body).unwrap();
+    }
     git(&source, &["add", "--all"]);
     git(
         &source,
@@ -1078,7 +1132,7 @@ fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
     let current = fs::read_to_string(&requirements).unwrap();
     fs::write(
         &requirements,
-        current.replace("log every sign-in", "record every sign-in"),
+        current.replace("log follow-up sign-ins", "record every sign-in"),
     )
     .unwrap();
     git(
@@ -1087,6 +1141,21 @@ fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
     );
     let clone = temp.path().join("clone");
     let config = blobless_clone(temp.path(), &source, &clone);
+    let historical_objects = || {
+        git(
+            &clone,
+            &[
+                "rev-list",
+                "--objects",
+                "--missing=print",
+                "--quiet",
+                "HEAD",
+                "--",
+                " old specs/auth/requirements.md",
+            ],
+        )
+    };
+    assert!(historical_objects().contains('?'));
 
     let audit = run(
         &clone,
@@ -1094,6 +1163,7 @@ fn the_one_fetch_brings_requirements_in_the_reference_specs_directory() {
         &["change", "audit", "--strict"],
     );
     assert_eq!(audit.matches("downloading ").count(), 1, "{audit}");
+    assert!(!historical_objects().contains('?'));
 }
 
 #[test]
@@ -1103,6 +1173,9 @@ fn a_treeless_partial_clone_names_a_fetch_that_restores_history() {
     let id = adopted_project(&source);
     let clone = temp.path().join("clone");
     let config = filtered_clone(temp.path(), &source, &clone, "--filter=tree:0", &[]);
+    write(&clone, "local.txt", "An unpublished checkout change.\n");
+    git(&clone, &["add", "--all"]);
+    git(&clone, &["commit", "-qm", "an unpublished commit"]);
     let before = git(&clone, &["rev-parse", "HEAD"]);
     let unreachable = temp.path().join("nothing.gitconfig");
     fs::write(&unreachable, "").unwrap();

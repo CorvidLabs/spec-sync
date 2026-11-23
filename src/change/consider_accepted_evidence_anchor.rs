@@ -393,7 +393,7 @@ enum SafeDirectoryState {
 
 static SAFE_DIRECTORY_STATES: std::sync::Mutex<BTreeMap<PathBuf, SafeDirectoryState>> =
     std::sync::Mutex::new(BTreeMap::new());
-static SAFE_DIRECTORY_DIRS: std::sync::Mutex<Vec<PathBuf>> = std::sync::Mutex::new(Vec::new());
+static SAFE_DIRECTORY_DIRS: std::sync::Mutex<Vec<tempfile::TempDir>> = std::sync::Mutex::new(Vec::new());
 
 /// The repository's work tree that holds `.git`, at or above `root`.
 fn repository_work_tree(root: &Path) -> Option<&Path> {
@@ -412,15 +412,24 @@ fn repository_git_dirs(work_tree: &Path) -> Vec<PathBuf> {
     if metadata.is_dir() {
         return vec![marker];
     }
-    let Some(git_dir) = fs::read_to_string(&marker)
-        .ok()
+    if !metadata.is_file() {
+        return Vec::new();
+    }
+    // These are Git metadata pointers for the selected checkout. A linked worktree's pointer
+    // may live outside that worktree. Bound the read and require a regular file.
+    let pointer = |path: &Path| {
+        const MAX_GIT_DIRECTORY_POINTER_BYTES: u64 = 64 * 1024;
+        crate::util::read_typed_file(path, MAX_GIT_DIRECTORY_POINTER_BYTES)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+    };
+    let Some(git_dir) = pointer(&marker)
         .and_then(|text| text.lines().find_map(|line| line.strip_prefix("gitdir:").map(str::trim).map(PathBuf::from)))
         .map(|named| if named.is_absolute() { named } else { work_tree.join(named) })
     else {
         return Vec::new();
     };
-    let common = fs::read_to_string(git_dir.join("commondir"))
-        .ok()
+    let common = pointer(&git_dir.join("commondir"))
         .map(|text| PathBuf::from(text.trim_end_matches(['\n', '\r'])))
         .map(|named| if named.is_absolute() { named } else { git_dir.join(named) });
     std::iter::once(git_dir).chain(common).collect()
@@ -514,10 +523,10 @@ fn user_git_top_level(root: &Path) -> Option<Vec<u8>> {
 
 /// Removes every private safe-directory file this process made, when it exits.
 extern "C" fn remove_safe_directory_files() {
-    let dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
-    for dir in dirs.iter() {
-        let _ = fs::remove_dir_all(dir);
-    }
+    SAFE_DIRECTORY_DIRS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .clear();
 }
 
 /// The private global configuration file naming `top` in `safe.directory` and nothing else: a
@@ -527,13 +536,8 @@ fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String>
     let dir = tempfile::Builder::new()
         .prefix("specsync-safe-directory-")
         .tempdir()
-        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?
-        .keep();
-    let remove = |reason: String| {
-        let _ = fs::remove_dir_all(&dir);
-        reason
-    };
-    let canonical_dir = fs::canonicalize(&dir).map_err(|error| remove(error.to_string()))?;
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
+    let canonical_dir = fs::canonicalize(dir.path()).map_err(|error| error.to_string())?;
     let work_tree = repository_work_tree(root);
     let inside = work_tree
         .into_iter()
@@ -543,11 +547,10 @@ fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String>
         .filter_map(|path| fs::canonicalize(path).ok())
         .any(|path| canonical_dir.starts_with(&path));
     if inside {
-        return Err(remove(
+        return Err(
             "the temporary directory lies inside the project or its Git directory".to_string(),
-        ));
+        );
     }
-    let file = dir.join("config");
     // Git's config quoting, on the path's own bytes.
     let mut quoted = Vec::with_capacity(top.len());
     for byte in top {
@@ -558,23 +561,24 @@ fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String>
             _ => quoted.push(*byte),
         }
     }
-    let mut options = fs::OpenOptions::new();
-    options.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600).custom_flags(libc::O_NOFOLLOW);
-    }
-    let mut handle = options.open(&file).map_err(|error| remove(error.to_string()))?;
+    let mut handle = tempfile::Builder::new()
+        .prefix("config-")
+        // not a project file write: exclusive file in the private system temporary directory
+        // just verified outside the work tree and Git directories.
+        .tempfile_in(dir.path())
+        .map_err(|error| error.to_string())?;
     let mut content = b"[safe]\n\tdirectory = \"".to_vec();
     content.extend_from_slice(&quoted);
     content.extend_from_slice(b"\"\n");
-    std::io::Write::write_all(&mut handle, &content).map_err(|error| remove(error.to_string()))?;
+    std::io::Write::write_all(handle.as_file_mut(), &content).map_err(|error| error.to_string())?;
+    let (_, file) = handle.keep().map_err(|error| error.to_string())?;
     let mut dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
     if dirs.is_empty() {
         #[cfg(unix)]
         unsafe {
-            libc::atexit(remove_safe_directory_files);
+            if libc::atexit(remove_safe_directory_files) != 0 {
+                return Err("could not register cleanup of the private Git configuration".to_string());
+            }
         }
     }
     dirs.push(dir);

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "refresh-cookie-lockfile-for-rustsec-2026-0594",
+  "implementation_commit": "28e05731184c42ab4b45f991359c3ac97fb3a90d",
+  "implementation_tree": "0e352ef0c4ab9b193b39513c0a9f3b4f6d440ce0",
+  "contract_digest": "8dc7c7024aa220c5d9581b746d8589caffdfe611d87c824b166149ce27581899",
+  "workspace_digest": "48471be6545ec395bdd5f4cad2423d165e82f588a288b674d1d6461e1bff5147",
+  "closing_digest": "7c135653de5f7849e814dc6b59cd7a30586657ddec9fc42fb7e83f582555e165",
+  "review_digest": "616bba78e1a0d654d0631421c2e98d1fffa78900e23074bf5ac5f66b4c403ac5",
+  "finalization_digest": "7db2bd953ac39c2ba56b3ca75c05131412e3ca3c477cd29210b7cf654365ebf4",
+  "timestamp": 1795470074
+}

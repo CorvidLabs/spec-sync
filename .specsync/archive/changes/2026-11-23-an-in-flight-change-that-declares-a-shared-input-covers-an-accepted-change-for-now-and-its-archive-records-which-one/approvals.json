@@ -194,6 +194,13 @@
         "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:17Z, item 8 of items 8 to 10, on exactly the frozen ss-lead/gates/657-688-definition.md. The one word: a question dialog in his planning session (hc t4c), 2026-11-20 about 06:11Z. The two wording fixes: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs. ss-lead applied it on 2026-11-20 to change finalize on workflow v2 (REQ-change-167 and change criterion 2), and again to REQ-change-168's sentence and third criterion, which now also name a later change whose delivery changed the input, as his approved SHIP-13.d asks. These are not his words about either text. All relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795402787,
+      "digest": "93004bf40971dc7b448c4f70a8b723d0af259a5b027656fdbc860279d1c1647f",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

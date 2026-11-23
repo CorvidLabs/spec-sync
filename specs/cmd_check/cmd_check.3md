@@ -44,3 +44,6 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 - `check` saved the hash cache with `let _ = cache.save(root)`, so nothing told a person when the cache was not what it seemed. A cache refused because it is a symbolic link is now said once on stderr, and stdout, the verdict and the exit code stay those of a run with no cache.
 - The warning is printed first, before discovery. Printed where the cache is loaded, it never appeared for a linked `.specsync`, because source discovery refuses that directory and ends the run earlier.
 - A cache is an optimisation: when it cannot be trusted, drop it and say so. It never gets to change a verdict, and it never gets to fail the command.
+
+@plane z=9 label="Keep strict history findings outside the drift cache (#1105)"
+Strict check for an SDD-enabled Git project compares canonical requirement IDs with the default-branch merge base. The findings are project-wide, so a cached spec result or no current specs cannot hide them. Plain check stays a drift check.

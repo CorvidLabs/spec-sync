@@ -7,6 +7,7 @@ files:
 db_tables: []
 tracks: []
 depends_on:
+  - specs/change/change.spec.md
   - specs/commands/commands.spec.md
   - specs/comment/comment.spec.md
   - specs/config/config.spec.md
@@ -25,9 +26,10 @@ depends_on:
 
 ## Purpose
 
-Implements the primary deterministic validation entry point, including one fallible schema
+Implements deterministic validation of living specifications and code, including a fallible schema
 snapshot, visible ignore suppression, caching, local Markdown auto-fix, structured formats, and
-optional drift issues. SDD / change / archive history is not part of this command.
+optional drift issues. For projects using the change lifecycle, explicit strict validation includes a
+shared historical guard for unexplained canonical requirement loss.
 
 ## Public API
 
@@ -50,8 +52,11 @@ optional drift issues. SDD / change / archive history is not part of this comman
 11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
     replay their stored snapshot, `specs_checked` counts them, and a hash-only cache with no
     snapshot is re-validated rather than reported clean.
-12. `check` does not consult SDD policy, active change workspaces, or archive history. Those
-    surfaces belong to `specsync change`.
+12. Ordinary `check` validates living specs and code. With `--strict` on an SDD-enabled Git
+    project, it also invokes the shared canonical requirement-loss comparison
+    (REQ-change-archived-requirement-loss-001). Approved removal evidence is considered only to
+    account for a lost ID. Lifecycle policy compliance, workspace health and general archive
+    validation stay in `specsync change`.
 13. When the hash cache location is refused, because no local state folder can be found or
     what is at `hashes.json` there is a link or not a regular file, `check` prints one
     `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither
@@ -120,6 +125,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 
 | Module | What is used |
 |--------|-------------|
+| change | Enabled lifecycle policy and the shared historical requirement-loss comparison |
 | commands | `load_and_discover`, `filter_specs`, `build_schema_columns`, `run_validation`, `compute_exit_code`, `exit_with_status`, `create_drift_issues` |
 | hash_cache | `HashCache::refusal`, `load`, `save`, `is_changed` |
 | ignore | `IgnoreRules::load` |

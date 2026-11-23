@@ -77,18 +77,14 @@ Acceptance Criteria
 
 ### REQ-cmd-check-004
 
-The primary check command SHALL be the bidirectional spec-to-code drift check
-and SHALL NOT consult SDD policy, active change workspaces, or archive history.
+The primary check command SHALL provide bidirectional spec-to-code drift validation. With explicit `--strict` on a Git project that has enabled SDD, it SHALL also run the shared branch comparison in REQ-change-archived-requirement-loss-001 and account for a loss using approved removals. It SHALL report the historical findings through its supported text and structured validation results. Lifecycle policy compliance, general workspace health and unrelated archive integrity SHALL remain with the lifecycle commands.
 
 Acceptance Criteria
 
-- `specsync check` does not print an active-change count and does not emit
-  SDD workspace or archive findings.
-- Exit status derives solely from spec validation results, the effective enforcement mode,
-  `--strict`, and `--require-coverage`.
-- Lifecycle gating remains reachable through the `change` verbs and `specsync change audit`,
-  whose behavior is unchanged. A project that never enables SDD can use `check` as the
-  whole product.
+- Ordinary `specsync check` reports drift without emitting lifecycle workspace or archive findings.
+- After the last change has been archived, `check --strict` exits unsuccessfully if the branch dropped a canonical requirement without an approved removal. It names the lost ID, the original canonical file, and how to display the original block.
+- A separate managed fixture with no requirement loss passes. A managed project can use only strict check in CI and still catch an unexplained loss.
+- A Git project that never enabled SDD retains the ordinary spec validation result, including when a requirement was edited without a removal delta. The same applies outside Git.
 
 ### REQ-cmd-check-005
 

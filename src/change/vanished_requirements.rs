@@ -40,7 +40,7 @@ fn lost_requirements_default_ref(root: &Path) -> Option<String> {
 /// Where the branch's requirements are compared from, or `None` when there is nothing to compare
 /// with: no default branch, and no `base_commit` in HEAD's history. `Err` when a default branch
 /// exists and Git cannot give its merge-base with HEAD (fail closed, as REQ-change-142).
-fn lost_requirements_reference(root: &Path, record: &ChangeRecord) -> Result<Option<String>, String> {
+fn lost_requirements_reference(root: &Path, base_commit: Option<&str>) -> Result<Option<String>, String> {
     if let Some(default) = lost_requirements_default_ref(root) {
         return git_output_allow_empty(root, &["merge-base", "HEAD", default.as_str()])
             .map(|text| text.trim().to_string())
@@ -48,9 +48,7 @@ fn lost_requirements_reference(root: &Path, record: &ChangeRecord) -> Result<Opt
             .map(Some)
             .ok_or_else(|| format!("Git cannot read the merge-base of HEAD and {default}"));
     }
-    Ok(record
-        .base_commit
-        .as_deref()
+    Ok(base_commit
         .filter(|base| is_canonical_commit_id(base))
         .filter(|base| commit_is_ancestor(root, base, "HEAD") == Some(true))
         .map(str::to_string))
@@ -594,7 +592,7 @@ fn archived_at(root: &Path, commit: &str, id: &str) -> Result<bool, String> {
 
 /// The way out of a refusal that could not read Git (Leif's rule 3): repair the repository or
 /// fetch the default branch, unshallowing a shallow clone, then check again.
-fn lost_requirements_way_out(root: &Path, record: &ChangeRecord) -> String {
+fn lost_requirements_way_out(root: &Path, retry: &str) -> String {
     let shallow = git_output_allow_empty(root, &["rev-parse", "--is-shallow-repository"])
         .is_some_and(|text| text.trim() == "true");
     let fetch = if shallow {
@@ -602,23 +600,38 @@ fn lost_requirements_way_out(root: &Path, record: &ChangeRecord) -> String {
     } else {
         "`git fetch origin`"
     };
-    format!(
-        "repair the repository or fetch the default branch ({fetch}), then run `specsync change check {}` again",
-        shell_word(&record.id)
-    )
+    format!("repair the repository or fetch the default branch ({fetch}), then run `{retry}` again")
 }
 
 /// REQ-change-169: refuse a change on a branch that lost a canonical requirement that no approved
 /// `## REMOVED` delta names. `Ok(None)` when nothing is lost or every loss is accounted for;
 /// `Ok(Some(note))` when there is nothing to compare with; `Err` with the refusal otherwise.
 fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Option<String>, String> {
-    lost_requirements_check(root, record).map_err(|refusal| match refusal {
+    let retry = format!("specsync change check {}", shell_word(&record.id));
+    requirement_loss_result(root, Some(record), &retry)
+}
+
+/// Compare a managed Git branch with its default reference even without a change record.
+/// Policy ownership and presentation stay with each caller.
+pub(crate) fn project_lost_requirements(root: &Path, retry: &str) -> Result<Option<String>, String> {
+    if !crate::git_utils::is_git_repo(root) {
+        return Ok(None);
+    }
+    requirement_loss_result(root, None, retry)
+}
+
+fn requirement_loss_result(
+    root: &Path,
+    record: Option<&ChangeRecord>,
+    retry: &str,
+) -> Result<Option<String>, String> {
+    lost_requirements_check(root, record, retry).map_err(|refusal| match refusal {
         LostRequirementsRefusal::Lost(message) | LostRequirementsRefusal::Misconfigured(message) => {
             message
         }
         LostRequirementsRefusal::Unreadable(what) => format!(
             "cannot tell whether this branch lost canonical requirements: {what}; {}",
-            lost_requirements_way_out(root, record)
+            lost_requirements_way_out(root, retry)
         ),
     })
 }
@@ -653,7 +666,8 @@ impl From<String> for LostRequirementsRefusal {
 
 fn lost_requirements_check(
     root: &Path,
-    record: &ChangeRecord,
+    record: Option<&ChangeRecord>,
+    retry: &str,
 ) -> Result<Option<String>, LostRequirementsRefusal> {
     // A specs directory outside the project is a configuration to fix, not a repository Git
     // cannot read: say so in the words `specsync check` uses, and send Git no such pathspec (the
@@ -666,15 +680,18 @@ fn lost_requirements_check(
             .as_deref()
             .map_or_else(|| ".specsync/config.toml".to_string(), |path| portable_project_path(root, path));
         return Err(LostRequirementsRefusal::Misconfigured(format!(
-            "Coverage specs directory must remain beneath the project root: {}; set `specs_dir` in {file} to a directory inside the project, then run `specsync change check {}` again",
-            config.specs_dir,
-            shell_word(&record.id)
+            "Coverage specs directory must remain beneath the project root: {}; set `specs_dir` in {file} to a directory inside the project, then run `{retry}` again",
+            config.specs_dir
         )));
     }
-    let Some(reference) = lost_requirements_reference(root, record)? else {
-        return Ok(Some(
-            "note: there is no default branch and no change base commit in HEAD's history, so lost canonical requirements were not checked (REQ-change-169)".to_string(),
-        ));
+    let base_commit = record.and_then(|record| record.base_commit.as_deref());
+    let Some(reference) = lost_requirements_reference(root, base_commit)? else {
+        let note = if record.is_some() {
+            "note: there is no default branch and no change base commit in HEAD's history, so lost canonical requirements were not checked (REQ-change-169)"
+        } else {
+            "there is no usable default branch, so lost canonical requirements were not checked (REQ-change-archived-requirement-loss-001)"
+        };
+        return Ok(Some(note.into()));
     };
     let short = &reference[..reference.len().min(12)];
     let prefix = requirement_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
@@ -806,9 +823,8 @@ fn lost_requirements_check(
         String::new()
     } else {
         format!(
-            ". {}, then run `specsync change check {}` again",
-            untracked.join("; "),
-            shell_word(&record.id)
+            ". {}, then run `{retry}` again",
+            untracked.join("; ")
         )
     };
     let renumber_hint = if renumbered.is_empty() {
@@ -819,7 +835,6 @@ fn lost_requirements_check(
             renumbered.join("; ")
         )
     };
-    let id = shell_word(&record.id);
     // A lost id the default branch's tip no longer holds is a removal the default branch made,
     // brought in some other way than a merge (a cherry-pick, or the same edit made by hand). The
     // way out is to merge it, not to restore the block or approve a REMOVED delta (Leif's rule 3;
@@ -831,16 +846,22 @@ fn lost_requirements_check(
             .partition(|lost| !held.contains(*lost)),
         None => (Vec::new(), unaccounted.iter().map(|(lost, _, _)| lost.as_str()).collect()),
     };
-    let restore_or_remove = format!(
-        "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`"
-    );
+    let restore_or_remove = match record {
+        Some(record) => format!(
+            "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {}`",
+            shell_word(&record.id)
+        ),
+        None => format!(
+            "restore each block from {short} ({restore} prints it), or record and approve a change with a `## REMOVED` delta for an intentional removal"
+        ),
+    };
     let way_out = match (main_removed.is_empty(), lost_requirements_default_ref(root)) {
         (false, Some(default)) if others.is_empty() => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `specsync change check {id}`",
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `{retry}`",
             main_removed.join(", ")
         ),
         (false, Some(default)) => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `specsync change check {id}`",
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `{retry}`",
             main_removed.join(", "),
             others.join(", ")
         ),
@@ -849,7 +870,7 @@ fn lost_requirements_check(
             if let Some(first) = way.get_mut(0..1) {
                 first.make_ascii_uppercase();
             }
-            format!("{way}, then `specsync change check {id}`")
+            format!("{way}, then `{retry}`")
         }
     };
     Err(LostRequirementsRefusal::Lost(format!(

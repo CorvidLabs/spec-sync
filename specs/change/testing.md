@@ -381,3 +381,8 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `a_reference_requirement_after_an_indented_fence_marker_is_reported_lost` verifies the merge-base blob and its restore command. `default_tip_keeps_a_requirement_after_an_indented_fence_marker` checks that the default-tip reader still sees the requirement and prints the correct recovery.
 - `an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it` checks one refused attempt, an unchanged acceptance receipt, a read-only audit, and successful archival after restore.
 - `accept_records_a_lost_requirement_and_can_retry_after_restore` covers the legacy CLI. `ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it` checks the read-only status and dry-run, open-task priority, and exactly one attempt from a real ship. Both check that a broken attempts ledger leaves the loss diagnostic and the storage error visible.
+
+## Project requirement loss after archival (REQ-change-archived-requirement-loss-001)
+
+- The archive-only CLI fixture checks committed verification, an unstaged and staged loss, a warm drift cache, and the text and JSON audit results. Strict check also exposes the result through Markdown, GitHub, table, and CSV.
+- A separate archive-only no-loss control, an approved removal, and a tracked move keep both command families passing. A shallow checkout with a known default ref fails with fetch instructions. A local clone with no default ref discloses that history was not compared.

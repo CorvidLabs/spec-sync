@@ -39,3 +39,4 @@ spec: cmd_check.spec.md
 ## Review Status
 
 Per-module role sign-offs were not collected. Release approval is governed by digest-bound change approvals and required CI; this note is informational and is not a release gate.
+- [x] Keep the strict branch-history result outside per-spec caches and include it in supported validation formats (#1105, REQ-cmd-check-004).

@@ -9,8 +9,8 @@ use crate::github;
 use crate::hash_cache;
 use crate::ignore::IgnoreRules;
 use crate::output::{
-    FINDING_CSV_HEADER, eprint_coverage_line, eprint_summary, findings, print_check_markdown,
-    print_coverage_line, print_findings_csv, print_findings_table, print_summary,
+    eprint_coverage_line, eprint_summary, findings, print_check_markdown, print_coverage_line,
+    print_findings_csv, print_findings_table, print_summary,
 };
 use crate::parser;
 use crate::types;
@@ -294,12 +294,6 @@ pub fn cmd_check(
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
-    // `specsync check` is the bi-directional spec<->code drift check. It does not
-    // consult SDD policy, active changes, or archive history. Those live behind
-    // `specsync change` (opt-in). Walking them here made every trust-layer
-    // failure present as "the drift check is broken", and printing "N active
-    // change(s)" on the default path made history look like part of the product.
-    // REQ-cmd-check-004: exit status derives solely from spec validation.
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
     let spec_files = filter_by_status(root, &spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
@@ -336,6 +330,27 @@ pub fn cmd_check(
         process::exit(1);
     }
 
+    // Historical requirement loss belongs to the project, so neither spec filters nor
+    // a cached per-spec result can account for it. Opted-out projects keep drift-only checks.
+    let mut history_errors = Vec::new();
+    let mut history_notices = Vec::new();
+    if strict && crate::change::load_policy(root).is_some_and(|policy| policy.enabled) {
+        match crate::change::project_lost_requirements(root, "specsync check --strict") {
+            Ok(Some(note)) => history_notices.push(note),
+            Ok(None) => {}
+            Err(error) => history_errors.push(error),
+        }
+    }
+
+    if matches!(format, Text) {
+        for error in &history_errors {
+            eprintln!("{} {error}", "error:".red().bold());
+        }
+        for notice in &history_notices {
+            println!("  {} {notice}", "ℹ".cyan());
+        }
+    }
+
     if spec_files.is_empty() {
         // No specs to validate — but a requested gate must still be evaluated
         // against source coverage. Otherwise `check --require-coverage N`,
@@ -344,8 +359,14 @@ pub fn cmd_check(
         // default state right after `specsync init`). Default mode (warn, no gate)
         // still exits 0 with the informational message.
         let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
-        let mut exit_code =
-            compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        let mut exit_code = compute_exit_code(
+            history_errors.len(),
+            0,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        );
         // The comment above states the intent; `--strict` did not deliver it.
         // `compute_exit_code` escalates WARNINGS under `--strict`, and a project
         // with no specs produces none — so `check --strict` exited 0 over real
@@ -363,9 +384,9 @@ pub fn cmd_check(
             Json => {
                 let output = serde_json::json!({
                     "passed": exit_code == 0,
-                    "errors": [],
+                    "errors": history_errors,
                     "warnings": [],
-                    "notices": [],
+                    "notices": history_notices,
                     "stale": [],
                     "specs_checked": 0,
                     // Without these a consumer sees `specs_checked: 0` and cannot
@@ -381,6 +402,9 @@ pub fn cmd_check(
             Markdown | Github => {
                 println!("## SpecSync Check Results\n");
                 println!("No spec files found. Run `specsync generate` to scaffold specs.");
+                for finding in findings(&history_errors, &[], &history_notices) {
+                    println!("- {}: {}", finding.severity, finding.message);
+                }
             }
             Text | Table => {
                 let abs_specs = root.join(&config.specs_dir);
@@ -392,12 +416,17 @@ pub fn cmd_check(
                 // tree with source and zero specs produced a log containing
                 // nothing to notice.
                 print_coverage_line(&coverage);
+                if matches!(format, Table)
+                    && (!history_errors.is_empty() || !history_notices.is_empty())
+                {
+                    print_findings_table(&findings(&history_errors, &[], &history_notices));
+                }
             }
             Csv => {
                 // A well-formed CSV with zero rows, not empty output: the
                 // header proves the renderer ran and found nothing, which is a
                 // different claim from producing nothing at all.
-                println!("{FINDING_CSV_HEADER}");
+                print_findings_csv(&findings(&history_errors, &[], &history_notices));
                 let abs_specs = root.join(&config.specs_dir);
                 eprintln!(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
@@ -667,6 +696,8 @@ pub fn cmd_check(
     passed += replayed_passed;
     total_errors += replayed_errors;
     total_warnings += replayed_warnings;
+    total_errors += history_errors.len();
+    all_notices.extend(history_notices);
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -846,9 +877,10 @@ pub fn cmd_check(
     }
 
     // --create-issues: create GitHub issues for specs with validation errors
-    if create_issues && total_errors > 0 {
+    if create_issues && total_errors > history_errors.len() {
         create_drift_issues(root, &config, &all_errors, format);
     }
+    all_errors.extend(history_errors);
 
     match format {
         Json => {

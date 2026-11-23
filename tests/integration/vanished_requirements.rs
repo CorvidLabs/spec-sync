@@ -482,3 +482,235 @@ fn a_specs_directory_outside_the_project_is_named_and_never_sent_to_git() {
     project.git(&["commit", "-q", "-am", "specs back inside the project"]);
     project.run(&["change", "check", &id]);
 }
+
+const REQUIREMENTS_FILE: &str = "specs/auth/requirements.md";
+const REMOVE_SIGN_OUT: &str = "## REMOVED\n\n### REQUIREMENT REQ-auth-002\n";
+
+fn ship_requirement_fixture(project: &Project, delta: &str) -> String {
+    project.git(&["checkout", "-q", "-b", "change"]);
+    let id = project.approved_change(delta);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.run(&[
+        "change",
+        "review",
+        &id,
+        "--reviewer",
+        "Synthetic scoped reviewer",
+    ]);
+    project.run(&["change", "ship", &id]);
+    assert!(!project.root.join(".specsync/changes").join(&id).exists());
+    id
+}
+
+fn remove_sign_out(project: &Project) -> String {
+    let requirements = project.read(REQUIREMENTS_FILE);
+    let split = requirements.find("### REQ-auth-002").unwrap();
+    project.write(REQUIREMENTS_FILE, requirements[..split].trim_end());
+    requirements[split..].to_string()
+}
+
+fn assert_project_loss(project: &Project, args: &[&str]) {
+    let output = project.invoke(args);
+    let text = combined(&output);
+    assert!(!output.status.success(), "{args:?}: {text}");
+    assert!(
+        text.contains("lost canonical requirements"),
+        "{args:?}: {text}"
+    );
+    assert!(text.contains("REQ-auth-002"), "{args:?}: {text}");
+    assert!(
+        text.contains(REQUIREMENTS_FILE) && text.contains("git show"),
+        "{args:?}: {text}"
+    );
+}
+
+#[test]
+fn archive_only_requirement_loss_fails_audit_and_strict_check() {
+    let project = Project::new();
+    ship_requirement_fixture(&project, REWORD_DELTA);
+    // Warm spec validation before the loss. Historical loss is independent of drift cache.
+    project.run(&["check"]);
+    remove_sign_out(&project);
+    let before = project.git(&["status", "--porcelain"]);
+    let head = project.git(&["rev-parse", "HEAD"]);
+    for args in [
+        &["change", "audit"][..],
+        &["change", "audit", "--strict"],
+        &["change", "audit", "--archives"],
+        &["check", "--strict"],
+        &["check", "--strict", "--format", "markdown"],
+        &["check", "--strict", "--format", "github"],
+        &["check", "--strict", "--format", "table"],
+        &["check", "--strict", "--format", "csv"],
+    ] {
+        assert_project_loss(&project, args);
+    }
+    for (args, key) in [
+        (
+            &["--json", "change", "audit", "--strict"][..],
+            "/report/errors",
+        ),
+        (&["--json", "check", "--strict"][..], "/errors"),
+    ] {
+        let result = project.invoke(args);
+        let stdout: Value = serde_json::from_slice(&result.stdout).unwrap();
+        let errors = stdout.pointer(key).unwrap().as_array().unwrap();
+        assert!(!result.status.success(), "{stdout}");
+        let lost: Vec<_> = errors
+            .iter()
+            .filter_map(Value::as_str)
+            .filter(|error| error.contains("REQ-auth-002"))
+            .collect();
+        assert_eq!(lost.len(), 1, "{stdout}");
+        assert!(
+            lost[0].contains(REQUIREMENTS_FILE) && lost[0].contains("git show"),
+            "{stdout}"
+        );
+    }
+    assert_eq!(project.git(&["status", "--porcelain"]), before);
+    assert_eq!(project.git(&["rev-parse", "HEAD"]), head);
+    // The guard checks against the reference commit regardless of index state.
+    project.git(&["add", REQUIREMENTS_FILE]);
+    assert_project_loss(&project, &["check", "--strict"]);
+    project.run(&["check"]);
+
+    // Losing every current spec still leaves the history finding visible.
+    fs::remove_file(project.root.join("specs/auth/auth.spec.md")).unwrap();
+    let result = project.invoke(&["--json", "check", "--strict"]);
+    let report: Value = serde_json::from_slice(&result.stdout).unwrap();
+    assert_eq!(report["specs_checked"], 0, "{report}");
+    assert!(
+        report["errors"].to_string().contains("REQ-auth-002"),
+        "{report}"
+    );
+    assert_project_loss(&project, &["check", "--strict", "--format", "csv"]);
+}
+
+#[test]
+fn archive_only_requirement_no_loss_control_passes_both_commands() {
+    let project = Project::new();
+    ship_requirement_fixture(&project, REWORD_DELTA);
+    assert!(project.read(REQUIREMENTS_FILE).contains("REQ-auth-002"));
+    project.run(&["check", "--strict"]);
+    project.run(&["change", "audit", "--strict"]);
+}
+
+#[test]
+fn archive_only_approved_removal_and_tracked_move_are_accounted_for() {
+    let removed = Project::new();
+    let id = ship_requirement_fixture(&removed, &format!("{REWORD_DELTA}\n{REMOVE_SIGN_OUT}"));
+    assert!(!removed.read(REQUIREMENTS_FILE).contains("REQ-auth-002"));
+    removed.run(&["check", "--strict"]);
+    removed.run(&["change", "audit", "--strict"]);
+
+    // Reintroduce the ID at the comparison base, then remove it on a later
+    // branch. Even moving the old archive cannot grant a fresh removal.
+    removed.write(REQUIREMENTS_FILE, BASE_REQUIREMENTS);
+    removed.git(&[
+        "commit",
+        "-qam",
+        "the comparison base carries the requirement again",
+    ]);
+    removed.git(&["push", "-q", "origin", "HEAD:main"]);
+    let archive = fs::read_dir(removed.root.join(".specsync/archive/changes"))
+        .unwrap()
+        .filter_map(Result::ok)
+        .find(|entry| entry.file_name().to_string_lossy().ends_with(&id))
+        .unwrap();
+    let old = archive.path();
+    let renamed = old.parent().unwrap().join(&id);
+    removed.git(&["mv", old.to_str().unwrap(), renamed.to_str().unwrap()]);
+    remove_sign_out(&removed);
+    assert_project_loss(&removed, &["check", "--strict"]);
+    assert_project_loss(&removed, &["change", "audit", "--strict"]);
+
+    let moved = Project::new();
+    moved.git(&["checkout", "-q", "-b", "change"]);
+    let body = remove_sign_out(&moved);
+    moved.write("specs/auth/moved.req.md", &body);
+    moved.git(&["add", "specs/auth/moved.req.md"]);
+    moved.run(&["check", "--strict"]);
+    moved.run(&["change", "audit", "--strict"]);
+}
+
+#[test]
+fn project_requirement_comparison_discloses_missing_default_but_preserves_opt_out() {
+    let no_default = Project::new();
+    no_default.git(&["checkout", "-q", "-b", "change"]);
+    no_default.git(&["remote", "remove", "origin"]);
+    remove_sign_out(&no_default);
+    for args in [
+        &["check", "--strict", "--json"][..],
+        &["change", "audit", "--strict", "--json"],
+    ] {
+        let output = no_default.run(args);
+        let _: Value = serde_json::from_str(&output).unwrap();
+        assert!(
+            output.contains("default branch") && output.contains("not checked"),
+            "{output}"
+        );
+    }
+
+    let unmanaged = Project::new();
+    unmanaged.git(&["rm", "-q", ".specsync/sdd.json"]);
+    unmanaged.git(&["commit", "-q", "-m", "opt out before using the workflow"]);
+    unmanaged.git(&["push", "-q", "origin", "main"]);
+    unmanaged.git(&["checkout", "-q", "-b", "change"]);
+    remove_sign_out(&unmanaged);
+    let output = unmanaged.run(&["check", "--strict", "--json"]);
+    let report: Value = serde_json::from_str(&output).unwrap();
+    assert_eq!(report["passed"], true, "{report}");
+    assert!(!output.contains("canonical requirements"), "{report}");
+}
+
+#[test]
+fn shallow_project_requirement_comparison_refuses_with_fetch_guidance() {
+    let source = Project::new();
+    source.git(&["checkout", "-q", "-b", "change"]);
+    remove_sign_out(&source);
+    source.git(&["commit", "-qam", "drop a requirement"]);
+    source.git(&["push", "-q", "origin", "change"]);
+
+    let temp = TempDir::new().unwrap();
+    let root = temp.path().join("shallow");
+    let bare = source.root.join(".git/test-origin.git");
+    assert!(
+        Command::new("git")
+            .args([
+                "clone",
+                "-q",
+                "--no-local",
+                "--depth=1",
+                "--branch",
+                "change"
+            ])
+            .arg(bare)
+            .arg(&root)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let shallow = Project { _temp: temp, root };
+    shallow.git(&[
+        "fetch",
+        "-q",
+        "--depth=1",
+        "origin",
+        "main:refs/remotes/origin/main",
+    ]);
+    assert_eq!(
+        shallow
+            .git(&["rev-parse", "--is-shallow-repository"])
+            .trim(),
+        "true"
+    );
+    for args in [&["check", "--strict"][..], &["change", "audit", "--strict"]] {
+        let result = shallow.invoke(args);
+        let text = combined(&result);
+        assert!(!result.status.success(), "{args:?}: {text}");
+        assert!(
+            text.contains("merge-base") && text.contains("git fetch --unshallow origin"),
+            "{args:?}: {text}"
+        );
+    }
+}

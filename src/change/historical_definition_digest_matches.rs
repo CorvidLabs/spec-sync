@@ -4874,6 +4874,13 @@ fn check_project_with_command_output(
             ..SddCheckReport::default()
         };
     }
+    if records.is_empty() {
+        match project_lost_requirements(root, "specsync change audit") {
+            Ok(Some(note)) => report.warnings.push(note),
+            Ok(None) => {}
+            Err(error) => report.errors.push(error),
+        }
+    }
     // Issue #825: an invalid `verification_ignored_paths` list is an invalid policy, and an entry
     // overlapping an active change's declared paths refuses that change (REQ-change-115).
     match validated_verification_ignored_paths(root) {

@@ -1,0 +1,19 @@
+{
+  "timestamp": 1795453418,
+  "commit": "1adc36f4b0962baa7af697db13f37708caa82ca9",
+  "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+  "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+  "workspace_digest": "d1b798b6274fc73bdc61592047ce8770c18a90c5f4a1299aa2299470fa5740f1",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec change --spec cmd_change --strict",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-change-reopened-coverage-receipt-001",
+    "REQ-cmd-change-archived-coverage-diagnostics-001"
+  ]
+}

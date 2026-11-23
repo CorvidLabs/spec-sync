@@ -7,10 +7,11 @@
   "title": "Keep archived coverage recoverable and visible",
   "description": "Keep archived coverage recoverable and visible",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "1abf8b806e1f6306c522710abfc8f975576b7941",
   "created_at": 1795448691,
-  "updated_at": 1795450067,
+  "updated_at": 1795453418,
   "affected_specs": [
     "change",
     "cmd_change"

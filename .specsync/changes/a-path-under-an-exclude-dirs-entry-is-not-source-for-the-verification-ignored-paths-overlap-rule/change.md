@@ -1,6 +1,6 @@
 ---
 id: a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: 2cc0897fc00eee7db2b07f5134ba05639af39018
 ---

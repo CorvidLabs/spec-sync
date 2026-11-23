@@ -680,3 +680,125 @@ fn re_approving_an_unchanged_body_that_lacks_the_moved_text_is_refused_in_a_repo
     assert_refusal_names_the_block(&error, &record);
     assert_eq!(fs::read_to_string(&ledger_path).unwrap(), before);
 }
+
+/// #1090 (draft, red first): `change audit` reports, for an active change, the refusal `change
+/// check` gives a delta item that targets the frozen `## Change Log` (REQ-change-159), so the
+/// health check never passes a change that check then refuses.
+#[test]
+fn audit_reports_a_change_log_delta_item_of_an_active_change() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = approved_change_with_delta(root, STALE_MODIFIED_DELTA);
+    // The delta an older SpecSync approved, and the digest it recorded for it.
+    let delta = "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n";
+    fs::write(delta_path(root, &record, "auth"), delta).unwrap();
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let mut ledger = load_approvals(root, &record).unwrap();
+    ledger
+        .approvals
+        .last_mut()
+        .unwrap()
+        .approved_delta_digests
+        .get_or_insert_with(BTreeMap::new)
+        .insert("auth".into(), delta_body_digest("auth", delta));
+    write_json(&ledger_path, &ledger).unwrap();
+    let refusal = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(refusal.contains("`## Change Log`"), "{refusal}");
+
+    let report = audit_project(root);
+
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|error| error.contains(&record.id) && error.contains("`## Change Log`")),
+        "audit must report the Change Log refusal `change check` gives: {:?}",
+        report.errors
+    );
+}
+
+/// An approved change whose delta, as an older SpecSync approved it, is `delta`: written after the
+/// approval, with the digest that approval recorded for it.
+fn change_log_item_approved_by_an_older_specsync(root: &Path, delta: &str) -> ChangeRecord {
+    let record = approved_change_with_delta(root, STALE_MODIFIED_DELTA);
+    fs::write(delta_path(root, &record, "auth"), delta).unwrap();
+    let ledger_path = change_dir(root, &record.id).join("approvals.json");
+    let mut ledger = load_approvals(root, &record).unwrap();
+    ledger
+        .approvals
+        .last_mut()
+        .unwrap()
+        .approved_delta_digests
+        .get_or_insert_with(BTreeMap::new)
+        .insert("auth".into(), delta_body_digest("auth", delta));
+    write_json(&ledger_path, &ledger).unwrap();
+    record
+}
+
+/// #1090 (REQ-change-170): the audit asks the Change Log refusal where `change check` asks it,
+/// before the approved bodies and bases, so a change with both a Change Log item and a stale base
+/// is told the same first problem by both, and the audit fails, which is what makes `change audit`
+/// exit 1 (it exits 1 whenever the report holds an error).
+#[test]
+fn audit_reports_the_change_log_item_before_a_stale_base() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let both = format!(
+        "{STALE_MODIFIED_DELTA}\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n"
+    );
+    let record = change_log_item_approved_by_an_older_specsync(root, &both);
+    let moved = fs::read_to_string(requirements_path(root))
+        .unwrap()
+        .replace("The system SHALL keep one session per user.", "The system SHALL keep one session per user and device.");
+    fs::write(requirements_path(root), moved).unwrap();
+    let check = materialize_change_deltas(root, &record.id).unwrap_err();
+    assert!(check.contains("`## Change Log`"), "{check}");
+
+    let report = audit_project_with_archives(root, false);
+
+    let ours: Vec<&String> = report
+        .errors
+        .iter()
+        .filter(|error| error.starts_with(&format!("{}:", record.id)))
+        .collect();
+    assert!(
+        ours.iter().any(|error| error.contains("`## Change Log`")),
+        "{:?}",
+        report.errors
+    );
+    assert!(
+        !ours.iter().any(|error| error.contains("has changed since")),
+        "the stale base is not reported ahead of check's first refusal: {:?}",
+        report.errors
+    );
+}
+
+/// #1090 (REQ-change-170): an archived change is not judged again. The same package, moved into
+/// the archive, makes the audit report no Change Log refusal.
+#[test]
+fn audit_does_not_judge_an_archived_change_log_item_again() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = change_log_item_approved_by_an_older_specsync(
+        root,
+        "## MODIFIED\n\n### SPEC SECTION Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial (restated) |\n",
+    );
+    let archived = root
+        .join(ARCHIVE_PATH)
+        .join(format!("2026-11-19-{}", record.id));
+    fs::create_dir_all(archived.parent().unwrap()).unwrap();
+    fs::rename(change_dir(root, &record.id), &archived).unwrap();
+    let state_path = archived.join("state.json");
+    let mut state: serde_json::Value =
+        serde_json::from_str(&fs::read_to_string(&state_path).unwrap()).unwrap();
+    state["state"] = serde_json::json!("archived");
+    fs::write(&state_path, serde_json::to_vec_pretty(&state).unwrap()).unwrap();
+
+    let report = audit_project_with_archives(root, false);
+
+    assert!(
+        !report.errors.iter().any(|error| error.contains("`## Change Log`")),
+        "{:?}",
+        report.errors
+    );
+}

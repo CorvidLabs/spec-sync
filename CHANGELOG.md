@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
+### Fixed
+
+- `specsync change audit --strict` now reports a delta item targeting the frozen `## Change Log` in an approved, implementing, or verifying change. The diagnostic names the change and matches `change check` (#1090, REQ-change-170).
+
 ## [6.4.1] - 2026-11-21
 
 ### Changed

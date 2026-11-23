@@ -371,3 +371,5 @@ The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cov
 
 The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.
 Archive tests also check that a stray coverage file survives refusal, that a moved package can retry with matching coverage, and that a failed integrity check rolls back newly written coverage.
+
+`an_archived_predecessor_warns_after_a_plain_coverer_closes` and `explicit_succession_clears_the_archived_predecessor_warning` check recorded coverers with and without an explicit obligation in both the accepted and archived states. `accepting_a_plain_coverer_leaves_the_active_predecessor_stale` exercises the matching active-change rule.

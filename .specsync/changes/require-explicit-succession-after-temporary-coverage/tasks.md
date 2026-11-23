@@ -5,6 +5,6 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Clarify REQ-change-167 and the workflow guide.
-- [ ] Verify the recorded successor when projecting archive warnings.
-- [ ] Exercise accepted and archived covering changes with and without obligations.
+- [x] Clarify REQ-change-167 and the workflow guide.
+- [x] Verify the recorded successor when projecting archive warnings.
+- [x] Exercise accepted and archived covering changes with and without obligations.

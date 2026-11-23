@@ -3012,12 +3012,19 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
 
 /// What an archived change's `coverage.json` recorded, with each covering change's present state
-/// (REQ-change-167). Once that change is no longer approved, implementing, verifying, accepted or
-/// archived, because it was sent back or closed, the entry carries a warning naming the reopen of
-/// the archived change. The archive's own evidence never reads this file.
+/// (REQ-change-167). A covering change that reaches acceptance needs the explicit succession
+/// evidence for the recorded input. The archive's own evidence never reads this file.
 pub fn archived_provisional_coverage(
     root: &Path,
     record: &ChangeRecord,
+) -> Vec<ProvisionalCoverageSummary> {
+    archived_provisional_coverage_with_roster(root, record, None)
+}
+
+fn archived_provisional_coverage_with_roster(
+    root: &Path,
+    record: &ChangeRecord,
+    roster: Option<&BTreeMap<String, ChangeRecord>>,
 ) -> Vec<ProvisionalCoverageSummary> {
     if record.state != ChangeState::Archived {
         return Vec::new();
@@ -3038,6 +3045,37 @@ pub fn archived_provisional_coverage(
     if coverage["change_id"].as_str() != Some(record.id.as_str()) {
         return Vec::new();
     }
+    // Most archive reads have no terminal coverer. Open the predecessor manifest and the
+    // recursive validation roster only when a recorded coverer actually claims the input.
+    let signed = std::cell::OnceCell::new();
+    let local_roster = std::cell::OnceCell::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    let mut has_succession = |candidate: &ChangeRecord, path: &str| {
+        if !candidate.supersedes.iter().any(|edge| {
+            edge.predecessor_id == record.id && edge.obligations.iter().any(|item| item.path == path)
+        }) {
+            return false;
+        }
+        let Some(manifest) = signed.get_or_init(|| resolved_acceptance_manifest(root, record).ok()) else {
+            return false;
+        };
+        let Some(records) = roster.or_else(|| {
+            local_roster.get_or_init(|| list_all_changes_structural(root).ok()).as_ref()
+        }) else {
+            return false;
+        };
+        let Some(expected) = manifest.entries.iter().find(|entry| entry.path == path) else {
+            return false;
+        };
+        let mut rejected = BTreeMap::new();
+        let mut historical = false;
+        expected.owners.iter().any(|owner| {
+            successor_covers_input(
+                root, record, records, [candidate], &mut BTreeSet::new(), &mut memo, None,
+                expected, owner, &mut rejected, &mut historical,
+            )
+        })
+    };
     coverage["covered_by"]
         .as_array()
         .into_iter()
@@ -3045,26 +3083,25 @@ pub fn archived_provisional_coverage(
         .filter_map(|entry| {
             let path = entry["path"].as_str()?.to_string();
             let change = entry["change"].as_str()?.to_string();
-            let change_state = load_change(root, &change).ok().map(|covering| covering.state);
-            let standing = matches!(
-                change_state,
-                Some(
-                    ChangeState::Approved
-                        | ChangeState::Implementing
-                        | ChangeState::Verifying
-                        | ChangeState::Accepted
-                        | ChangeState::Archived
-                )
-            );
-            let warning = (!standing).then(|| {
-                let now = change_state
-                    .map(|state| format!("now {}", state.as_str()))
-                    .unwrap_or_else(|| "no longer in the project".into());
-                format!(
-                    "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {now}, so no accepted change stands behind it; run `specsync change reopen {} --actor <name> --reason <text>`",
-                    record.id, record.id
-                )
-            });
+            let covering = load_change(root, &change).ok();
+            let change_state = covering.as_ref().map(|record| record.state);
+            let warning_reason = match covering {
+                Some(candidate) => match candidate.state {
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => None,
+                    ChangeState::Accepted | ChangeState::Archived => {
+                        (!has_succession(&candidate, &path)).then(|| format!(
+                            "now {} without verified explicit succession for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
+                    state => Some(format!("now {}, so no accepted change stands behind it", state.as_str())),
+                },
+                None => Some("no longer in the project, so no accepted change stands behind it".into()),
+            };
+            let warning = warning_reason.map(|reason| format!(
+                "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {reason}; run `specsync change reopen {} --actor <name> --reason <text>`",
+                record.id, record.id
+            ));
             Some(ProvisionalCoverageSummary {
                 path,
                 change,
@@ -4746,7 +4783,7 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
         // closed is a warning, never an error.
         if let Ok(records) = list_all_changes_structural(root) {
             for record in records.values().filter(|record| record.state == ChangeState::Archived) {
-                for entry in archived_provisional_coverage(root, record) {
+                for entry in archived_provisional_coverage_with_roster(root, record, Some(&records)) {
                     if let Some(warning) = entry.warning {
                         report.warnings.push(format!("{}: {warning}", record.id));
                     }

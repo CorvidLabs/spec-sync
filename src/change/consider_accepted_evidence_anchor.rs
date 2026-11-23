@@ -3852,7 +3852,7 @@ fn provisional_coverage_reason(record: &ChangeRecord, covered: &[(String, String
         .collect::<Vec<_>>()
         .join(", ");
     format!(
-        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change closes it when accepted, and if it is closed instead the input is stale again",
+        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change needs explicit succession to cover the input after acceptance",
         record.id
     )
 }
@@ -5355,6 +5355,7 @@ fn validate_accepted_inputs_recursive(
                         root,
                         record,
                         records,
+                        records.values(),
                         visiting,
                         memo,
                         pending,
@@ -5385,6 +5386,7 @@ fn validate_accepted_inputs_recursive(
                     root,
                     record,
                     records,
+                    records.values(),
                     visiting,
                     memo,
                     pending,

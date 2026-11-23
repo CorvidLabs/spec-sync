@@ -177,7 +177,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `PrinciplesBriefing` | The project's principles file: path, bounded excerpt, whether the excerpt was cut, and whether the file could not be read |
 | `TerminalEvidenceValidity` | State-aware exact, successor-covered, provisionally-covered, stale, authenticated-history, or corrupt-history evidence conclusion |
 | `TerminalEvidenceSummary` | Shared terminal validity plus optional fail-closed reason |
-| `ProvisionalCoverageSummary` | One input an archive recorded as covered for now: its path, the covering change, that change's present state, and the warning once it is neither in flight, accepted nor archived (#657) |
+| `ProvisionalCoverageSummary` | One input an archive recorded as covered for now: its path, the covering change, that change's present state, and a warning when the covering change ends without valid explicit succession for the input (#657) |
 | `TerminalEvidenceResult` | Change ID paired with its shared terminal-evidence summary |
 | `HandoffReadiness` | `Safe`, `Conditional`, or `NotYet`: whether clearing context now loses anything the lifecycle has not recorded; serialized kebab-case, printed as `safe` / `conditional` / `not yet` |
 | `HandoffSummary` | Readiness, a plain-language reason, the `specsync change status <id>` resume command, and the steps to take before clearing; carries no digest |
@@ -310,7 +310,7 @@ Provides the SpecSync verified spec-driven development lifecycle: one scope appr
 | `start_implementation` | `root, id` | `Result<ChangeRecord, String>` | Enter implementation after approval and conflict validation |
 | `summarize_change` | `root, record` | `ChangeSummary` | Project gate health, correction health, and next action using the shared verification-freshness predicate |
 | `summarize_change_with_strict` | `root, record, explicit_strict` | `ChangeSummary` | Project the same status plus the exact scoped command the next pass records as evidence; `--strict` only when requested |
-| `archived_provisional_coverage` | `root, record` | `Vec<ProvisionalCoverageSummary>` | What an archived change's `coverage.json` recorded, with each covering change's present state and, once that change is sent back or closed, the warning naming `change reopen`; empty for any other change (#657) |
+| `archived_provisional_coverage` | `root, record` | `Vec<ProvisionalCoverageSummary>` | What an archived change's `coverage.json` recorded, with each covering change's present state and, when the change is sent back, closes, or reaches acceptance without valid explicit succession, the warning naming `change reopen`; empty for any other change (#657) |
 | `verify_change` | `root, id` | `Result<VerificationRecord, String>` | Compare this change's specs to code in-process and record commit/contract evidence |
 | `verify_change_with_strict` | `root, id, strict` | `Result<VerificationRecord, String>` | The same spec↔code pass with warnings failing as they do under `specsync check --strict` |
 | `verification_ignored_paths_for_display` | `root: &Path` | `Vec<String>` | The validated, sorted `.specsync/sdd.json` `verification_ignored_paths` list for disclosure; empty when it is absent, empty or invalid |

@@ -319,9 +319,9 @@ fn with_no_change_declaring_the_input_it_is_stale_as_before() {
 }
 
 /// A legacy `auth` change accepted and committed, and a later legacy change that declares `auth`,
-/// the shared paths and a succession of it, approved and implementing but not yet accepted. The
+/// the shared paths and optionally a succession of it, approved and implementing before acceptance. The
 /// later change then edits `src/auth.rs`, committed.
-fn accepted_change_with_declared_successor_in_flight(root: &Path) -> (ChangeRecord, ChangeRecord) {
+fn accepted_change_with_successor_in_flight(root: &Path, explicit: bool) -> (ChangeRecord, ChangeRecord) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -357,16 +357,18 @@ fn accepted_change_with_declared_successor_in_flight(root: &Path) -> (ChangeReco
     successor.affected_paths.dedup();
     save_change(root, &successor).unwrap();
     write_change_markdown(root, &successor).unwrap();
-    for entry in manifest.entries.iter().filter(owned) {
-        successor = add_supersedes_obligation(
-            root,
-            &successor.id,
-            &predecessor.id,
-            &entry.path,
-            "auth",
-            &entry.entry_digest,
-        )
-        .unwrap();
+    if explicit {
+        for entry in manifest.entries.iter().filter(owned) {
+            successor = add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &entry.path,
+                "auth",
+                &entry.entry_digest,
+            )
+            .unwrap();
+        }
     }
     successor = approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
     successor = start_implementation(root, &successor.id).unwrap();
@@ -416,7 +418,7 @@ fn only_an_in_flight_change_that_declares_the_module_and_path_covers_it() {
 fn when_the_covering_change_is_accepted_the_earlier_one_is_successor_covered() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let (predecessor, successor) = accepted_change_with_declared_successor_in_flight(root);
+    let (predecessor, successor) = accepted_change_with_successor_in_flight(root, true);
     let evidence = terminal_validity(root, &predecessor);
     assert_eq!(evidence.validity, TerminalEvidenceValidity::ProvisionallyCovered, "{evidence:?}");
     verify_change(root, &successor.id).unwrap();
@@ -462,7 +464,7 @@ fn a_provisionally_covered_change_is_no_retirement_replacement() {
 fn a_provisionally_covered_change_covers_no_other_change() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let (predecessor, successor) = accepted_change_with_declared_successor_in_flight(root);
+    let (predecessor, successor) = accepted_change_with_successor_in_flight(root, true);
     verify_change(root, &successor.id).unwrap();
     let successor = accept_change(root, &successor.id, Some("Closer".into()), None).unwrap();
     quiet_git(root, &["add", "."]);
@@ -665,4 +667,61 @@ fn with_no_later_covering_scope_the_stale_refusal_reads_as_before() {
     let refused = archive_change(root, &accepted.id).unwrap_err();
     assert!(!refused.contains("cannot be archived either"), "{refused}");
     assert!(refused.contains(&format!("specsync change reopen {}", accepted.id)), "{refused}");
+}
+
+#[test]
+fn accepting_a_plain_coverer_leaves_the_active_predecessor_stale() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, coverer) = accepted_change_with_successor_in_flight(root, false);
+    assert!(verify_change(root, &coverer.id).unwrap().passed);
+    accept_change(root, &coverer.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept plain coverer"]);
+    assert_eq!(terminal_validity(root, &predecessor).validity, TerminalEvidenceValidity::Stale);
+}
+
+fn assert_archived_coverer_warning(explicit: bool) {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, coverer) = accepted_change_with_successor_in_flight(root, explicit);
+    archive_change(root, &predecessor.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive temporarily covered predecessor"]);
+    let predecessor = load_change(root, &predecessor.id).unwrap();
+    assert!(verify_change(root, &coverer.id).unwrap().passed);
+    accept_change(root, &coverer.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept recorded coverer"]);
+
+    for state in [ChangeState::Accepted, ChangeState::Archived] {
+        if state == ChangeState::Archived {
+            archive_change(root, &coverer.id).unwrap();
+            quiet_git(root, &["add", "--all"]);
+            quiet_git(root, &["commit", "-m", "archive recorded coverer"]);
+        }
+        let _scope = begin_change_read_scope(root);
+        let summary = summarize_change(root, &predecessor);
+        assert_eq!(summary.terminal_evidence.unwrap().validity, TerminalEvidenceValidity::AuthenticatedHistory);
+        let covered = summary.provisional_coverage.iter().find(|entry| entry.path == "src/auth.rs").unwrap();
+        assert_eq!(covered.change_state, Some(state));
+        assert_eq!(covered.warning.is_some(), !explicit, "{state:?} {explicit}: {covered:?}");
+        let report = audit_project_with_archives(root, true);
+        assert!(report.errors.is_empty(), "{:?}", report.errors);
+        assert_eq!(
+            report.warnings.iter().any(|warning| warning.contains("src/auth.rs") && warning.contains(&coverer.id)),
+            !explicit,
+            "{:?}", report.warnings
+        );
+    }
+}
+
+#[test]
+fn an_archived_predecessor_warns_after_a_plain_coverer_closes() {
+    assert_archived_coverer_warning(false);
+}
+
+#[test]
+fn explicit_succession_clears_the_archived_predecessor_warning() {
+    assert_archived_coverer_warning(true);
 }

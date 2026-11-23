@@ -124,3 +124,4 @@ spec: change.spec.md
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
 - [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).
+- [x] Use the explicit succession obligation to decide whether an accepted or archived coverer clears the recorded shared-input warning (#657).

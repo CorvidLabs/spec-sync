@@ -3,10 +3,11 @@
 /// authenticates as covering it. Every claimant that does not is recorded in
 /// `rejected_successors` with the reason it was refused, keyed by successor ID.
 #[allow(clippy::too_many_arguments)]
-fn successor_covers_input(
+fn successor_covers_input<'a>(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
+    candidates: impl IntoIterator<Item = &'a ChangeRecord>,
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
@@ -15,7 +16,7 @@ fn successor_covers_input(
     rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
     historically_reconciled: &mut bool,
 ) -> bool {
-    for candidate in records.values() {
+    for candidate in candidates {
         // Only a successor that declares this obligation can cover it: authenticated
         // succession tuples are one-to-one with the record's declared obligations,
         // and the legacy reconstruction requires the declaration too. Deciding that

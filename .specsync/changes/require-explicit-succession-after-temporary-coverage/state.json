@@ -7,10 +7,11 @@
   "title": "Require explicit succession after temporary coverage",
   "description": "Require explicit succession after temporary coverage",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "6e5a63b3d9d83151dde78734b4557a577d1a494b",
   "created_at": 1795407981,
-  "updated_at": 1795408145,
+  "updated_at": 1795408839,
   "affected_specs": [
     "change"
   ],

@@ -5,7 +5,7 @@ artifact: tasks
 
 # Tasks
 
-- [ ] Add an integration case that removes an existing requirement after the final package has been archived. Establish that both audit modes currently pass.
-- [ ] Expose the branch-wide comparison in audit when there are zero active workspaces. Keep active-change diagnostics intact.
-- [ ] Cover an authorized branch removal, an older archive, a moved requirement and both missing-history cases.
-- [ ] Verify the archived-tip command used by the Lifecycle gate, update the change spec and run the project verification lanes.
+- [ ] Reproduce the missing-requirement case through public audit and strict check on a full-history branch with zero active workspaces. Keep a separate no-loss fixture on the same base.
+- [ ] Expose one branch comparison from the #1108 reader to audit and strict check. Preserve per-change checks, plain-check drift, and the existing required Lifecycle job.
+- [ ] Cover authorized branch removals, an older archive, a moved requirement, a check-only project, and missing or incomplete comparison history.
+- [ ] Update both module contracts and testing companions, then run the scoped and project verification lanes.

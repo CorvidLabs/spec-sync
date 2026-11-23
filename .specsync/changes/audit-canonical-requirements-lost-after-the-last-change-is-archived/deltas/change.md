@@ -2,11 +2,14 @@
 
 ### REQUIREMENT REQ-change-archived-requirement-loss-001
 
-On a SpecSync-managed branch with zero active change workspaces, `change audit` SHALL compare the tracked canonical requirement IDs with their IDs at the merge base of HEAD and the default branch. It SHALL use REQ-change-169 to find canonical files, compare IDs across files, and validate removals from changes archived on this branch after the merge base. For each unaccounted loss it SHALL report the missing ID, its original file and the command to display it for restoration. The same loss SHALL fail default audit, strict audit and archive audit. The comparison SHALL be read-only. When the default branch is known but its merge base is unavailable, audit SHALL report the incomplete history and the fetch needed for the comparison. With no default branch reference, audit SHALL disclose that the comparison was skipped.
+`change audit` on a SpecSync-managed branch SHALL still check for unexplained loss of canonical requirements when no active change workspace remains. On a Git branch, `check --strict` SHALL use the same comparison, including on a project that does not use SDD audit (CHANGE-17.d). The read-only comparison SHALL use REQ-change-169 for resolving a usable local default ref, selecting the canonical files, comparing tracked IDs across files, and recognizing approved removals. Its project-level reference SHALL be the merge base of HEAD and the usable default ref. A removal SHALL be credited only to an approved change on the branch, including a change archived there after the reference. Archives already present at the reference SHALL grant no new removal authority. The active-change history and base fallback in REQ-change-169 SHALL continue to apply to its lifecycle checks.
+
+Both command families SHALL report each unexplained loss once, naming the ID, original canonical file and a `git show` command that displays the original block for restoration. A known default ref with unreadable comparison history SHALL cause a refusal that identifies the unavailable history and gives fetch guidance. With no usable default ref in a Git checkout, the branch-level comparison SHALL report that it was skipped. These branch findings SHALL be part of the corresponding text and JSON results.
 
 Acceptance Criteria
 
-- A merge resolution drops a requirement after finalization. The full-history required Lifecycle gate runs strict audit and rejects the archived tip with the missing ID and its restoration command.
-- The branch archives a change with an approved REMOVED item for the missing ID. The removal is accounted for. An archive that already existed at the base cannot authorize the deletion on this branch.
-- The branch moves a requirement between canonical files while retaining its ID. Audit passes this comparison.
-- The checkout has a default ref but too little history to find the merge base. Audit refuses with fetch guidance. A checkout without a default ref reports that the comparison was skipped.
+- After finalization, a merge resolution drops a canonical requirement. Both audit and strict check exit unsuccessfully and identify the same ID, original file and restore command. The full-history required Lifecycle invocation rejects the archived tip.
+- A separate control from the same base retains the requirement after finalization. Audit and strict check pass.
+- Both command families accept an ID moved between tracked canonical files and a removal approved on this branch. A historical archive that already existed at the comparison base cannot justify a later deletion.
+- A Git-backed project running only strict check reports the loss with the same restoration detail. Ordinary check keeps its drift behavior.
+- A known default ref without enough history to find the merge base produces a refusal with fetch guidance. A checkout without a usable default ref reports a skipped comparison.

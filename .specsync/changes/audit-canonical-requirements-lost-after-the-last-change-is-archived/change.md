@@ -14,10 +14,11 @@ Audit canonical requirements lost after the last change is archived
 ## Affected Canonical Specs
 
 - `change`
+- `cmd_check`
 
 ## Acceptance Criteria
 
-- With zero active changes, audit reports each vanished canonical requirement, its original file and a concrete restore command. An approved removal archived on this branch accounts for its own ID. An older archive cannot excuse a new deletion. A full-history CI checkout rejects the loss. A missing default reference is disclosed and an unreadable merge base gives actionable fetch guidance.
+- With no active changes, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. The same commands pass on a separate no-loss control. Removals authorized on the branch and requirements moved under the same ID pass. Both entry points disclose a missing comparison ref and give fetch guidance when the known comparison history is incomplete.
 
 ## No-spec Rationale
 

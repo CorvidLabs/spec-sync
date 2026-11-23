@@ -5,4 +5,4 @@ artifact: docs
 
 # Docs
 
-Document the zero-active-change audit result alongside REQ-change-169 in the change spec and its testing companion. Explain how an operator restores a lost block and how the required Lifecycle gate uses this check on an archived pull request.
+Describe the shared branch comparison and the restoration example in the change and cmd_check specifications and their testing companions. Show the strict-check command for projects that rely on it and the existing required Lifecycle invocation for archive-first CI. Explain when local Git history is unavailable and how to fetch it.

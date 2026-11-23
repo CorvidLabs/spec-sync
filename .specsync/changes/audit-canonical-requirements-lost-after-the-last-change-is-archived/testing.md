@@ -5,12 +5,15 @@ artifact: testing
 
 # Testing
 
-Run CLI integration cases against a real base and branch. Archive the last change before removing the unrelated requirement. Require default audit, strict JSON audit and archive audit to report the same ID, file and restore guidance once. Confirm the audits leave the Git tree untouched.
+Use a real Git comparison base and a branch with zero active workspaces. In the loss fixture, archive the final change and then remove an unrelated canonical requirement. Run `change audit`, `change audit --strict`, `change audit --archives`, and `check --strict`. Compare failed exit status, missing ID, original path and the `git show` restore command. Include JSON output and require each command to report the missing ID once. Check the Git worktree and history stay unchanged.
 
-A valid archived removal on the branch passes. A pre-existing archive containing the same removal still yields a reported loss. Moving the block between canonical files passes. Exercise a shallow checkout with a default ref and no merge base, then one without a default ref. Assert distinct diagnostics and the proposed exit behavior.
+Use a separate no-loss control from the same base. Keep the canonical requirement and archive the corresponding change. Both command families pass. Separately exercise a tracked move, a valid removal archived on this branch, and a prior archive that mentions the missing ID. Include a Git-backed project without SDD audit to show strict check can report the loss on its own. Keep the ordinary `check` control for unrelated corrupt workspace evidence.
+
+In a checkout with a known default ref but no readable merge base, require a refusal with fetch guidance. In a checkout without a usable default ref, require an explicit skipped comparison and preserve the remaining checks.
 
 ## Requirement evidence
 
 | Requirement | Evidence |
 | --- | --- |
-| REQ-change-archived-requirement-loss-001 | Planned archive-only and shallow-checkout scenarios in tests/integration/vanished_requirements.rs |
+| REQ-change-archived-requirement-loss-001 | Planned CLI loss, no-loss, branch removal, and incomplete history cases in tests/integration/vanished_requirements.rs |
+| REQ-cmd-check-004 | Planned strict-check loss and no-loss checks using the same fixtures, including the check-only case and the plain-check control |

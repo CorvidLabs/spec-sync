@@ -1,6 +1,6 @@
 ---
 id: require-explicit-succession-after-temporary-coverage
-state: draft
+state: approved
 type: bug_fix
 base_commit: 6e5a63b3d9d83151dde78734b4557a577d1a494b
 ---

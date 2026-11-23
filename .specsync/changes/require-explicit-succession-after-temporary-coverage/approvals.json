@@ -1,4 +1,54 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795408145,
+      "digest": "1280af7d8c19cea827f913ae424a08a6a12084a1235b4cdbd496ff93f0eb9bc9",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "require-explicit-succession-after-temporary-coverage",
+        "title": "Require explicit succession after temporary coverage",
+        "description": "Require explicit succession after temporary coverage",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "site/src/content/docs/workflow.md",
+          "specs/change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests/provisional_coverage.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After a temporary coverer is accepted, an active predecessor gets successor coverage only through an explicit valid succession obligation. On an archived predecessor, status, show and archive audit continue to warn for a file when the accepted or archived coverer lacks that obligation; a valid matching succession clears the warning and archive integrity remains independent."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-014 requires explicit closing-valid semantic succession. Archive coverage is readback evidence from REQ-change-167. It must never change archive integrity.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "f0a69193f6e85b8748908649685e9e99a772e954b08765399829c5a47e4e643b"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-167": "c1c19d5697647cf6097640ad1ffd133bca408959979ea98204710a7196b715c6"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Keep explicit succession. Clarify #657 and keep warning when an accepted change lacks the obligation.",
+        "where": "Direct response by 0xLeif in this SpecSync orchestration session, November 22 2026 Mountain time, choosing the explicit-succession rule for #1132.",
+        "recorded_by": "codex"
+      }
+    }
+  ],
   "reopenings": []
 }

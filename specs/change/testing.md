@@ -376,6 +376,8 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 
 ## Lost-requirement refusals (REQ-change-169)
 
+- `registry_companions_use_normalized_paths_in_the_worktree_and_reference` moves a requirement between tracked companions declared with backslash separators, then checks that deleting it reports the original canonical path.
+- `a_merge_hint_quotes_the_default_ref_in_both_diagnostics` inspects the printed merge command for a default ref containing a literal apostrophe, for both default-only and mixed losses.
 - `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.
 - `requirements_are_read_in_a_project_subdirectory_with_leading_whitespace` preserves the repository prefix in historical reads and the restore command.
 - `a_reference_requirement_after_an_indented_fence_marker_is_reported_lost` verifies the merge-base blob and its restore command. `default_tip_keeps_a_requirement_after_an_indented_fence_marker` checks that the default-tip reader still sees the requirement and prints the correct recovery.

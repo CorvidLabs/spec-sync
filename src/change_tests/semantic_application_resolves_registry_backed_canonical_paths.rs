@@ -719,6 +719,8 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
 
     let error = verify_change(root, &record.id).unwrap_err();
     assert!(
@@ -744,6 +746,11 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
         !change_dir(root, &record.id).join("verification.json").exists(),
         "a refusal never writes verification.json"
     );
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Implementing
+    );
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
 }
 
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
@@ -803,13 +810,74 @@ fn change_check_fails_when_specs_and_code_drift() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
+    let error = check_change(root, Some(&record.id)).unwrap_err();
     assert!(
         error.contains("does_not_exist")
             || error.contains("out of sync")
             || error.contains("phantom")
             || error.contains("missing"),
         "spec↔code drift must fail change check, got {error}"
+    );
+    let recorded = load_change(root, &record.id).unwrap();
+    let summary = fs::read_to_string(change_dir(root, &record.id).join("change.md")).unwrap();
+    assert_eq!(recorded.state, ChangeState::Verifying);
+    assert!(summary.lines().any(|line| line == "state: verifying"));
+    assert!(!load_verification(root, &recorded).unwrap().passed);
+}
+
+#[test]
+fn change_check_repairs_an_older_verifying_summary_and_keeps_its_notes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+
+    let summary_path = change_dir(root, &record.id).join("change.md");
+    let previous = fs::read_to_string(&summary_path).unwrap();
+    let expected = format!("{previous}\n---\n\n## Handoff notes\n\nstate: implementing\n")
+        .replace('\n', "\r\n");
+    let stale = expected.replacen("state: verifying", "state: implementing", 1);
+    assert_ne!(stale, expected);
+    fs::write(&summary_path, stale).unwrap();
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected);
+}
+
+#[test]
+fn failed_verification_publication_restores_the_summary_state_and_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let state_before = fs::read(workspace.join("state.json")).unwrap();
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
+
+    // Fail the last publication after the evidence and JSON state have been written.
+    inject_transaction_write_failure(3);
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+    assert!(
+        error.contains("injected atomic publication failure") && error.contains("change.md"),
+        "{error}"
+    );
+    assert_eq!(fs::read(workspace.join("state.json")).unwrap(), state_before);
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
+    assert!(!workspace.join("verification.json").exists());
+    assert!(!workspace.join("verification-attempts.json").exists());
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Verifying
     );
 }
 

@@ -252,14 +252,13 @@ Acceptance Criteria
 
 ### REQ-change-021
 
-The lifecycle SHALL preserve the existing canonical Change Log table schema when acceptance appends its audit row.
+The lifecycle SHALL NOT append a row to a canonical Change Log table (REQ-change-159). When `specsync history` renders a history fragment as a row (REQ-cmd-change-037), it SHALL preserve the existing table's column schema.
 
 Acceptance Criteria
-
-- A `Version | Date | Changes` table receives the post-bump canonical version, current date, and accepted change description in that order.
-- A `Date | Author | Change` table receives the current date, `SpecSync`, and accepted change description in that order.
-- Existing two-column `Date | Change` tables retain their current output.
-- The appended row has the same number and order of cells as every recognized existing header.
+- A `Version | Date | Changes` table renders a fragment as the frozen `version:` counted on by the fragment's position, the fragment's date, and `<id>: <summary>`, in that order.
+- A `Date | Author | Change` table renders the fragment's date, `SpecSync`, and `<id>: <summary>`, in that order.
+- A two-column `Date | Change` table renders the fragment's date and `<id>: <summary>`.
+- A rendered row has the same number and order of cells as every recognized existing header; a column it does not recognize is left empty.
 
 ### REQ-change-022
 
@@ -1246,13 +1245,14 @@ delta bodies the change has currently approved.
 Acceptance Criteria
 - A semantic delta corrected after review and re-approved is materialized into the canonical spec
   by the next `change check`, and the superseded wording does not survive beside the correction.
-- A module whose canonical spec carries the change's contract text but carries neither the
-  `version:` bump nor a Change Log row naming the change receives both on the next `change check`.
-  Neither is derivable from a delta digest, so re-applying the delta alone would not close this.
-- A re-approval whose delta body is byte-identical writes nothing at all: the canonical spec and
-  requirements stay byte for byte as they were, the version stands at one bump, and the Change Log
-  carries exactly one row for the change. Re-materializing unconditionally is refused as a fix,
-  because it would rewrite every canonical spec on every check.
+- A module whose canonical spec carries the change's contract text but does not record the change,
+  by its history fragment or by a Change Log row an earlier SpecSync wrote, receives the fragment
+  on the next `change check`, and never a `version:` bump or a row (REQ-change-159). The record is
+  not derivable from a delta digest, so re-applying the delta alone would not close this.
+- A re-approval whose delta body is byte-identical writes nothing at all: the canonical spec,
+  requirements and history fragment stay byte for byte as they were, and the module records the
+  change exactly once. Re-materializing unconditionally is refused as a fix, because it would
+  rewrite every canonical spec on every check.
 - Re-materialization does not refuse the work its own earlier run performed: a `## REMOVED` item
   whose block is already absent reads as applied. That reading is available ONLY to a change that
   has already materialized once; on a first materialization every application refusal still fires
@@ -1649,10 +1649,9 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 
 ### REQ-change-123
 
-`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and `change status` SHALL report it stale rather than unreadable. A send-back SHALL record how many review attempts preceded it, and a scoped review recorded before the latest send-back SHALL NOT be current, even when the re-approved definition has the same digest; for a send-back recorded without that count, a review SHALL count only when its timestamp is later than the send-back's. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules whose Change Log carries the change's row. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still has the change's Change Log row.
+`change send-back` SHALL move an approved, implementing or verifying change back to draft so its scope questions can be answered again. It SHALL require a non-empty human actor and reason, SHALL append both, with the prior state, to `approvals.json` under `send_backs`, and SHALL cancel the definition approval recorded before it without removing any recorded approval, verification or other evidence. A definition approval recorded before the latest send-back SHALL NOT satisfy the definition gate or bind a scoped review; only a fresh `change approve` does. A scoped review recorded before the send-back SHALL stay in the append-only review history and SHALL still validate against the approval it bound; it SHALL NOT stop a fresh `change review` after re-approval, and `change status` SHALL report it stale rather than unreadable. A send-back SHALL record how many review attempts preceded it, and a scoped review recorded before the latest send-back SHALL NOT be current, even when the re-approved definition has the same digest; for a send-back recorded without that count, a review SHALL count only when its timestamp is later than the send-back's. A send-back the committed ledger already holds SHALL NOT be removable or editable to bring a cancelled approval back. A send-back committed in any revision of the ledger SHALL NOT be removable or editable later, and the project audit SHALL report one that was. The send-back SHALL list the spec items the change had already applied, including REMOVED items, with each block's text from before the change, and the modules that record the change: by its history fragment, or by a Change Log row an earlier SpecSync wrote. After a send-back, materialization SHALL converge on what the canonical tree already carries, so a kept REMOVED, ADDED or MODIFIED item is not applied twice and a kept ADDED item may change its body. `change check` and `change accept` SHALL refuse, naming the spec file and the item and saying what to restore, while an item the new scope no longer declares is still applied, or a module it no longer declares still records the change; for a history fragment the refusal names the file to delete.
 
-#### Acceptance Criteria
-
+Acceptance Criteria
 - A verifying change sent back can have `affected_paths` answered again, is approved, checked, verified and accepted under its own ID, and an already-applied section is not applied twice.
 - A missing actor or reason is refused, naming `--actor` or `--reason`, and nothing is written.
 - The send-back record keeps the actor, reason and prior state; earlier approvals and `verification.json` are unchanged; a second send-back appends.
@@ -1664,7 +1663,7 @@ A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` del
 - Removing a committed send-back from `approvals.json` is refused and does not bring the cancelled approval back.
 - After a send-back, a change with a REMOVED item materializes and checks again (0xLeif's repro), and a kept ADDED item with a new body replaces the change's earlier body.
 - A dropped MODIFIED item is refused with advice to restore its pre-change text, quoting it; a dropped REMOVED item is listed and refused until the block is restored.
-- A module dropped from `affected_specs` is refused while its Change Log keeps the change's row.
+- A module dropped from `affected_specs` is refused while its history fragment, or a Change Log row an earlier SpecSync wrote, records the change, and the refusal names the fragment to delete.
 - A send-back deleted in a later commit is refused by check and reported by the project audit.
 - A change reviewed before its send-back is re-approved, re-checked and reviewed again, and finalize archives it with both review attempts in its history, the first unchanged (#914).
 - After a send-back that changes the scope, `change status` reports the earlier review stale with the re-review next action, and `change ship` refuses it.
@@ -2174,3 +2173,104 @@ reads the difference.
   archived, 6.2.0 `change new` and `change audit` refuse the same way and change
   nothing, and 6.2.0 `check --strict` still passes.
 
+### REQ-change-159
+
+When `change check` materializes an approved delta into a module that does not yet record the change, SpecSync SHALL record the change in a history fragment, `history/<change-id>.md` beside the module's spec (REQ-change-160), instead of adding a Change Log row and bumping `version:` (#1084). It SHALL NOT write the spec's `version:` or its `## Change Log` section: a table written before this requirement stays as it is, no row rewritten, and new history goes only to fragments. A delta item that targets the `## Change Log` section SHALL be refused by `change approve`, `change check`, verification and acceptance, naming the item, and a refused check or verification SHALL record its refused attempt; an archived change is not re-judged. A module records a change when the change's fragment exists or, for a change an earlier SpecSync materialized, when a cell of the module's Change Log table begins with `<change-id>:` as written, or with `<change-id>:` just inside the one Markdown marker that opens the cell (`**`, `__`, `*`, `_` or a backtick, the longest that fits) where that marker closes right after it or at the end of the cell; the same matcher decides whether a change is recorded twice, and a module that records the change gets no second record. The fragment SHALL be one of the change's own canonical files, as the spec and its companions are: `change check --commit` stages it, path coverage and acceptance ownership count it, and a send-back that drops the module names it for removal.
+
+Acceptance Criteria
+- After `change check` of an approved change to `auth`, `specs/auth/history/<id>.md` holds the change id, today's UTC date and the change title, and `auth.spec.md` keeps its `version:` and its Change Log byte for byte.
+- A second `change check` writes nothing; a module whose Change Log already names the change gets no fragment.
+- `change check --commit` commits the fragment.
+- Two changes to the same module, each checked and committed on its own branch from one base, merge with plain `git merge` and no merge driver configured, with no conflict in that module's spec.
+- A change re-scoped by a send-back so that it no longer declares a module it wrote a fragment for is refused at its next check, naming the fragment to remove.
+- A delta with a `SPEC SECTION Change Log` item is refused by `change approve`, naming the section and `history/`, and nothing is written.
+- A row reformatted as `**<id>:**` or `**<id>: <title>**` still records the change, and with a fragment it is a double record; a cell `*hotfix: Hot fix` records the change `*hotfix` and not `hotfix`, which gets a fragment of its own; a row for `one-session` does not record `session`, and the id mentioned in another row's prose records nothing.
+- A `change check` refused for a Change Log item records a refused attempt in `verification-attempts.json`.
+
+### REQ-change-160
+
+A history fragment SHALL be a UTF-8 file named `<change-id>.md` in the `history/` directory beside a module's spec. It SHALL open with YAML frontmatter holding `change:`, a string equal to the file name without `.md`, and `date:`, a `YYYY-MM-DD` date, followed by a one-line, non-empty summary; other frontmatter keys are allowed and ignored. SpecSync SHALL write `change:` as a double-quoted YAML string and SHALL read a double-quoted, single-quoted or plain value, so every change id it accepts round-trips and a fragment written unquoted still reads. A module's history SHALL be the rows of its Change Log table as written, followed by its fragments in date order and then change-id order.
+
+Acceptance Criteria
+- The fragment `change check` writes parses back to the same change id, date and title, including ids such as `true`, `'foo'` and `say "hi"`.
+- A fragment written with a plain `change:` still parses.
+- Fragments with the same date are ordered by change id.
+
+### REQ-change-161
+
+The change lifecycle SHALL read `.specsync/sdd.json` and every change record under `.specsync/changes/` and `.specsync/archive/` (4 MiB), `.specsync/change-transaction.json` and a delivery file whose digest it compares (64 MiB), and the spec, requirements, companion and history files it reads (8 MiB) only through the bounded project read of `util` (REQ-util-003), with a bound of the one named for each file. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/sdd.json` a FIFO, `change status --json` finishes without waiting on it and reports the policy as unreadable, naming the path.
+- With `.specsync/sdd.json` a link to a file outside the project, that file's bytes are not read: the error names the link as leaving the project.
+- With `.specsync/sdd.json` one byte over 4 MiB, it is refused naming the bound, without reading it whole.
+- With `.specsync/change-transaction.json` a FIFO or a link to a file outside the project, a lifecycle command finishes without waiting on it and reports the journal invalid, naming the path.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-change-162
+
+The change workflow SHALL write, replay and remove its transaction journal only as `change-transaction.json` in the project's folder in the user's state folder (REQ-util-006), and only into files the change workflow writes.
+- Each journal SHALL record the device and inode of the project root and its canonical path when it is written. A journal that records another root, or none (every journal SpecSync 6.4.0 wrote, in the user's cache folder or the state folder), SHALL never be replayed: every command that takes the lifecycle lock SHALL refuse, name the journal's path, say that it was not written for this project, and say how to clear it (check the files it lists, then delete it).
+- A `.specsync/change-transaction.json` in the work tree, of any kind and whether or not Git tracks it, SHALL never be opened or replayed, and nor SHALL a journal under a Git directory. While one is in the work tree, every command that takes the lifecycle lock SHALL refuse, name the path, say that a journal in the work tree is never replayed because a repository can put one there, and say how to clear it (check the files it lists if an older SpecSync left it, then delete it).
+- A journal entry SHALL be replayed only when its path is under `.specsync/`, or is a spec file, `requirements.md` or `history/*.md` under the configured `specs_dir`, or is a registry-mapped spec whose mapped path ends in `.spec.md`, the `requirements.md` beside it, or a file in that spec's `history/` directory.
+- A path with a `.git` component SHALL be refused under ASCII case folding, after trailing dots and spaces are removed from each component.
+- One refused entry SHALL refuse the whole journal, so nothing is replayed, with the existing invalid-journal message and its `.broken` recovery naming the entry.
+- The bare-array journal form, written only by SpecSync 5.x, SHALL no longer be replayed and SHALL be refused the same way.
+- Every transaction this build writes SHALL pass the same path rule before it is journaled.
+
+Acceptance Criteria
+- A valid journal planted at `.specsync/change-transaction.json`, or under `.git/specsync/`, is not replayed.
+- A registry entry mapping a module to `.env` does not let a journal delete or rewrite `.env`.
+- While a transaction runs, its journal is in the local state folder and not in the work tree.
+- A journal left for an earlier project at the same path is not replayed, and the command names it.
+- A journal SpecSync 6.4.0 left in the user's cache folder is not replayed, and the command names it.
+
+### REQ-change-163
+
+The system SHALL offer a dry run of the definition approval that says whether `change approve` would accept a change as it stands, and writes nothing. It SHALL run the checks `change approve` runs, in the same order and through the same functions, so the two cannot differ: the relayed-decision check, the lifecycle-lock check, loading the change, the sequence-collision check, the state guard, the roster check, the legacy-baseline binding, the definition check, the delta check, the declared-path ownership check, the `verification_ignored_paths` check, building the approval record, and resolving the actor. The lifecycle-lock check asks what taking the lock asks, without taking it: whether the lock path holds a symlink, whether the lock file could be opened, or created where it is missing, the way `change approve` opens it, and whether an interrupted lifecycle write is waiting to be recovered. It SHALL run every check that can run on its own and report the first problem from each, with the message `change approve` gives for it. It SHALL name each check it skipped and the refused check that check waits on: every later check when the lifecycle-lock check refuses, the change does not load or its state does not admit approval, and building the approval record when the delta check refuses. The first problem it reports SHALL be the one refusal `change approve` gives for the same change and flags, except when an interrupted lifecycle write is waiting to be recovered. It SHALL create, change or remove no file: not the change's `state.json`, `approvals.json` or `change.md`, no canonical spec file, not `.specsync/hashes.json`, not the lifecycle lock, and not the read cache. The legacy-baseline binding and a relayed decision's workflow-version raise SHALL stay in memory. When an interrupted lifecycle write is waiting to be recovered, it SHALL refuse with that reason and run no other check, because a real approval recovers it first, which is a write. It SHALL accept every state `change approve` accepts, including a draft and a change that was sent back. `change approve` itself SHALL refuse exactly what it refused before, with the same messages.
+
+Acceptance Criteria
+- For a complete draft with one of these faults, the dry run reports the message `change approve` then gives, and `change approve` still refuses with it: an unknown delta operation heading; an invalid, bare or non-ASCII delta item heading; a delta with no recognized heading or no item; an empty item; an empty delta file; an ADDED requirement whose id already exists; one item declared twice; a requirement with no SHALL; an ADDED requirement with no Acceptance Criteria; another module's requirement id; a malformed requirement id; an affected path no declared module owns, with and without a declared spec; a declared spec whose front matter does not parse; an unfinished interview.
+- A clean draft reports no refusal, and `change approve` then succeeds.
+- A draft with an open interview question and an invalid delta reports both in one run, each under its own check.
+- A change id that does not exist reports one refusal and names every later check as skipped.
+- Every file of the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte the same before and after the dry run, for a refused draft and for a clean one, with and without an existing lifecycle lock and hash cache.
+- A change that was sent back reports what its re-approval would.
+- A symlinked lifecycle lock path, a lock file the approval could not open or create, and an interrupted lifecycle write waiting to be recovered, each give one refusal from the lifecycle-lock check and name every later check as skipped; a transaction journal that cannot be replayed gets the refusal `change approve` gives, word for word.
+
+### REQ-change-164
+
+`change adopt`'s requirement ID proposals SHALL find `requirements.md` files under `specs_dir` only through the confined, budgeted walk (REQ-validator-053), and the read cache SHALL be read and written only in the folder REQ-util-009 names.
+
+Acceptance Criteria
+- A committed `specs` link that leaves the project yields no proposals, and the read cache of a Git work tree is outside the clone.
+
+### REQ-change-165
+
+The change workflow SHALL write `change.md`, the selected artifacts, `state.json`, `approvals.json` and its other JSON records, and create its workspaces, only through the confined project write functions of `util` (REQ-util-002); an artifact SHALL be created with an exclusive create, so a dangling link is refused instead of created through. Before `change answer`, `depend`, `supersede`, `approve` and `start` write anything, they SHALL refuse, naming the file, a change whose `state.json`, `change.md`, `approvals.json` or selected artifact leads out of the repository or into the Git directory. The durable writers behind transactions, archive, retirement and late-close moves SHALL refuse every symbolic link component of the paths they write, remove or rename.
+
+Acceptance Criteria
+- `change answer` and `change approve` refuse a committed `change.md` linked outside the repository; the outside file keeps its bytes and neither the state nor the approvals change.
+- `change answer` refuses a dangling artifact link and creates nothing outside.
+- `change new` creates no workspace in a `.specsync/changes` linked outside the repository.
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+
+### REQ-change-170
+
+`change audit` SHALL report, for each approved, implementing or verifying change, the refusal REQ-change-159 gives a delta item that targets the frozen `## Change Log` section, with the message `change check` gives, prefixed by the change id, and SHALL ask it in the order `change check` asks it: after the definition approval and the delta files hold, and before the approved delta bodies and bases. An archived change SHALL NOT be judged again.
+
+Acceptance Criteria
+- An approved, implementing or verifying change whose approved delta holds a `SPEC SECTION Change Log` item, as an older SpecSync approved it, makes `change audit` report the refusal `change check` gives, prefixed by the change id, and `change audit --strict` exits 1.
+- An archived change whose package holds such an item is not reported.
+- An active change whose delta holds no such item audits as before, and so does a project with no active change.
+
+### REQ-change-check-summary-state-001
+
+When a scoped check records a completed verification, SpecSync SHALL publish its latest evidence, attempt ledger, and Verifying state in both state.json and change.md in one recoverable transaction.
+
+Acceptance Criteria
+
+- A passing verification and a completed spec-to-code failure both leave state.json, the change.md frontmatter, and change status at verifying.
+- Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
+- A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
+- check --commit commits the synchronized summary and passing evidence that still allows scoped review.

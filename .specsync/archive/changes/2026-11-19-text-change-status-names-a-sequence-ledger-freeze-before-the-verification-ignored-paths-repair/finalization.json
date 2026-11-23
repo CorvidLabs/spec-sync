@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "text-change-status-names-a-sequence-ledger-freeze-before-the-verification-ignored-paths-repair",
+  "implementation_commit": "7680a928ab6bb2782508a9272f027ed833790c99",
+  "implementation_tree": "a37fab111f63a0de4e77265dea0f4117cb3ddf1c",
+  "contract_digest": "98eff60ad8f9d2535368fa73be85deaa7169b30de278ebd813963beaf61c31df",
+  "workspace_digest": "8dc4009028bf6508da56601773063613f352ed4bdbca47e2e32d42a95a799209",
+  "closing_digest": "a65034bdc79e27d502ef8a44b7d66d37beb4013c8b8990b64672f634d509452f",
+  "review_digest": "117b84d224321f1c59fb570ec1639e6c0dcc13560ff33baac7f201e7e7aae5ee",
+  "finalization_digest": "ee0517d349a90e1c0d1fcb1a37fb5a3656140a0147a69c1813db26414b336996",
+  "timestamp": 1795099322
+}

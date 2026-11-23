@@ -24,7 +24,7 @@ fn historical_reconciliation_fixture() -> (TempDir, ChangeRecord, ChangeRecord) 
         .unwrap()
         .entries
         .into_iter()
-        .filter(|e| e.owners.iter().any(|o| o == "auth") && e.path != "specs/auth/requirements.md")
+        .filter(|e| e.owners.iter().any(|o| o == "auth") && e.path != "specs/auth/requirements.md" && !e.path.starts_with("specs/auth/history/"))
         .collect::<Vec<_>>();
     fs::write(
         root.join("src/auth.rs"),

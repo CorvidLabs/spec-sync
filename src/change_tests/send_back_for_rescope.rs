@@ -495,10 +495,11 @@ fn a_dropped_removed_item_is_refused_until_the_section_is_restored() {
     check_passes(root, &record.id);
 }
 
-/// DISCRIMINATOR (Medium): a module dropped from `affected_specs` keeps the change's version bump
-/// and Change Log row, so check refuses and names that row until it is reverted.
+/// DISCRIMINATOR (Medium): a module dropped from `affected_specs` keeps the change's record, its
+/// history fragment (REQ-change-159), so check refuses and names the fragment until it is deleted.
+/// A module an earlier SpecSync recorded by a Change Log row is refused naming that row.
 #[test]
-fn a_module_dropped_from_the_scope_is_refused_while_it_keeps_the_change_log_row() {
+fn a_module_dropped_from_the_scope_is_refused_while_it_keeps_the_change_s_record() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = completed_section_only_current_record(root, SEND_BACK_DELTA);
@@ -533,9 +534,25 @@ fn a_module_dropped_from_the_scope_is_refused_while_it_keeps_the_change_log_row(
     fs::write(&session, restored).unwrap();
     approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
 
+    let fragment = format!("specs/session/history/{}.md", record.id);
+    let error = check_change(root, Some(&record.id)).map(|_| ()).unwrap_err();
+    assert!(error.contains(&fragment), "{error}");
+    assert!(error.contains("delete it"), "{error}");
+
+    // The same module recorded the way SpecSync 6.3.0 recorded it: a row, no fragment.
+    fs::remove_file(root.join(&fragment)).unwrap();
+    let session_spec = fs::read_to_string(&session).unwrap();
+    fs::write(
+        &session,
+        format!("{session_spec}| 2026-11-18 | {}: {} |\n", record.id, record.title),
+    )
+    .unwrap();
     let error = check_change(root, Some(&record.id)).map(|_| ()).unwrap_err();
     assert!(error.contains("specs/session/session.spec.md"), "{error}");
     assert!(error.contains("Change Log"), "{error}");
+
+    fs::write(&session, session_spec).unwrap();
+    check_passes(root, &record.id);
 }
 
 /// DISCRIMINATOR (Low): deleting a send-back and committing the deletion does not bring the
@@ -600,8 +617,15 @@ fn a_sent_back_removed_only_change_materializes_again() {
     materialize_change_deltas(root, &record.id).unwrap();
     let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
     assert!(!spec.contains("## Legacy Notes"), "{spec}");
-    assert_eq!(spec.matches("add-passkeys:").count(), 1, "{spec}");
-    assert_eq!(version(root), first_version, "the version is bumped once: {spec}");
+    assert!(
+        !spec.contains("add-passkeys:"),
+        "no Change Log row is written: {spec}"
+    );
+    assert!(
+        history_fragment_path(&root.join("specs/auth/auth.spec.md"), &record.id).is_file(),
+        "the change is recorded once, in its history fragment"
+    );
+    assert_eq!(version(root), first_version, "the version is never bumped: {spec}");
 }
 
 /// #914: a review recorded before a send-back stays readable history, bound to the approval the

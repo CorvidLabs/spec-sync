@@ -31,7 +31,7 @@ depends_on:
 | Field | Type | Description |
 |:------|:-----|:------------|
 | `module` | `string` | Module name for display and identification |
-| `version` | `number` | Increment when the spec changes |
+| `version` | `number` | Increment when you edit the spec by hand. `change check` does not bump it: each change it materializes is recorded in `history/<change-id>.md` instead |
 | `status` | `enum` | `draft`, `review`, `active`, `stable`, `deprecated`, or `archived` |
 | `files` | `string[]` | Source files this spec covers (must be non-empty) |
 

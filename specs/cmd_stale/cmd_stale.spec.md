@@ -12,6 +12,7 @@ depends_on:
   - specs/git_utils/git_utils.spec.md
   - specs/parser/parser.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Stale
@@ -36,6 +37,7 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 4. Results are sorted by most-stale-first (highest `max_commits_behind`)
 5. Exit code is 1 when any stale specs are found, 0 when all are fresh
 6. Requires a git repository — exits with error if `is_git_repo` returns false
+7. Every read of a project file here, spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-stale-005).
 
 ## Behavioral Examples
 
@@ -65,6 +67,7 @@ Implements the `specsync stale` command — a focused staleness detection tool t
 | Spec file unreadable | Skipped silently |
 | No frontmatter | Skipped silently |
 | Source file doesn't exist on disk | Skipped in commit distance check |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

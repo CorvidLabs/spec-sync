@@ -117,22 +117,22 @@ impl Drop for KillOnDrop {
     }
 }
 
-/// The start of the line `watch` prints after every run: `Watching for changes in: ...` after
-/// the first, `Watching for changes...` after each later one (`src/watch.rs`).
-const AFTER_RUN: &str = "Watching for changes";
-
-/// Whether `collected` holds a finished `watch` run: one of its verdict `markers`, followed by the
-/// line `watch` prints after the run, so no later line of the same run is missed (#1055).
+/// Whether the captured output contains a verdict followed by the steady-state line that
+/// `watch` prints after each run. The arrow may include ANSI color escapes.
 fn run_finished(collected: &str, markers: &[&str]) -> bool {
-    markers
-        .iter()
-        .filter_map(|marker| collected.find(marker).map(|at| at + marker.len()))
-        .min()
-        .is_some_and(|after| collected[after..].contains(AFTER_RUN))
+    let mut lines = collected.lines();
+    lines.any(|line| markers.iter().any(|marker| line.contains(marker)))
+        && lines.any(|line| {
+            line.split_once(' ').is_some_and(|(arrow, status)| {
+                arrow.contains(">>>")
+                    && (status.starts_with("Watching for changes in: ")
+                        || status.starts_with("Watching for changes..."))
+            })
+        })
 }
 
-/// #1040: run `specsync watch` until one of `markers` appears in its stdout, then kill it.
-/// The verdict is an event, not a duration — a fixed window flakes under load (#707's class).
+/// Read the complete run before the child is reaped. The footer is an event rather than a
+/// delay, so scheduling load does not make the test stop early.
 /// The generous upper bound exists only to bound a hung child.
 fn watch_until(root: &std::path::Path, markers: &[&str]) -> String {
     use std::io::{BufRead, BufReader};
@@ -169,14 +169,18 @@ fn watch_until(root: &std::path::Path, markers: &[&str]) -> String {
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
                 assert!(
                     std::time::Instant::now() < deadline,
-                    "watch printed none of {markers:?} within the generous bound; got: {collected}"
+                    "watch did not finish a run with any of {markers:?} within the generous bound; got: {collected}"
                 );
                 if child.0.try_wait().unwrap().is_some() {
-                    panic!("watch exited before printing any of {markers:?}; got: {collected}");
+                    panic!(
+                        "watch exited before finishing a run with any of {markers:?}; got: {collected}"
+                    );
                 }
             }
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
-                panic!("watch closed stdout before printing any of {markers:?}; got: {collected}");
+                panic!(
+                    "watch closed stdout before finishing a run with any of {markers:?}; got: {collected}"
+                );
             }
         }
     }
@@ -289,6 +293,14 @@ fn a_watch_run_is_finished_only_at_the_line_after_its_verdict() {
         "the verdict alone does not end the run"
     );
     assert!(!run_finished(
+        "All checks passed! Watching for changes is mentioned on the verdict line\n",
+        &markers,
+    ));
+    assert!(!run_finished(
+        "All checks passed!\nwarning: Watching for changes appeared in a diagnostic\n",
+        &markers,
+    ));
+    assert!(!run_finished(
         "All checks passed!\nwarning: a later line of the same run\n",
         &markers
     ));
@@ -299,6 +311,10 @@ fn a_watch_run_is_finished_only_at_the_line_after_its_verdict() {
     assert!(run_finished(
         "No specs were examined\n\n>>> Watching for changes... (Ctrl+C to stop)\n",
         &markers
+    ));
+    assert!(run_finished(
+        "All checks passed!\n\u{1b}[36m>>>\u{1b}[0m Watching for changes in: specs\n",
+        &markers,
     ));
     assert!(
         !run_finished(">>> Watching for changes in: specs\n", &markers),

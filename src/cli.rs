@@ -221,6 +221,11 @@ pub enum Command {
         #[arg(long, conflicts_with_all = ["dry_run", "all"])]
         install: bool,
     },
+    /// Print a module's Change Log: its frozen table, then one row per history fragment
+    History {
+        /// The spec module whose history to print
+        module: String,
+    },
     /// Report every problem in the change records with its fix; `--fix` applies the safe ones
     Doctor {
         /// Apply the safe fixes, and every late close named with --close-late
@@ -504,6 +509,9 @@ pub enum ChangeAction {
         /// Relayed decision: the agent recording it
         #[arg(long)]
         recorded_by: Option<String>,
+        /// Say whether the approval would be accepted and why not, and write nothing
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Compatibility alias for projects created before approval entered implementation automatically
     #[command(hide = true)]
@@ -1038,6 +1046,18 @@ mod tests {
         assert!(Cli::try_parse_from(["specsync", "merge", "--install"]).is_ok());
     }
 
+    /// REQ-cli-args-026: `history` takes one required module and the global output flags.
+    #[test]
+    fn history_takes_one_required_module() {
+        let cli = Cli::try_parse_from(["specsync", "history", "auth"]).unwrap();
+        assert!(matches!(cli.command, Some(Command::History { ref module }) if module == "auth"));
+        let json =
+            Cli::try_parse_from(["specsync", "--format", "json", "history", "auth"]).unwrap();
+        assert_eq!(json.format, types::OutputFormat::Json);
+        assert!(Cli::try_parse_from(["specsync", "history"]).is_err());
+        assert!(Cli::try_parse_from(["specsync", "history", "auth", "billing"]).is_err());
+    }
+
     #[test]
     fn unknown_subcommand_is_rejected() {
         assert!(Cli::try_parse_from(["specsync", "definitely-not-a-command"]).is_err());
@@ -1155,6 +1175,42 @@ mod tests {
                     portable_5_0_1: false,
                     ..
                 }
+            })
+        ));
+    }
+
+    /// REQ-cli-args-027 (#1091): `change approve` accepts `--dry-run` with its other flags and
+    /// the global output flags.
+    #[test]
+    fn change_approve_accepts_a_dry_run() {
+        for arguments in [
+            &["specsync", "change", "approve", "add-passkeys", "--dry-run"][..],
+            &[
+                "specsync",
+                "--json",
+                "change",
+                "approve",
+                "add-passkeys",
+                "--dry-run",
+                "--actor",
+                "Ada",
+            ][..],
+        ] {
+            let parsed = Cli::try_parse_from(arguments);
+            assert!(parsed.is_ok(), "{arguments:?} does not parse");
+            assert!(matches!(
+                parsed.ok().and_then(|cli| cli.command),
+                Some(Command::Change {
+                    action: ChangeAction::Approve { dry_run: true, .. }
+                })
+            ));
+        }
+        // The dry run is off unless it is asked for.
+        let plain = Cli::try_parse_from(["specsync", "change", "approve", "add-passkeys"]);
+        assert!(matches!(
+            plain.ok().and_then(|cli| cli.command),
+            Some(Command::Change {
+                action: ChangeAction::Approve { dry_run: false, .. }
             })
         ));
     }

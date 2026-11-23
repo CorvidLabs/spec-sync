@@ -28,7 +28,7 @@ The CLI is the source of truth. Editor extensions, GitHub Actions, MCP clients, 
 
 | Area | Responsibility |
 |---|---|
-| `main.rs`, `cli.rs`, `cli_args.rs` | Command parsing, dispatch, enforcement, and output formats |
+| `main.rs`, `cli.rs`, `output.rs` | Command parsing, dispatch, enforcement, and output formats |
 | `change.rs` | Verified SDD interviews, approvals, deltas, evidence, acceptance, and archival |
 | `parser.rs`, `validator.rs` | Spec structure, Public API tables, coverage, and canonical checks |
 | `deps.rs` | Source import discovery and dependency graph validation |
@@ -121,6 +121,8 @@ Extractors must fail safely on unreadable input and must not require a language 
 | `tree-sitter-*` | Optional AST-backed language extraction |
 | `walkdir` | Project discovery and coverage |
 | `sha2` | Cache and lifecycle evidence digests |
+| `fs2` | The exclusive lifecycle lock (`change.lock`) |
+| `cap-std` | Confined reads and writes inside the project and SpecSync's own state folders |
 | `notify` | Watch mode |
 | `ureq` | Registry, import, and GitHub HTTP access—not AI inference |
 

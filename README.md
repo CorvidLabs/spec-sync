@@ -11,7 +11,7 @@
 
 **Turn requirements into module contracts that fail CI when code drifts—without losing the decisions and evidence around the fix.**
 
-Rust · single binary · 33 languages · no SpecSync API key required
+Rust · single binary · 33 language families · no SpecSync API key required
 
 [Install](#install) · [Quick start](#quick-start) · [Verified change workflow](#verified-change-workflow) · [Live documentation](https://corvidlabs.xyz/spec-sync/docs/) · [Examples](#executable-examples) · [Comparisons](#how-it-compares)
 
@@ -21,11 +21,11 @@ Rust · single binary · 33 languages · no SpecSync API key required
 
 ## Install
 
-The GitHub **6.3.0** release uses the immutable candidate qualified on Ubuntu and
-macOS, and crates.io serves 6.3.0. This separate Action wrapper update selects its
+The GitHub **6.4.1** release uses the immutable candidate qualified on Ubuntu and
+macOS, and crates.io serves 6.4.1. This separate Action wrapper update selects its
 published binary by default. Confirm availability at your chosen distribution before
-using the 6.3.0 installation pins below; GitHub asset publication does not itself
-establish Homebrew publication. See [the release handoff](docs/releases/6.3.0.md).
+using the 6.4.1 installation pins below; GitHub asset publication does not itself
+establish Homebrew publication. See [the release handoff](docs/releases/6.4.1.md).
 Confirm what you received with `specsync --version`, and pin all lifecycle writers and CI to
 the same 6.x version.
 
@@ -44,27 +44,27 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.3.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.3.0'
+    version: '6.4.1'
     strict: 'true'
     require-coverage: '100'
 ```
 
-Use the explicit `@v6.3.0` Action and binary pins shown above for release gates.
+Use the explicit `@v6.4.1` Action and binary pins shown above for release gates.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
 when using that older tag. This main wrapper's omitted-input default is published
-`6.3.0`, following supported-platform asset and Action checks. The immutable
-`@v6.3.0` tag still embeds default `6.2.0`: explicitly pass `version: '6.3.0'` with
+`6.4.1`, following supported-platform asset and Action checks. The immutable
+`@v6.4.1` tag still embeds default `6.4.0`: explicitly pass `version: '6.4.1'` with
 that tag for its new binary. Floating `@v6` advances to this wrapper commit only after
-its actual consumer checks pass; the immutable `@v6.3.0` ref is never moved here.
+its actual consumer checks pass; the immutable `@v6.4.1` ref is never moved here.
 
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.3.0
+- uses: CorvidLabs/spec-sync@v6.4.1
   with:
-    version: '6.3.0'
+    version: '6.4.1'
 ```
 
 ### Pre-built binaries
@@ -262,7 +262,8 @@ specs/auth/
 
 | Artifact | Durable responsibility |
 |---|---|
-| `*.spec.md` | Source files, public API, invariants, behavior, errors, dependencies, and change history |
+| `*.spec.md` | Source files, public API, invariants, behavior, errors, dependencies, and a frozen Change Log |
+| `history/<change-id>.md` | One fragment per change `change check` records; `specsync history <module>` prints the whole log |
 | `requirements.md` | Stable `REQ-*` identities, normative SHALL statements, and acceptance criteria |
 | `tasks.md` | Work still to do; requirements are not checkboxes |
 | `context.md` | Decisions, constraints, key files, and handoff state |
@@ -325,7 +326,8 @@ SpecSync can stand alone or enforce the implementation layer beneath planning-or
 
 ## Supported languages
 
-SpecSync auto-detects source files and public exports across 33 languages:
+SpecSync auto-detects source files and public exports across 33 language families (Lisp covers
+Common Lisp, Scheme and Emacs Lisp; TypeScript covers JavaScript):
 
 TypeScript/JavaScript, Rust, Go, Python, Swift, Kotlin, Java, C#, Dart, PHP, Ruby, YAML, C, C++, Scala, Crystal, Nim, Erlang, Elixir, Perl, Common Lisp, Scheme, Emacs Lisp, Haskell, Lua, R, OCaml, Groovy, F#, Clojure, D, Objective-C, Bash, PowerShell, and Vala.
 

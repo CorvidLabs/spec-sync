@@ -1,7 +1,5 @@
 use colored::Colorize;
 use serde::Serialize;
-use std::fs;
-use std::io::Write;
 use std::path::Path;
 use std::process;
 
@@ -93,7 +91,7 @@ fn execute_init_registry(
     }
 
     if let Some(config_path) = existing_config_path(root)
-        && let Err(error) = validate_config_file(&config_path)
+        && let Err(error) = validate_config_file(root, &config_path)
     {
         return Err(InitRegistryReport::failure(rel_display, error));
     }
@@ -105,20 +103,20 @@ fn execute_init_registry(
             format!("generated registry is invalid TOML: {error}"),
         ));
     }
-    if let Some(parent) = registry_path.parent()
-        && let Err(error) = fs::create_dir_all(parent)
-    {
-        return Err(InitRegistryReport::failure(
-            rel_display,
-            format!("failed to create {}: {error}", parent.display()),
-        ));
-    }
-
-    let write_result = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&registry_path)
-        .and_then(|mut file| file.write_all(content.as_bytes()));
+    // An exclusive create through the confined project write: a `.specsync` linked out of the
+    // repository is refused, and a registry that appeared since the look above is kept
+    // (REQ-cmd-init-registry-004).
+    let write_result = crate::util::create_project_file(root, &registry_path, content.as_bytes())
+        .and_then(|created| {
+            if created {
+                Ok(())
+            } else {
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::AlreadyExists,
+                    "the registry appeared while it was being written",
+                ))
+            }
+        });
     match write_result {
         Ok(()) => Ok(InitRegistryReport {
             command: "init-registry",

@@ -8,6 +8,7 @@ db_tables: []
 tracks: [94]
 depends_on:
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Archive
@@ -23,7 +24,7 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 | Function | Parameters | Returns | Description |
 |----------|-----------|---------|-------------|
 | `archive_tasks` | `root: &Path, specs_dir: &Path, dry_run: bool` | `ArchiveReport` | Plan every companion update, stage replacements, and atomically publish a complete archival report |
-| `count_completed_tasks` | `specs_dir: &Path` | `usize` | Count all completed tasks across all tasks.md files |
+| `count_completed_tasks` | `root: &Path, specs_dir: &Path` | `usize` | Count all completed tasks across all tasks.md files |
 | `as_str` | `self` | `&'static str` | Return the stable machine-readable archive operation name |
 | `is_complete` | `&self` | `bool` | Whether every planned operation was previewed or applied successfully |
 | `is_partial` | `&self` | `bool` | Whether an incomplete apply left at least one destination changed |
@@ -52,6 +53,7 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 8. Every replacement is staged in its destination directory before the first destination is published
 9. Staged files preserve original permissions and are atomically renamed over their destination
 10. A late publish failure is reported; prior successful publishes are rolled back when safe, and any remaining changed files are exposed as partial success
+11. Every read of a project file here, each spec's `tasks.md` (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-archive-002).
 
 ## Behavioral Examples
 
@@ -87,6 +89,7 @@ Moves completed markdown task items (`- [x]`) from active sections of companion 
 | replacement staging failure | Removes staged temporary files and returns an incomplete report without publishing any destination |
 | atomic publication failure | Records the failure, rolls back prior publishes when safe, and reports any destination that could not be restored as partial |
 | symbolic-link or non-file tasks path | Rejects it during preflight without replacing the entry |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

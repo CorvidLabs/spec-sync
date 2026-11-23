@@ -1,4 +1,0 @@
---- stdout ---
-
---- stderr ---
-::error::specsync-linux-aarch64-musl.tar.gz.sha256 is missing; package the archive with its checksum first

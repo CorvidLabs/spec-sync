@@ -102,9 +102,10 @@ because it would record the newer text as the base and let the old body overwrit
 recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
 recorded these bases, a later approval cannot drop them.
 
-One limit: a `MODIFIED` `Change Log` section is not protected this way. `change check` appends the
-change's own row to that section, so its text never matches the approved body afterwards. Prefer
-letting SpecSync append Change Log rows over restating the whole table in a delta.
+A delta cannot target the `## Change Log` section. The table is frozen, and each change is recorded
+in its own history fragment, so `change approve`, `change check`, verification and acceptance refuse an `ADDED`,
+`MODIFIED` or `REMOVED` `SPEC SECTION Change Log` item and name it. A change archived before this
+rule is not re-judged.
 
 ---
 
@@ -133,9 +134,23 @@ Fix classification edits to accepted metadata with `change correct` rather than 
 targeted verification. After ordinary and scoped PR review, `specsync change finalize` binds that
 implementation and moves the package into the dated archive in the same PR:
 
-- the canonical spec's `version` increments,
-- the Change Log records the change,
+- the change is recorded in its own history fragment, `specs/<module>/history/<change-id>.md`
+  (date, change id and title); the spec's `version` and its Change Log table are not touched,
 - requirement blocks land in the canonical `requirements.md`.
+
+Because each change writes its own history file, two changes to one module never edit the same
+line of its spec for their history, so they merge with plain Git, including GitHub's merge button,
+which runs no merge driver. A Change Log table written by an earlier SpecSync stays exactly as it
+is; `specsync history <module>` prints it followed by one row per fragment.
+
+SpecSync 6.3.0 and older do not know history fragments. Their `check` ignores them, but their
+`change audit` and `change audit --strict` fail on a branch whose changes add a fragment, at the
+checked tip and at the archive tip (they read the fragment as a path no active change covers); on
+a branch that only holds fragments already merged they pass. Their `change check` on a change
+recorded by a fragment appends a Change Log row and bumps `version:` as well, which a newer
+`check` reports as a change recorded twice. A repository
+that pins SpecSync must move the pin in the same pull request that first ships a change with
+history fragments.
 
 Application is protected against double-apply: if a block already exists in the canonical spec
 (for example because it was hand-applied outside the lifecycle), checking fails rather than

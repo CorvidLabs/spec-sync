@@ -19,9 +19,8 @@ disabled and success states. It should look like the intended product, following
 the target project's conventions. Figma is optional; do not build a separate
 dashboard just to exercise this stage.
 
-Iterate in the same files. Earlier versions live in Git history and, if the
-librarian is on, in `chough library snapshot` copies. Never keep several competing
-"current" prototypes.
+Iterate in the same files. Earlier versions live in Git history. Never keep several
+competing "current" prototypes.
 
 ## Review what renders
 
@@ -29,7 +28,9 @@ Source inspection is not rendered design QA. A browser- or vision-capable agent
 opens the prototype, exercises the interactions, checks each listed state at each
 target viewport, and saves screenshots with notes. Record them as observations
 (`chough cases record <design-qa case> --method agent-assisted …`) with method and
-limits. A text-only host does the source checks, then hands rendered judgment to a
+limits. Check each screenshot for personal information before recording it; a session
+commits at most 5 small key screenshots, each with `chough evidence add … --screenshot
+<path>`, and larger ones are recorded by fingerprint (see [testing.md](testing.md)). A text-only host does the source checks, then hands rendered judgment to a
 capable agent or the human and leaves the unperformed checks explicit.
 
 Run the design, accessibility and user-advocate passes from [roles.md](roles.md).

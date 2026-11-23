@@ -611,24 +611,21 @@ fn full_lifecycle_applies_contract_and_archives() {
     record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
     assert_eq!(record.state, ChangeState::Accepted);
     let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
-    assert!(spec.contains("version: 1.0.1"));
+    // REQ-change-159: the change is recorded in its own history fragment; the spec's `version:`
+    // and Change Log are frozen.
+    assert!(spec.contains("version: 1.0.0"), "{spec}");
     assert!(spec.contains("REQ-auth-001"));
-    assert!(spec.contains(&record.id));
-    // The row is dated when it is written. Comparing it to a second `today()`
-    // fails when the write and the assertion fall on opposite sides of midnight.
-    let spec_lf = spec.replace("\r\n", "\n");
-    let marker = "| 2026-01-01 | Initial |\n| ";
-    let row = spec_lf.split_once(marker).unwrap_or_else(|| {
-        panic!(
-            "changelog row was not appended after Initial:\n{}",
-            spec_lf.rsplit("## Change Log").next().unwrap_or(&spec_lf)
-        )
-    });
-    let date: String = row.1.chars().take(10).collect();
-    assert!(
-        date.len() == 10 && date.as_bytes()[4] == b'-' && date.as_bytes()[7] == b'-',
-        "changelog date {date:?} is not YYYY-MM-DD"
-    );
+    assert!(!spec.contains(&record.id), "no Change Log row: {spec}");
+    // The fragment is dated when it is written. Comparing it to a second `today()` fails when
+    // the write and the assertion fall on opposite sides of midnight.
+    let fragment_path = history_fragment_path(&root.join("specs/auth/auth.spec.md"), &record.id);
+    let fragment = parse_history_fragment(
+        &format!("{}.md", record.id),
+        &fs::read_to_string(&fragment_path).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(fragment.change, record.id);
+    assert!(is_calendar_date(&fragment.date), "{fragment:?}");
     let requirements = fs::read_to_string(root.join("specs/auth/requirements.md")).unwrap();
     assert!(requirements.contains("### REQ-auth-001"));
     git(&["add", "."]);
@@ -722,6 +719,8 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
     );
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
 
     let error = verify_change(root, &record.id).unwrap_err();
     assert!(
@@ -747,6 +746,11 @@ fn missing_requirement_evidence_refusal_records_the_attempt() {
         !change_dir(root, &record.id).join("verification.json").exists(),
         "a refusal never writes verification.json"
     );
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Implementing
+    );
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
 }
 
 const PHANTOM_AUTH_SPEC: &str = "---\nmodule: auth\nversion: 1.0.0\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuth.\n\n## Public API\n\n| Export | Description |\n|--------|-------------|\n| `does_not_exist` | Phantom. |\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n";
@@ -806,13 +810,74 @@ fn change_check_fails_when_specs_and_code_drift() {
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
     record = start_implementation(root, &record.id).unwrap();
 
-    let error = verify_change(root, &record.id).unwrap_err();
+    let error = check_change(root, Some(&record.id)).unwrap_err();
     assert!(
         error.contains("does_not_exist")
             || error.contains("out of sync")
             || error.contains("phantom")
             || error.contains("missing"),
         "spec↔code drift must fail change check, got {error}"
+    );
+    let recorded = load_change(root, &record.id).unwrap();
+    let summary = fs::read_to_string(change_dir(root, &record.id).join("change.md")).unwrap();
+    assert_eq!(recorded.state, ChangeState::Verifying);
+    assert!(summary.lines().any(|line| line == "state: verifying"));
+    assert!(!load_verification(root, &recorded).unwrap().passed);
+}
+
+#[test]
+fn change_check_repairs_an_older_verifying_summary_and_keeps_its_notes() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+
+    let summary_path = change_dir(root, &record.id).join("change.md");
+    let previous = fs::read_to_string(&summary_path).unwrap();
+    let expected = format!("{previous}\n---\n\n## Handoff notes\n\nstate: implementing\n")
+        .replace('\n', "\r\n");
+    let stale = expected.replacen("state: verifying", "state: implementing", 1);
+    assert_ne!(stale, expected);
+    fs::write(&summary_path, stale).unwrap();
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected);
+}
+
+#[test]
+fn failed_verification_publication_restores_the_summary_state_and_evidence() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = completed_section_only_current_record(
+        root,
+        "## MODIFIED\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+    );
+    approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    materialize_change_deltas(root, &record.id).unwrap();
+    let workspace = change_dir(root, &record.id);
+    let state_before = fs::read(workspace.join("state.json")).unwrap();
+    let summary_before = fs::read(workspace.join("change.md")).unwrap();
+
+    // Fail the last publication after the evidence and JSON state have been written.
+    inject_transaction_write_failure(3);
+    let error = check_change(root, Some(&record.id)).unwrap_err();
+    assert!(
+        error.contains("injected atomic publication failure") && error.contains("change.md"),
+        "{error}"
+    );
+    assert_eq!(fs::read(workspace.join("state.json")).unwrap(), state_before);
+    assert_eq!(fs::read(workspace.join("change.md")).unwrap(), summary_before);
+    assert!(!workspace.join("verification.json").exists());
+    assert!(!workspace.join("verification-attempts.json").exists());
+
+    assert!(check_change(root, Some(&record.id)).unwrap().unwrap().passed);
+    assert_eq!(
+        load_change(root, &record.id).unwrap().state,
+        ChangeState::Verifying
     );
 }
 
@@ -2310,12 +2375,15 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
     fs::create_dir_all(root.join("specs/auth")).unwrap();
     let canonical = root.join("specs/auth/auth.spec.md");
     fs::write(&canonical, "corrupted partial write\n").unwrap();
-    write_json(
-        &root.join(TRANSACTION_PATH),
-        &[TransactionEntry {
+    // The durable form this build writes: the bare-array form is no longer replayed
+    // (REQ-change-162).
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(
+        transaction_journal_path(root),
+        durable_journal(root, vec![TransactionEntry {
             path: "specs/auth/auth.spec.md".into(),
             original: Some("original canonical content\n".into()),
-        }],
+        }]),
     )
     .unwrap();
     let lock = acquire_project_lock(root).unwrap();
@@ -2324,7 +2392,7 @@ fn pending_transaction_is_recovered_before_next_lifecycle_write() {
         fs::read_to_string(canonical).unwrap(),
         "original canonical content\n"
     );
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2344,7 +2412,7 @@ fn torn_transaction_staging_file_is_never_treated_as_the_journal() {
     drop(lock);
 
     assert_eq!(fs::read_to_string(canonical).unwrap(), "original\n");
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -2362,27 +2430,30 @@ fn torn_canonical_transaction_journal_fails_closed() {
             path: ".specsync/state.json".into(),
             original: Some("original\n".into()),
         }],
+        root: Some(journal_root(root).unwrap()),
     };
-    write_json(&root.join(TRANSACTION_PATH), &journal).unwrap();
+    write_json(&transaction_journal_path(root), &journal).unwrap();
 
     let error = acquire_project_lock(root).err().unwrap();
     assert!(error.contains("invalid transaction journal at"));
     assert_eq!(fs::read_to_string(&canonical).unwrap(), "partial payload\n");
-    assert!(root.join(TRANSACTION_PATH).exists());
+    assert!(transaction_journal_path(root).exists());
 }
 
 #[test]
 fn unreadable_transaction_backup_aborts_before_journal_publication() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let target = root.join("state.json");
+    // A change record, a path the change workflow really journals (REQ-change-162).
+    let target = root.join(".specsync/changes/unreadable/state.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
     fs::write(&target, [0xff, 0xfe]).unwrap();
 
     let error =
         write_prepared_files(root, &[(target.clone(), "replacement\n".into())]).unwrap_err();
     assert!(error.contains("failed to preserve transaction target"));
     assert_eq!(fs::read(&target).unwrap(), vec![0xff, 0xfe]);
-    assert!(!root.join(TRANSACTION_PATH).exists());
+    assert!(!transaction_journal_path(root).exists());
 }
 
 #[test]
@@ -4579,31 +4650,29 @@ fn a_delta_corrected_after_materialization_reaches_the_canonical_spec_on_the_nex
         "the superseded wording must not survive beside the correction: {spec}"
     );
     assert!(
-        spec.contains("version: 1.0.1"),
-        "correcting a delta must not bump the version a second time; one change bumps one \
-         module's version exactly once: {spec}"
+        spec.contains("version: 1.0.0") && !spec.contains(&format!("{}:", record.id)),
+        "correcting a delta never bumps the version or appends a Change Log row: {spec}"
     );
+    let fragment_path = history_fragment_path(&root.join("specs/auth/auth.spec.md"), &record.id);
     assert_eq!(
-        spec.matches(&format!("{}:", record.id)).count(),
-        1,
-        "correcting a delta must not append a second Change Log row for the same change: {spec}"
+        fs::read_to_string(&fragment_path).unwrap(),
+        history_fragment_content(&record.id, &today(), &record.title),
+        "the change keeps the one history fragment its first check wrote"
     );
 }
 
 /// DISCRIMINATOR for #741's widening, and the half that rules out the narrowest repair.
 ///
-/// `bump_spec_version` and `append_changelog` have exactly one caller, inside the materialization
-/// the short-circuit skipped, so the flag skipped all THREE outputs and not merely the applied
-/// delta. "Re-apply the delta when its digest moved" would leave these two still skipped: neither
-/// a `version:` integer nor a Change Log row is derivable from a delta digest.
+/// The flag skipped both outputs of materialization, not merely the applied delta. "Re-apply the
+/// delta when its digest moved" would leave the module's record of the change still skipped: it
+/// is not derivable from a delta digest. Since #1084 that record is the change's history
+/// fragment (REQ-change-159); before, it was a `version:` bump and a Change Log row.
 ///
-/// The fixture is the #721 shape, built by deleting exactly those two outputs from a spec that
-/// has all three — contract text present, no bump, no row. A rebase that takes upstream's
-/// frontmatter and Change Log while keeping the merged body produces precisely this, and on the
-/// unfixed binary `change check`, `change audit --strict` and `specsync check --strict` all pass
-/// over it, because nothing below the flag runs to ask.
+/// The fixture is the #721 shape, built by deleting exactly the record from a materialized tree —
+/// contract text present, no fragment. A rebase that drops the file while keeping the merged body
+/// produces precisely this.
 #[test]
-fn a_materialized_spec_missing_its_version_bump_and_change_log_row_gets_both_back() {
+fn a_materialized_spec_missing_its_history_fragment_gets_it_back() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = change_with_an_approved_delta(root);
@@ -4611,40 +4680,27 @@ fn a_materialized_spec_missing_its_version_bump_and_change_log_row_gets_both_bac
     materialize_change_deltas(root, &record.id).unwrap();
 
     let materialized = fs::read_to_string(&spec_path).unwrap();
-    let row = format!("{}:", record.id);
+    let fragment_path = history_fragment_path(&spec_path, &record.id);
+    let fragment = fs::read_to_string(&fragment_path).unwrap();
     assert!(
-        materialized.contains("version: 1.0.1") && materialized.contains(&row),
-        "the fixture must start from a spec that has all three outputs: {materialized}"
+        materialized.contains("Auth tracks credentials. Reviewed and approved wording.")
+            && materialized.contains("version: 1.0.0"),
+        "the fixture must start from the contract text with the version frozen: {materialized}"
     );
-    let rebased = format!(
-        "{}\n",
-        materialized
-            .lines()
-            .filter(|line| !line.contains(&row))
-            .collect::<Vec<_>>()
-            .join("\n")
-    )
-    .replace("version: 1.0.1", "version: 1.0.0");
-    assert!(
-        rebased.contains("Auth tracks credentials. Reviewed and approved wording.")
-            && rebased.contains("version: 1.0.0")
-            && !rebased.contains(&row),
-        "the fixture must keep the contract text and lose only the bump and the row: {rebased}"
-    );
-    fs::write(&spec_path, &rebased).unwrap();
+    fs::remove_file(&fragment_path).unwrap();
 
     materialize_change_deltas(root, &record.id).unwrap();
 
-    let repaired = fs::read_to_string(&spec_path).unwrap();
-    assert!(
-        repaired.contains("version: 1.0.1"),
-        "a spec carrying this change's contract text must carry its version bump: {repaired}"
+    assert_eq!(
+        fs::read_to_string(&spec_path).unwrap(),
+        materialized,
+        "the record comes back without a bump or a row"
     );
     assert_eq!(
-        repaired.matches(&row).count(),
-        1,
-        "a spec carrying this change's contract text must carry exactly one Change Log row for \
-         it: {repaired}"
+        fs::read_to_string(&fragment_path).unwrap(),
+        fragment,
+        "a module carrying this change's contract text must record the change: its fragment is \
+         written again"
     );
 }
 
@@ -4652,11 +4708,10 @@ fn a_materialized_spec_missing_its_version_bump_and_change_log_row_gets_both_bac
 /// passes on the unfixed binary too — that is the entire point.
 ///
 /// "Always re-materialize" would satisfy both discriminators and would be a disaster: every
-/// `check` would rewrite the canonical specs, bump their versions again and append another
-/// Change Log row, which is the exact reason the short-circuit exists. A re-approval whose delta
-/// body is byte-identical has nothing outstanding, so it must still short-circuit and leave all
-/// three outputs alone — the spec byte for byte, the version at one bump, the Change Log at one
-/// row.
+/// `check` would rewrite the canonical specs and their records, which is the exact reason the
+/// short-circuit exists. A re-approval whose delta body is byte-identical has nothing
+/// outstanding, so it must still short-circuit and leave both outputs alone — the spec and
+/// requirements byte for byte, and the one history fragment unchanged.
 ///
 /// If this test ever goes green only because the assertions were loosened, the fix has become the
 /// outage it was supposed to avoid.
@@ -4671,10 +4726,13 @@ fn re_approving_a_byte_identical_delta_leaves_the_canonical_spec_byte_for_byte_a
 
     let spec_after_first = fs::read_to_string(&spec_path).unwrap();
     let requirements_after_first = fs::read_to_string(&requirements_path).unwrap();
-    let row = format!("{}:", record.id);
+    let fragment_path = history_fragment_path(&spec_path, &record.id);
+    let fragment_after_first = fs::read_to_string(&fragment_path).unwrap();
     assert!(
-        spec_after_first.contains("version: 1.0.1") && spec_after_first.matches(&row).count() == 1,
-        "the first materialization must produce exactly one bump and one row: {spec_after_first}"
+        spec_after_first.contains("version: 1.0.0")
+            && !spec_after_first.contains(&format!("{}:", record.id)),
+        "the first materialization records the change in a fragment, never in the spec: \
+         {spec_after_first}"
     );
     assert_eq!(
         fs::read_to_string(delta_path(root, &record, "auth")).unwrap(),
@@ -4694,6 +4752,11 @@ fn re_approving_a_byte_identical_delta_leaves_the_canonical_spec_byte_for_byte_a
         fs::read_to_string(&requirements_path).unwrap(),
         requirements_after_first,
         "a re-approval that changes nothing must not rewrite the canonical requirements"
+    );
+    assert_eq!(
+        fs::read_to_string(&fragment_path).unwrap(),
+        fragment_after_first,
+        "a re-approval that changes nothing must not rewrite the history fragment"
     );
 }
 

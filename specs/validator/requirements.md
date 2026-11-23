@@ -334,3 +334,51 @@ cannot read.
   naming the path.
 - A readable tree produces no traversal errors.
 
+### REQ-validator-048
+
+`specsync check` SHALL validate the history fragments of every spec it validates (REQ-change-160): every entry in the spec's `history/` directory SHALL be a regular `<change-id>.md` file in the fragment format, and a change SHALL NOT be recorded both by a fragment and by a row of the same spec's Change Log. Each violation SHALL be an error that names the file and what is wrong. A spec with no `history/` directory has nothing to validate.
+
+Acceptance Criteria
+- A fragment whose `change:` differs from its file name, whose `date:` is not a date, whose summary is empty or longer than one line, or which has no frontmatter, and an entry not named `*.md`, each fail `specsync check`, naming the file.
+- A fragment whose change also has a row in the same spec's Change Log fails `specsync check`.
+- Valid fragments pass `specsync check --strict`.
+
+### REQ-validator-049
+
+The validator SHALL read the requirements files and archived specs it reads for requirement IDs only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With a spec's `requirements.md` a link to a file outside the project, its IDs are not read.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-validator-050
+
+`find_spec_files` SHALL list spec files through `util`'s `find_project_files` (REQ-util-004), with the entry and depth budget coverage uses. A `specs` directory that leads out of the repository, and a tree past the budget, SHALL stop the walk with `spec discovery stopped:` and the reason; a command SHALL then exit 1, and `find_spec_files_checked` SHALL return the reason to its caller instead.
+
+Acceptance Criteria
+- A `specs` link to an outside directory stops `deps` with the reason, and nothing found outside is named.
+- A tree deeper than 256 directories stops `deps` with the reason.
+- A `specs_dir` of `.` lists the spec files under the project root, outside Git and at the top of a work tree.
+
+### REQ-validator-051
+
+`validate_spec` SHALL read the spec, its `requirements.md` and companion files within the spec bound, through the bounded project read for a file in the project and within the spec's own directory for a temporary effective contract; it SHALL read each listed source within the source bound through the bounded project read.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no unmarked direct read in this module's non-test source.
+
+### REQ-validator-052
+
+`compute_coverage_checked` SHALL read each retained spec, to count the files it names that are missing, only through the bounded project read (8 MiB, REQ-util-003); a refused read SHALL be skipped as a missing spec is.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read`, scanning `src/validator/tests.rs`, finds no direct read there
+
+### REQ-validator-053
+
+Requirement ID checks and `find_files_named` SHALL walk `specs_dir` only through the confined, budgeted walk, and a missing file's suggestion SHALL list its folder only through `read_project_dir` (REQ-util-010), so a folder that leads out of the project is refused, never walked or listed.
+The record folders these checks list (REQ-util-010) SHALL be listed only through `read_project_dir`.
+
+Acceptance Criteria
+- A `specs` link out yields a refusal and no requirement IDs from outside; a suggestion for `../outside/...` is none.
+

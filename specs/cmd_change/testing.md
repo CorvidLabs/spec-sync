@@ -60,3 +60,11 @@ REQ-cmd-change-answer-hint-001 (#958): `approve_refusals_after_the_landing_page_
 REQ-cmd-change-unrun-commands-001 (#893): `change_check_notes_the_configured_commands_it_did_not_run` pins the exact three-command stderr note, deduplicated policy-order JSON, no stdout contamination, and no spawned reporter. `change_check_commit_notes_the_configured_commands_it_did_not_run` pins the committed path and singular wording. `change_audit_notes_the_configured_commands_it_did_not_run` pins audit text and JSON. `an_empty_policy_gets_no_note_about_unrun_commands` requires no note and explicit empty JSON lists. `this_repository_configures_no_verification_command` requires an empty top-level list while retaining 13 component modules and 3 strict commands. The behavioral probes failed first on b3ca5f97 (OBS-product-test-693137d491cd153adf290ec2); after the narrowed 3b decision, the repository pin fails only on the four top-level commands.
 
 Recovery: src/change_tests/recovery_retirement.rs and CLI retirement grammar cover custody, committed history, stale/unreviewed/circular/unknown-input refusals and interrupted move retry. Actual old-reader incompatibility and unchanged antecedent archive controls are retained externally. Final-head full qualification remains separate.
+
+## Bounded reads (REQ-cmd-change-038)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `change_audit_does_not_wait_on_the_policy`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

@@ -30,6 +30,11 @@
   "ignored_paths": [
     ".specsync/"
   ],
+  "verification_ignored_paths": [
+    ".chough/sessions/",
+    ".chough/archive/",
+    ".chough/bugs/"
+  ],
   "verification_commands": [],
   "component_verification_commands": {
     "agents": ["cargo test agents::"],

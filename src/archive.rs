@@ -171,6 +171,7 @@ fn archive_tasks_with_failures(
         }
 
         let StagedArchive { plan, temporary } = operation;
+        // checked project write: a rename over the archive-tasks target, which passed its final-component link check and bounded read
         match temporary.persist(&plan.absolute_path) {
             Ok(file) => {
                 drop(file);
@@ -200,7 +201,7 @@ fn plan_archive_operations(
     let mut failures = Vec::new();
     let mut seen_tasks_paths = HashSet::new();
 
-    for spec_path in find_spec_files(specs_dir) {
+    for spec_path in find_spec_files(root, specs_dir) {
         let Some(spec_dir) = spec_path.parent() else {
             continue;
         };
@@ -240,7 +241,11 @@ fn plan_archive_operations(
             continue;
         }
 
-        let original_content = match fs::read(&tasks_path) {
+        let original_content = match crate::util::read_project_bytes(
+            root,
+            &tasks_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(content) => content,
             Err(error) => {
                 failures.push(ArchiveFailure {
@@ -315,11 +320,13 @@ fn stage_replacement(
             "archive destination has no parent directory",
         )
     })?;
+    // checked project write: a staged file beside a tasks file `find_project_files` found and the bounded read reached, in its real parent directory
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-archive-")
         .tempfile_in(parent)?;
     temporary.as_file_mut().write_all(content)?;
     temporary.as_file_mut().flush()?;
+    // not a project file write: the staged file this function just created
     fs::set_permissions(temporary.path(), permissions.clone())?;
     temporary.as_file_mut().sync_all()?;
     Ok(temporary)
@@ -342,6 +349,7 @@ fn rollback_published(
                 &plan.permissions,
             )
             .and_then(|temporary| {
+                // checked project write: a rename over the archive-tasks target it read before
                 temporary
                     .persist(&plan.absolute_path)
                     .map(drop)
@@ -437,8 +445,8 @@ fn archive_completed_tasks(content: &str) -> Option<(String, usize)> {
 
 /// Count completed tasks across all tasks.md files (for warnings in check command).
 #[allow(dead_code)]
-pub fn count_completed_tasks(specs_dir: &Path) -> usize {
-    let spec_files = find_spec_files(specs_dir);
+pub fn count_completed_tasks(root: &Path, specs_dir: &Path) -> usize {
+    let spec_files = find_spec_files(root, specs_dir);
     let mut total = 0;
 
     for spec_path in &spec_files {
@@ -450,7 +458,9 @@ pub fn count_completed_tasks(specs_dir: &Path) -> usize {
         if !tasks_path.exists() {
             continue;
         }
-        if let Ok(content) = fs::read_to_string(&tasks_path) {
+        if let Ok(content) =
+            crate::util::read_project_string(root, &tasks_path, crate::util::MAX_SPEC_FILE_BYTES)
+        {
             total += content
                 .lines()
                 .filter(|l| {

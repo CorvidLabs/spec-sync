@@ -11,6 +11,7 @@ depends_on:
   - specs/exports/exports.spec.md
   - specs/generator/generator.spec.md
   - specs/registry/registry.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Scaffold
@@ -36,6 +37,8 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 4. Companion files (tasks.md, context.md, requirements.md, testing.md) are always generated with guided starter content; design.md is generated only when `companions.design` is enabled in config
 5. Both validate `module_name` as a single path segment before any filesystem write — a name containing a path separator (`/`, `\`), `.`/`..`, or an absolute path is refused with exit 1, so scaffolding can never create files outside the project (no path traversal)
 6. The scaffolded spec never claims a file another spec already lists in `files:`; a module whose candidates are all owned writes no such mapping (#611).
+7. `scaffold` and `add-spec` create the spec directory through `util::create_project_dir` and the spec file through `generator::create_spec_file`, so a spec path that is a dangling link, or a spec directory that leaves the project through a link, exits 1 with an error naming the path and creates nothing there. A spec directory linked to a directory inside the project is used. `scaffold` exits 1 with the registry's error when the registry refuses the append (REQ-cmd-scaffold-007).
+8. A new module name is checked for a case collision only against spec folders the project rule reaches (REQ-cmd-scaffold-008).
 
 ## Behavioral Examples
 
@@ -54,6 +57,7 @@ Implements `specsync add-spec` and `specsync scaffold` commands. Creates new spe
 | Custom template dir missing | Falls back to built-in |
 | Module name with path separator / `..` / absolute path | Refused before any write; prints `invalid module name …` and exits 1 |
 | Empty module name | Refused; exits 1 |
+| The spec path is a dangling link, the spec directory leaves the project through a link, or the registry does | Exits 1 naming the path; nothing is created at a link's target or appended to a registry outside the project |
 
 ## Dependencies
 

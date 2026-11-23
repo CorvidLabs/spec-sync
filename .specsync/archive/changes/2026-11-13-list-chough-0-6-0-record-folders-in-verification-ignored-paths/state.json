@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "list-chough-0-6-0-record-folders-in-verification-ignored-paths",
+  "slug": "list-chough-0-6-0-record-folders-in-verification-ignored-paths",
+  "title": "List Chough 0.6.0 record folders in verification_ignored_paths",
+  "description": "List Chough 0.6.0 record folders in verification_ignored_paths",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "72eb5123fa45ddf3144d16d188cc1c6acb1b50ac",
+  "created_at": 1794539458,
+  "updated_at": 1794579599,
+  "affected_specs": [],
+  "affected_paths": [
+    ".specsync/sdd.json"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "Policy-only edit to .specsync/sdd.json that adds Chough's three record folders to verification_ignored_paths; no module contract changes",
+  "acceptance_criteria": [
+    ".specsync/sdd.json verification_ignored_paths lists .chough/sessions/, .chough/archive/ and .chough/bugs/; chough doctor reports no records_in_verification finding; specsync check passes"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

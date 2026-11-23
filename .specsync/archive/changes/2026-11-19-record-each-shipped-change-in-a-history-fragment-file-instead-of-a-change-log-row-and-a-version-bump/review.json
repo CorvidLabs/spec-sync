@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "928ad001166318b420ac3897f5d2f7f9a28a29cd",
+  "contract_digest": "90fa46185ff32dfd2ec6d4d7551c0c7da614875d143dd0afccbeceb9aacccf10",
+  "execution_digest": "51877b06cec28fdd2c704037de1aa8c26913822190bb7acfc9aea89f84e4d2ae",
+  "workspace_digest": "69d4f906acd833024285b48a058973c7dd1091f6864f88251fb6cc82da2da0ba",
+  "timestamp": 1795052712,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "Approve, merge when green",
+    "where": "Leif's implementation review of PR #1086 on 2026-11-18, after the tester's PASS (prs/ss1086/notes.md); relayed by his planning session hc t4c",
+    "recorded_by": "claude-code-t4t"
+  }
+}

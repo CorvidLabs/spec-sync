@@ -1,6 +1,0 @@
-test change::tests::streamed_acceptance_evidence_is_byte_identical_to_the_whole_scope_read ... ok
-test change::tests::accepted_input_validation_judges_evidence_past_one_batch_read ... FAILED
-test change::tests::reopen_reads_clean_delivery_files_past_one_batch_read_with_an_acceptance_manifest ... FAILED
-test change::tests::reopen_reads_clean_delivery_files_past_one_batch_read_without_an_acceptance_manifest ... FAILED
-test change::tests::a_clean_delivery_blob_over_the_per_object_bound_is_refused_by_name ... FAILED
-test result: FAILED. 1 passed; 4 failed; 0 ignored; 0 measured; 2857 filtered out; finished in 10.48s

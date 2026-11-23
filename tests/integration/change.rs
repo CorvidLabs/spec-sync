@@ -3866,7 +3866,14 @@ fn a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes() {
             .contains(&format!("specsync change review {id}")),
         "{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4412,7 +4419,14 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
             .contains(&format!("specsync change review {id}")),
         "after a send-back the next action is a fresh review:\n{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4606,7 +4620,14 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     );
 
     // Readiness tells the truth before finalize does.
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     assert!(
         !ship_status.contains("ready to finalize"),
         "a change finalize refuses on ownership is not ready:\n{ship_status}"
@@ -6541,7 +6562,7 @@ fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
     };
     let read = |envs: &[(&str, &str)], fresh: bool| {
         if fresh {
-            let _ = fs::remove_file(fixture.root.join(".git/specsync/read-cache-v1.json"));
+            let _ = fs::remove_file(read_cache_file(&fixture.root));
         }
         let mut command = specsync();
         command.args([
@@ -7713,8 +7734,19 @@ fn after_approve_next_action_names_check_commit() {
 fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     let (_temp, root, id) = ss535_no_spec_project();
     let seed = git_ok(&root, &["rev-parse", "HEAD"]);
-    ss_ok(&root, &["change", "check", &id]);
     let workspace = root.join(".specsync/changes").join(&id);
+    let summary_path = workspace.join("change.md");
+    let summary = format!(
+        "{}\n## Handoff notes\n\nReview the README example.\n",
+        fs::read_to_string(&summary_path).unwrap()
+    );
+    assert!(summary.lines().any(|line| line == "state: approved"));
+    fs::write(&summary_path, &summary).unwrap();
+    ss_ok(&root, &["change", "check", &id]);
+    let expected_summary = summary.replacen("state: approved", "state: verifying", 1);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected_summary);
+    let status = ss_ok(&root, &["change", "status", &id]);
+    assert!(status.contains("State: verifying"), "{status}");
     let verification: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
             .unwrap();
@@ -7758,9 +7790,8 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     );
     let state: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
-    assert_ne!(
-        state["state"].as_str().unwrap_or(""),
-        "archived",
+    assert_eq!(
+        state["state"], "verifying",
         "a refused ship must leave the change unarchived: {state}"
     );
 
@@ -7773,6 +7804,13 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     assert_eq!(
         git_ok(&root, &["show", "HEAD:README.md"]),
         "hello\n\nThe greeter says hello."
+    );
+    assert_eq!(
+        git_ok(
+            &root,
+            &["show", &format!("HEAD:.specsync/changes/{id}/change.md")]
+        ),
+        expected_summary.trim_end()
     );
     ss_ok(
         &root,
@@ -7938,4 +7976,129 @@ fn uncommitted_specsync_evidence_alone_does_not_refuse_review() {
         String::from_utf8_lossy(&ship.stdout),
         String::from_utf8_lossy(&ship.stderr)
     );
+}
+
+/// Where SpecSync keeps the change read cache of the repository at `root` (REQ-util-009): in the
+/// tests' user cache folder, named by the digest of the canonical Git common directory.
+fn read_cache_file(root: &std::path::Path) -> std::path::PathBuf {
+    use sha2::{Digest, Sha256};
+    let common = root.join(".git").canonicalize().unwrap();
+    let mut hasher = Sha256::new();
+    hasher.update(b"repository\0");
+    hasher.update(common.as_os_str().as_encoded_bytes());
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    crate::helpers::test_cache_home()
+        .join("specsync")
+        .join("repositories")
+        .join(key)
+        .join("read-cache-v1.json")
+}
+
+// #654: `change ship-status` exits 1 whenever it reports a blocker, in text and in JSON, for one
+// change and for the roster, after printing its whole report. A script that runs it no longer
+// reads "Blocker" alongside success. JSON stays one document.
+#[test]
+fn ship_status_exits_one_when_it_reports_a_blocker() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    };
+    let invoke = |args: &[&str]| {
+        super::helpers::specsync_std()
+            .arg("--root")
+            .arg(root)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let run = |args: &[&str]| {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "{args:?}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "# probe\n").unwrap();
+    run(&["init"]);
+    run(&["change", "adopt"]);
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "adopt"]);
+    run(&[
+        "change",
+        "new",
+        "probe ship status exit",
+        "--kind",
+        "bug-fix",
+        "--no-spec-change",
+        "--rationale",
+        "probe",
+        "--path",
+        "README.md",
+    ]);
+    let id = "probe-ship-status-exit";
+    for (question, answer) in [
+        ("acceptance_criteria", "the probe reads"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+        ("constraints", "none"),
+    ] {
+        run(&["change", "answer", id, question, answer]);
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    for artifact in ["context", "tasks", "testing"] {
+        let path = dir.join(format!("{artifact}.md"));
+        if path.exists() {
+            fs::write(
+                &path,
+                format!("---\nchange: {id}\nartifact: {artifact}\n---\n\n# Probe\n\nProbe text.\n"),
+            )
+            .unwrap();
+        }
+    }
+    run(&["change", "approve", id, "--actor", "Probe"]);
+
+    // Approved, never verified: ship-status names a blocker.
+    let text = invoke(&["change", "ship-status", id]);
+    let printed = String::from_utf8_lossy(&text.stdout);
+    assert!(printed.contains("Blocker:"), "{printed}");
+    assert_eq!(text.status.code(), Some(1), "text ship-status: {printed}");
+
+    let json = invoke(&["--json", "change", "ship-status", id]);
+    let report: Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+    assert!(
+        report["blockers"]
+            .as_array()
+            .is_some_and(|blockers| !blockers.is_empty()),
+        "{report}"
+    );
+    assert_eq!(json.status.code(), Some(1), "JSON ship-status: {report}");
+
+    for args in [
+        &["change", "ship-status"][..],
+        &["--json", "change", "ship-status"][..],
+    ] {
+        let roster = invoke(args);
+        if args[0] == "--json" {
+            let _: Value = serde_json::from_slice(&roster.stdout)
+                .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+        }
+        assert_eq!(
+            roster.status.code(),
+            Some(1),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&roster.stdout)
+        );
+    }
 }

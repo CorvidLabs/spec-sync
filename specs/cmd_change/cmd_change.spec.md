@@ -5,6 +5,7 @@ status: active
 files:
   - src/commands/change.rs
   - src/commands/doctor.rs
+  - src/commands/history.rs
   - docs/ADOPTING.md
 db_tables: []
 tracks: []
@@ -12,6 +13,7 @@ depends_on:
   - specs/change/change.spec.md
   - specs/cli_args/cli_args.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Change
@@ -44,6 +46,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Function | Parameters | Returns | Description |
 |----------|------------|---------|-------------|
 | `cmd_change` | `root: &Path, action: ChangeAction, format: OutputFormat, strict: bool` | `()` | Dispatch every change lifecycle command, additive strict validators, and equivalent text/JSON output |
+| `cmd_history` | `root: &Path, module: &str, format: OutputFormat` | `()` | `specsync history <module>`: print the module's Change Log as one table, the frozen rows unchanged and then one row per history fragment, or `--format json` with the rows and fragments apart; exit 1 naming an unknown module or an invalid fragment (REQ-cmd-change-037) |
 | `cmd_doctor` | `root: &Path, request: DoctorRequest, format: OutputFormat` | `()` | `specsync doctor`: print the findings, the actions `--fix` applied and what `--dry-run` would do, in text or JSON; exit 1 when a late close is refused or a fix failed (REQ-cmd-change-035) |
 
 ## Invariants
@@ -57,6 +60,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 7. Opening, showing, and status render one briefing of the substantive lessons for the change's modules and of the configured principles file, in text and in JSON. A scaffold-only context is omitted. The excerpt is bounded and names the file for the rest. An unreadable principles file does not fail the command. A `.specsync/sdd.json` that cannot be parsed fails `change status` with the policy error, and status does not print a briefing as if no principles were configured. `change finalize` and `change ship` name the lesson-bundle path in text and in JSON. Their next action stays the merge instruction and does not require copying lessons into the spec. A passing `change check` says nothing about lessons.
 8. `status`, `show`, a passing `check`, `approve`, `review`, `finalize`, and ship's finalize each end their text result with exactly one `Handoff:` line — after `Next:` where one is printed — reading `safe`, `conditional`, or `not yet`, an em-dash, the domain's reason, and, when readiness is not safe, `Before clearing:` followed by the domain's steps. The line renders the domain's `HandoffSummary` verbatim: the adapter never decides readiness itself and never prints a digest on it. JSON carries the same object under `summary.handoff` wherever a change summary is rendered and under `handoff` on the approve transition.
 9. Git reads in this module run through `git_utils::output_after_child_exits`, and exit-code checks run through `git_utils::status_without_inherited_output`, so a read returns when the Git child exits even while a descendant still holds its output pipe, and a status child never receives the caller's stdout or stderr (REQ-git-utils-008).
+10. Every read of a project file here, `.specsync/sdd.json` and the change records it reads (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-change-038).
 
 ## Behavioral Examples
 
@@ -107,6 +111,7 @@ Exposes the single one-approval SpecSync lifecycle through equivalent human-read
 | Correction ledger changes after a successful mutation | Command renders the transaction's validated snapshot and does not report a false failure after persistence |
 | Affected module has no `context.md`, or it holds only scaffold prompts | Surfacing is skipped for that module and change creation is unaffected |
 | `.specsync/sdd.json` cannot be parsed | `change status` exits 1 with the invalid SDD policy error and does not print a briefing |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

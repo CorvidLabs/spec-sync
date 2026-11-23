@@ -1,7 +1,13 @@
 # Reproduce, classify, deduplicate and record a bug
 
 Use this procedure for a suspected defect, including a failing case. Bugs live
-locally first in `.chough/bugs/`. A request to investigate does not authorize
+locally first in `.chough/bugs/`, one Markdown file each, named by date and the
+title's slug (`<date>-<slug>.md`). The front matter carries the IDs and links; the
+body says what happened, the steps, what was expected, why it matters and the fix,
+then an append-only `## Log` with one dated line per report, note, evidence link and
+status change. Chough keeps every paragraph a person wrote and only appends to the
+Log. Older IDs (`BUG-NNNN`, `BUG-<slug>-<hex>`) stay as aliases, so every command and
+link still finds the bug by them. A request to investigate does not authorize
 posting an issue, comment or message; publication needs an explicit request or an
 authorization the human already established.
 
@@ -13,9 +19,10 @@ from a new request. Do not rewrite intent to match the implementation.
 
 Reduce the reproduction to the smallest safe fixture and steps. Run it and record the
 result as an observation: `chough cases run <case> --environment <env>` for a bound
-case, or `chough evidence add … --outcome failed` with the saved output. A bug without
-a linked failed observation is reported as `unverified`. Avoid real credentials,
-private data or destructive production actions when a local fixture suffices.
+case, or `chough evidence add … --outcome failed --failing-lines "<key lines>"` taken
+from the saved output, which stays uncommitted. A bug without a linked failed
+observation is reported as `unverified`. Avoid real credentials, private data or
+destructive production actions when a local fixture suffices.
 
 ## Classify from evidence
 
@@ -64,6 +71,13 @@ its failed and passed observations, or a lesson entry in the module's lesson sou
 fix that leaves no record teaches the next agent nothing. Bugs found after closure
 normally become new native changes; use native recovery only when the original
 recorded evidence needs repair.
+
+A bug in another tool's behaviour that its owner fixed closes as `fixed-upstream`:
+`chough bug update <bug> --status fixed-upstream --note "<the upstream fix, and who
+checked it where>"`. The note is required. It is a closed status, like `verified`,
+`duplicate` and `wont-fix`, but it never reads as verified by Chough. After the
+session that holds a bug's evidence is archived, the bug reads that evidence from the
+story's receipts, so its state does not change.
 
 ## Report candidates
 

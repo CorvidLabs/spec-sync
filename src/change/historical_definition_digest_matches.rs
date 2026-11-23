@@ -3048,7 +3048,7 @@ const MIGRATION_BACKFILLED_REOPENING_MEMBERS: [&str; 2] = [
 
 /// REQ-change-166 (#428): `change finalize`, `change ship` and `change archive` archive only an
 /// approvals ledger that Git history holds, and `change ship-status` reports this refusal as a
-/// blocker (REQ-cmd-change-041). Read-only.
+/// blocker (REQ-cmd-change-committed-ledger-001). Read-only.
 ///
 /// The ledger must be committed at `HEAD`, and the working copy must equal that version, except
 /// that an `accepted` change may append the closing records its accepting step wrote and has not

@@ -1,4 +1,4 @@
-// #428, REQ-change-166 and REQ-cmd-change-041: through the binary, `change finalize`,
+// #428, REQ-change-166 and REQ-cmd-change-committed-ledger-001: through the binary, `change finalize`,
 // `change ship` and `change ship --dry-run` refuse an approvals ledger the working tree has
 // changed since `HEAD`, with one message, and `change ship-status` lists that refusal as a
 // blocker and does not call the change ready to finalize.

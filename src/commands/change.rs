@@ -1658,7 +1658,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         }
     }
 
-    // REQ-cmd-change-041 (#428): finalize and ship refuse an approvals ledger Git history does
+    // REQ-cmd-change-committed-ledger-001 (#428): finalize and ship refuse an approvals ledger Git history does
     // not hold, so ship-status lists that refusal, in the same words, and never calls the change
     // ready while it holds. When its way out is not `check --commit`, it comes first and is the
     // next step: the generic `check --commit` a stale verification asks for would commit an
@@ -3160,7 +3160,7 @@ fn run_ship(
             .and_then(|value| value.as_str())
             .unwrap_or("this change is not ready to archive");
         // A refusal that names its own way out, as the approvals-ledger refusal does
-        // (REQ-cmd-change-041), is both the first blocker and ship-status's next step, so it is
+        // (REQ-cmd-change-committed-ledger-001), is both the first blocker and ship-status's next step, so it is
         // printed once, with no generic step after it (corvid-agent on #1120).
         if action == reason {
             return Err(format!("This pull request is not finished. {reason}"));

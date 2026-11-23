@@ -36,4 +36,4 @@ finalize, archive and ship-status archive or report whatever ledger the working 
 | Requirement | Evidence |
 |-------------|----------|
 | `REQ-change-166` | `src/change_tests/committed_approvals.rs`: each refusal and its way out, each legitimate writer, the accepted-change exception, the merged-in rewrite; `tests/integration/committed_approvals.rs`: finalize, ship, accept then archive |
-| `REQ-cmd-change-041` | `tests/integration/committed_approvals.rs`: the ship-status blocker, `ready_to_finalize` false then true, and the `ship --dry-run` refusal with the same message |
+| `REQ-cmd-change-committed-ledger-001` | `tests/integration/committed_approvals.rs`: the ship-status blocker, `ready_to_finalize` false then true, and the `ship --dry-run` refusal with the same message |

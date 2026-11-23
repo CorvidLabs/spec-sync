@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - `specsync change audit --strict` now reports a delta item targeting the frozen `## Change Log` in an approved, implementing, or verifying change. The diagnostic names the change and matches `change check` (#1090, REQ-change-170).
+- `change check`, verification, `change accept`, `change finalize` and `change ship` refuse a change on a branch that lost a canonical requirement no approved `## REMOVED` delta names, naming every lost id and the file that held it, compared with the merge-base of `HEAD` and the default branch (or the change's base commit when there is none). A requirement moved between files under its id is not lost; a renumbered one is refused under its old id, since ids are permanent. `change audit` reports it and `change ship-status` lists it as a blocker. In CorvidLabs/starling a truncated `requirements.md` had deleted 28 requirements while every check passed (REQ-change-169, REQ-cmd-change-042, #1081). It reads no requirements under `.git`, `.specsync` or `exclude_dirs`, lists lost ids in natural order, and when Git cannot be read (as in a shallow clone missing the merge-base) it says to repair the repository or fetch the default branch, naming `git fetch --unshallow origin` in a shallow clone. A requirement the default branch removed too, brought into the branch by a cherry-pick instead of a merge, is refused with the way out that fits: merge the default branch.
 
 ## [6.4.1] - 2026-11-21
 

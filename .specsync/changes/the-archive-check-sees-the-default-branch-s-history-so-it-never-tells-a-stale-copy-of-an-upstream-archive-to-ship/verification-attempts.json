@@ -240,6 +240,22 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795474834,
+      "commit": "8dec2c4e28b1eab51a3068fb22e53a210ca32221",
+      "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+      "execution_digest": "6ab4a98bc2ca9ec9993987d761733ee41692958ede2d850f3c451b4bbc7c4069",
+      "workspace_digest": "477c25b32911a8ddfbef4b2a727ab9305c698a4604c74291a0dcc4fcd63291d0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec github",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

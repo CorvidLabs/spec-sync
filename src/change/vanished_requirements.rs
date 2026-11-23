@@ -448,7 +448,7 @@ fn sibling_removal_is_staged(
     approval: &ApprovalRecord,
     delta: &Path,
 ) -> Result<bool, String> {
-    let package = format!("{CHANGES_PATH}/{}", change.id);
+    let package = strict_portable_project_path(root, &find_change_dir(root, &change.id)?)?;
     let corrections = format!("{package}/{CORRECTIONS_FILE}");
     let mut paths = BTreeSet::from([
         format!("{package}/state.json"),
@@ -460,7 +460,15 @@ fn sibling_removal_is_staged(
     if change.workflow_version < 2 || approval.approved_scope.is_none() {
         let ledger = load_correction_ledger(root, change)?;
         let definition = definition_artifact_snapshot(root, change, &ledger.corrections)?;
-        paths.extend(definition.entries.into_iter().map(|(path, _, _, _)| path));
+        // Approval digests keep logical change paths when a package moves to the archive.
+        let original = format!("{CHANGES_PATH}/{}/", change.id);
+        for (path, _, _, _) in definition.entries {
+            let indexed = match path.strip_prefix(&original) {
+                Some(relative) => format!("{package}/{relative}"),
+                None => path,
+            };
+            paths.insert(indexed);
+        }
     }
     let staged = inspect_git_candidates(root, &paths, true, true)?;
     Ok(staged.entries.iter().all(|(path, entry)| {
@@ -479,7 +487,7 @@ fn sibling_removal_is_staged(
 fn add_approved_removals(
     root: &Path,
     change: &ChangeRecord,
-    active_sibling: bool,
+    is_sibling: bool,
     removed: &mut BTreeSet<String>,
 ) {
     let Ok(ledger) = load_approvals(root, change) else {
@@ -513,7 +521,7 @@ fn add_approved_removals(
         if removals.is_empty() {
             continue;
         }
-        if active_sibling && sibling_removal_is_staged(root, change, approval, &path) != Ok(true) {
+        if is_sibling && sibling_removal_is_staged(root, change, approval, &path) != Ok(true) {
             continue;
         }
         removed.extend(removals);
@@ -522,13 +530,13 @@ fn add_approved_removals(
 
 /// The requirement ids approved `## REMOVED` items name, in the deltas of every change on the
 /// branch that may account for a loss: each active change past its draft, and each change the
-/// branch archived after `reference`, committed or not yet, taken from its archived record. A retired change accounts
-/// for nothing, in the active roster or in the archive, and neither does a delta file under the
+/// branch archived after `reference`. Only the selected workspace can supply untracked removal
+/// authority. A retired change accounts for nothing, in the active roster or in the archive, and neither does a delta file under the
 /// archive path with no archived record around it (Codex on #1108; one mechanism for both).
 fn removed_requirement_ids_on_branch(
     root: &Path,
     reference: &str,
-    selected_id: &str,
+    selected_id: Option<&str>,
 ) -> Result<BTreeSet<String>, String> {
     let mut removed = BTreeSet::new();
     // A change that cannot be read accounts for no removal, and never turns this refusal into its
@@ -544,7 +552,7 @@ fn removed_requirement_ids_on_branch(
                 | ChangeState::Accepted
         )
     }) {
-        add_approved_removals(root, change, change.id != selected_id, &mut removed);
+        add_approved_removals(root, change, Some(change.id.as_str()) != selected_id, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
     let added = git_raw_utf8(
@@ -608,7 +616,7 @@ fn removed_requirement_ids_on_branch(
         if archived_at(root, reference, &change.id)? {
             continue;
         }
-        add_approved_removals(root, &change, false, &mut removed);
+        add_approved_removals(root, &change, Some(change.id.as_str()) != selected_id, &mut removed);
     }
     Ok(removed)
 }
@@ -799,7 +807,7 @@ fn lost_requirements_check(
     if lost.is_empty() {
         return Ok(None);
     }
-    let removed = removed_requirement_ids_on_branch(root, &reference, &record.id)?;
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&record.id))?;
     let mut unaccounted: Vec<&(String, String, String)> = lost
         .into_iter()
         .filter(|(id, _, _)| !removed.contains(id))

@@ -802,3 +802,6 @@ Use the shared project-path normalization before looking for the parent director
 
 @plane z=65 label="Keep another change's removal authority in Git (#1108)"
 A lifecycle commit stages new files from the selected workspace. Before crediting an active sibling's removal, establish that Git's index contains the records and delta that authorized it. A local approval can disappear on checkout. A staged sibling definition survives it.
+
+@plane z=67 label="An interrupted archive still needs staged authority (#1108)"
+Moving an approved package into the archive leaves new paths outside the index until finalize stages them. Resolve the package on disk and check its removal records at those paths before another change relies on it. The selected change can finish its own interrupted finalization.

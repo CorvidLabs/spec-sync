@@ -433,7 +433,7 @@ fn a_change_archived_on_the_branch_accounts_for_its_removal() {
     .unwrap();
     git_in(root)(&["commit", "-q", "-am", "the archived change's removal"]);
 
-    let removed = removed_requirement_ids_on_branch(root, &reference, &first.id).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&first.id)).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
@@ -459,7 +459,7 @@ fn a_bare_archived_delta_or_a_retired_change_accounts_for_no_removal() {
     .unwrap();
     git_in(root)(&["add", "--all"]);
     git_in(root)(&["commit", "-q", "-m", "a bare delta under the archive path"]);
-    let removed = removed_requirement_ids_on_branch(root, &reference, &record.id).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&record.id)).unwrap();
     assert!(!removed.contains("REQ-auth-001"), "{removed:?}");
     let error = ensure_no_lost_requirements(root, &record).unwrap_err();
     assert!(error.contains("REQ-auth-001"), "{error}");
@@ -1111,11 +1111,10 @@ fn a_dangling_origin_head_alone_falls_back_to_the_base_commit_or_the_note() {
     assert!(note.is_some_and(|note| note.contains("not checked")));
 }
 
-/// corvid-agent on #1108 (non-blocking): `change finalize` moves a change into the archive before
-/// the archive tip is committed. A second active change checked on that tree still sees the
-/// archived change's approved removals, though Git does not track its record yet.
+/// Finalize stages its own archive. Another change can rely on that archive once the
+/// removal authority is in the index and will survive a checkout of the resulting commit.
 #[test]
-fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
+fn an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibling() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let (first, second) = two_change_repository(root);
@@ -1123,10 +1122,54 @@ fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
     move_into_archive_uncommitted(root, &second, ChangeState::Archived);
     fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
 
-    let removed = removed_requirement_ids_on_branch(root, &reference, &first.id).unwrap();
+    let own = removed_requirement_ids_on_branch(root, &reference, Some(&second.id)).unwrap();
+    assert!(own.contains("REQ-auth-001"), "{own:?}");
+    let unselected = removed_requirement_ids_on_branch(root, &reference, None).unwrap();
+    assert!(!unselected.contains("REQ-auth-001"), "{unselected:?}");
+    let refused = || {
+        let error = ensure_no_lost_requirements(root, &first)
+            .expect_err("the sibling archive is missing removal authority in Git");
+        assert!(error.contains("REQ-auth-001"), "{error}");
+    };
+    refused();
+    let archive = format!("{ARCHIVE_PATH}/2026-11-20-{}", second.id);
+    let git = git_in(root);
+    git(&["add", "--", &format!("{archive}/state.json"), &format!("{archive}/approvals.json")]);
+    refused();
+    git(&["add", "--", &archive]);
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+    git(&["commit", "-qam", "record the archived sibling and its removal"]);
+    let fresh = TempDir::new().unwrap();
+    git(&["clone", "--quiet", "--no-local", ".", fresh.path().to_str().unwrap()]);
+    let first = load_change(fresh.path(), &first.id).unwrap();
+    assert_eq!(ensure_no_lost_requirements(fresh.path(), &first), Ok(None));
+}
 
-    assert!(removed.contains("REQ-auth-001"), "{removed:?}");
-    assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
+/// Legacy approvals bind the selected artifacts at their logical change paths even after a move.
+#[test]
+fn an_archived_legacy_sibling_needs_its_selected_artifacts_in_the_index() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let record = completed_section_only_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "legacy approval"]);
+    let reference = vanished_rev(root, "HEAD");
+    move_into_archive_uncommitted(root, &record, ChangeState::Archived);
+    let archive = format!("{ARCHIVE_PATH}/2026-11-20-{}", record.id);
+    git(&["add", "--", &archive]);
+    let removals = || removed_requirement_ids_on_branch(root, &reference, None).unwrap();
+    assert!(removals().contains("REQ-auth-001"));
+    let selected = format!("{archive}/{}", record.selected_artifacts[0].file_name());
+    git(&["restore", "--staged", "--", &selected]);
+    assert!(!removals().contains("REQ-auth-001"));
+    git(&["add", "--", &selected]);
+    assert!(removals().contains("REQ-auth-001"));
 }
 
 /// Codex on #1108, second round (P1): a branch that adds a formerly canonical directory to

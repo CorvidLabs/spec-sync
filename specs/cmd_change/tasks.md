@@ -37,3 +37,5 @@ spec: cmd_change.spec.md
 
 - [x] Name a sequence-ledger freeze before the upstream archive in text `Next:` and in ship-status (first blocker and next step) (#908, REQ-cmd-change-034).
 - [x] Read project files only through the bounded project read of `util` (REQ-cmd-change-038). Evidence: `tests/integration/project_reads.rs`.
+
+- [x] Surface lost-requirements blockers only for changes that can still proceed through the lifecycle (REQ-cmd-change-045, #1113).

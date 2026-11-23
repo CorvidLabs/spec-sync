@@ -68,3 +68,5 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 | Case | Required behavior | Test |
 |------|-------------------|------|
 | A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `change_audit_does_not_wait_on_the_policy`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+REQ-cmd-change-045 (#1113) is covered by the archived and active records on one branch in `tests/integration/vanished_requirements.rs` and the retired-record check in `src/change_tests/vanished_requirements.rs`.

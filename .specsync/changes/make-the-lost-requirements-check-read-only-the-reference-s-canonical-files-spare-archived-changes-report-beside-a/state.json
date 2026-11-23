@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a",
+  "slug": "make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a",
+  "title": "Make the lost-requirements check read only the reference's canonical files, spare archived changes, report beside a change's own errors, and name an unreadable path",
+  "description": "Make the lost-requirements check read only the reference's canonical files, spare archived changes, report beside a change's own errors, and name an unreadable path",
+  "kind": "bug_fix",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "ed258f58d734be7c4c0ac092ddbc934f492630d3",
+  "created_at": 1795186328,
+  "updated_at": 1795197796,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/vanished_requirements.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change_tests.rs",
+    "src/change_tests/vanished_requirements.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "specs/cmd_change/",
+    "site/src/content/docs/deltas.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "(1) REQ-change-175: the files read at the reference come only from what was canonical there; a branch that registers a spec beside, or moves specs_dir onto, a requirements.md that was already there and rewrites it is not refused for its old ids; a requirement moved into a newly canonical file is found there. (2) REQ-change-176: change audit reports the lost requirements for each active change whether or not its approval, delta files and delta bodies validate, beside its own error. (3) REQ-change-177: when a requirement would be reported lost and a requirements directory or file in the working tree could not be read, the check says it cannot tell, naming each path and the error and the way out; nothing changes when nothing is lost. (4) REQ-cmd-change-045: change ship-status lists the lost-requirements blocker only for a change that can still be checked, finalized or shipped, not for an archived or retired one."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "No new refusal and no change to REQ-change-169's or REQ-cmd-change-042's wording: four ADDED requirements. #1112 and #1113 only remove false refusals; #1116 adds lines only where the audit already fails for that change; #1117 gives the existing 'cannot tell' form in place of a wrong loss report, at the same points, only when a loss would otherwise be reported. Stacked on #1108 (ed258f58).",
+    "public_contract": "no"
+  }
+}

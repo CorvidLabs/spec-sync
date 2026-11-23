@@ -476,6 +476,7 @@ fn a_root_specs_project_reads_no_workspace_git_or_excluded_directory_as_canonica
     let scope = requirement_scope(root);
     assert_eq!(scope.directories, vec![".".to_string()]);
     let scanned: Vec<String> = working_tree_requirement_blocks(root, &scope, &excluded_requirement_directories(root))
+        .files
         .into_iter()
         .map(|(path, _)| path)
         .collect();
@@ -1396,4 +1397,40 @@ fn an_untracked_copy_of_a_lost_requirement_does_not_count() {
     let output = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
     assert!(output.status.success(), "{command}");
     assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+/// Codex on #1134, second round (REQ-change-177): an error the directory listing yields, or one
+/// from reading an entry's kind, is kept with its path for the cannot-tell refusal, not dropped.
+/// A failing filesystem cannot be made in a test, so the scan's entry step is driven directly.
+#[test]
+fn a_listing_or_entry_error_is_kept_with_its_path() {
+    let directory = std::path::Path::new("specs/auth");
+    let listing = listed_entry(directory, Err(std::io::Error::other("input/output error")));
+    assert!(
+        matches!(&listing, Err((path, error)) if path == directory && error.to_string() == "input/output error"),
+        "{listing:?}"
+    );
+    let file = directory.join("requirements.md");
+    let entry = listed_entry(
+        directory,
+        Ok((file.clone(), Err(std::io::Error::other("input/output error")))),
+    );
+    assert!(matches!(&entry, Err((path, _)) if *path == file), "{entry:?}");
+}
+
+#[test]
+fn ship_status_omits_the_lost_requirement_refusal_for_a_retired_change() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-002"),
+    )
+    .unwrap();
+
+    let active = lost_requirements_refusal(root, &record).unwrap();
+    assert!(active.contains("REQ-auth-002"), "{active}");
+    record.state = ChangeState::Retired;
+    assert_eq!(lost_requirements_refusal(root, &record), None);
 }

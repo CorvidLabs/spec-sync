@@ -122,3 +122,5 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
+
+- [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).

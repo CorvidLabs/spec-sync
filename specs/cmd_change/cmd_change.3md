@@ -152,3 +152,6 @@ Retirement is not implementation acceptance or successor/dependency credit. Keep
 
 @plane z=15 label="Text and ship-status follow the domain's order (#908)"
 Text `Next:` and `change ship-status` are command-layer projections of the domain's next step, and #889 left them ranking the upstream archive above a sequence-ledger freeze. They now ask `change::sequence_ledger_freeze_next_action` first, and ship-status lists the freeze as its first blocker. The test that proved the JSON order did not look at ship-status, which is how it fell behind. An approved criterion that names a projection needs an assertion on that projection.
+
+@plane z=16 label="Show recoverable lost-requirements blockers (#1113)"
+Ship status reports the branch's lost-requirements blocker when the change can still be checked, finalized or shipped. Archived and retired records have already reached a terminal state. The domain helper applies the same state condition for single-record and roster status.

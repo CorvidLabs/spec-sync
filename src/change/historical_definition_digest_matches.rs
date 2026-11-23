@@ -2732,6 +2732,9 @@ fn accept_change_with_gate(
     ensure_definition_approval_valid(root, &record)?;
     ensure_no_orphaned_applied_text(root, &record)?;
     let mut verification = load_verification(root, &record)?;
+    // Name a missing requirement before the workspace digest can report the same edit as
+    // generic staleness (REQ-change-169).
+    ensure_no_lost_requirements_recording_refusal(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
     validate_verification_for_commit_binding(root, &record, &verification, require_scoped_review)
         .map_err(|error| format!("cannot accept stale verification: {error}"))?;
@@ -2960,7 +2963,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
     // state that determines whether finalization can resume.
-    drop(acquire_project_lock(root)?);
+    let preflight_lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     require_state(
@@ -2996,6 +2999,15 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     }
+    // Beside it, for the same reason: a finalization that stopped after acceptance and is retried
+    // while its workspace is still active asks again whether the branch lost a canonical
+    // requirement, since it can lose one in between (Codex on #1108; REQ-change-169). A first
+    // finalization asks it in `accept_change_with_gate`.
+    if record.state == ChangeState::Accepted && change_dir(root, &record.id).is_dir() {
+        ensure_no_lost_requirements_recording_refusal(root, &record)?;
+    }
+    // Acceptance and archival each take this non-reentrant lock themselves.
+    drop(preflight_lock);
     if record.state == ChangeState::Verifying {
         // REQ-change-157: ship and finalize refuse a verification commit that
         // lacks the change's work, before acceptance writes anything.
@@ -5480,7 +5492,23 @@ fn check_project_with_command_output(
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = ensure_no_lost_requirements(root, record)
+            {
+                // The refusal `change check` gives a branch that lost a canonical requirement
+                // (#1081, REQ-change-169).
+                report.errors.push(format!("{}: {error}", record.id));
             }
+        }
+        // A draft, and an accepted change whose workspace is still active, are active changes too
+        // ("for each active change"): an accepted one's retried finalization refuses the same
+        // loss, and a draft's own delta accounts for no removal (Codex on #1108, both rounds).
+        if matches!(record.state, ChangeState::Draft | ChangeState::Accepted)
+            && change_dir(root, &record.id).is_dir()
+            && let Err(error) = ensure_no_lost_requirements(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
         }
         if let Err(error) = ensure_no_delta_conflicts(root, record) {
             report.errors.push(format!("{}: {error}", record.id));

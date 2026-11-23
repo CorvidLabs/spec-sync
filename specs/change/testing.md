@@ -380,3 +380,5 @@ The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_r
 Archive tests also check that a stray coverage file survives refusal, that a moved package can retry with matching coverage, and that a failed integrity check rolls back newly written coverage.
 
 `an_archived_predecessor_warns_after_a_plain_coverer_closes` and `explicit_succession_clears_the_archived_predecessor_warning` check recorded coverers with and without an explicit obligation in both the accepted and archived states. `accepting_a_plain_coverer_leaves_the_active_predecessor_stale` exercises the matching active-change rule.
+
+The archive coverage regressions in `src/change_tests/provisional_coverage.rs` exercise a shared input with two signed owners. One explicit successor leaves a warning for the missing owner. Two independently approved successors can cover the owners separately. The tests also check that changing the recorded coverer’s approved definition restores the warning, and that an unrelated unreadable archive does not invalidate a directly covered input.

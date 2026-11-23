@@ -3063,9 +3063,24 @@ fn archived_provisional_coverage_with_roster(
         let Some(manifest) = signed.get_or_init(|| resolved_acceptance_manifest(root, record).ok()) else {
             return false;
         };
-        let Some(expected) = manifest.entries.iter().find(|entry| entry.path == path) else {
+        let Ok(index) = manifest.entries.binary_search_by(|entry| entry.path.as_str().cmp(path)) else {
             return false;
         };
+        let expected = &manifest.entries[index];
+        let mut remaining: Vec<_> = expected.owners.iter().collect();
+        if !terminal {
+            remaining.retain(|owner| {
+                !in_flight_change_covers(root, &mut memo, candidate, record, path, owner)
+            });
+            if remaining.len() == expected.owners.len() {
+                return false;
+            }
+            // A named in-flight change can cover every owner on its own. No other
+            // workspace has to load successfully to establish its current approval.
+            if remaining.is_empty() {
+                return true;
+            }
+        }
         let Some(records) = roster.or_else(|| {
             local_roster.get_or_init(|| list_all_changes_structural(root).ok()).as_ref()
         }) else {
@@ -3084,9 +3099,9 @@ fn archived_provisional_coverage_with_roster(
         };
         // The recorded change must still cover part of the input. Other changes can cover
         // the remaining signed owners, just as they do in the active predecessor walk.
-        let mut recorded_contributes = false;
-        let complete = expected.owners.iter().all(|owner| {
-            if proves(owner, candidate) {
+        let mut recorded_contributes = !terminal;
+        let complete = remaining.into_iter().all(|owner| {
+            if terminal && proves(owner, candidate) {
                 recorded_contributes = true;
                 return true;
             }

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
+### Fixed
+
+- A `## MODIFIED` delta now replaces the canonical requirement when a fenced example above it quotes the same ID. Headings inside a fenced example also leave the surrounding block intact during matching. If `change check` reports stale approval for an in-flight delta after upgrading, compare the approved delta with the full canonical requirement, edit the delta body, and request fresh approval (#1050).
+
 ## [6.4.1] - 2026-11-21
 
 ### Changed

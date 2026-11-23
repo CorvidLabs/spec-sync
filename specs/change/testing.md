@@ -364,3 +364,8 @@ Every link points inside the test's own temporary directory.
 |------|-------------------|------|
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
+
+## Fenced canonical delta blocks (REQ-change-152)
+
+- `a_modified_delta_skips_a_fenced_example_of_the_same_id` checks that the real requirement is replaced and the preceding example and next requirement survive.
+- `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.

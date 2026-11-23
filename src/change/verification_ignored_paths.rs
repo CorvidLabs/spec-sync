@@ -141,11 +141,11 @@ fn validate_verification_ignored_paths(
             }
         }
     }
-    let protected = verification_ignored_protected_scopes(root, policy);
-    let exclude_dirs = crate::config::load_config(root).exclude_dirs;
+    let config = crate::config::load_config(root);
+    let protected = verification_ignored_protected_scopes(root, policy, &config);
     for entry in entries {
         for (scope, label, source) in &protected {
-            if *source && verification_ignored_entry_is_excluded_source(entry, scope, &exclude_dirs)
+            if *source && verification_ignored_entry_is_excluded_source(entry, scope, &config.exclude_dirs)
             {
                 continue;
             }
@@ -207,8 +207,8 @@ fn verification_ignored_entry_shape(entry: &str) -> Result<(), String> {
 fn verification_ignored_protected_scopes(
     root: &Path,
     policy: &SddPolicy,
+    config: &crate::types::SpecSyncConfig,
 ) -> Vec<(String, String, bool)> {
-    let config = crate::config::load_config(root);
     let mut scopes = vec![(".specsync".to_string(), "`.specsync`".to_string(), false)];
     let specs = verification_ignored_overlap_scope(&config.specs_dir);
     scopes.push((specs.clone(), format!("the specs tree `{specs}`"), false));

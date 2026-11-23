@@ -241,6 +241,27 @@
         "REQ-change-177",
         "REQ-cmd-change-045"
       ]
+    },
+    {
+      "timestamp": 1795456020,
+      "commit": "b9613908313ace502d2d2bb549730282d9a3e433",
+      "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
+      "workspace_digest": "e9d0c38727bc95c33a2bdf807f58060f92b1c1712d5a50621bfbc6daf4268dad",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-175",
+        "REQ-change-176",
+        "REQ-change-177",
+        "REQ-cmd-change-045"
+      ]
     }
   ]
 }

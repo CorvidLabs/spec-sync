@@ -153,6 +153,13 @@
         "where": "REQ-change-172 option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z ('Fetch it itself (Recommended)'), relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58, and 'yes to all 3', a Claude Code chat message to hc t4c at about 01:00Z, relayed through ss-lead t58, for the two details. The added paths src/change/validate_loaded_change.rs (confirmed by t4c at about 06:04Z) and src/change/consider_accepted_evidence_anchor.rs with src/change/vanished_requirements.rs (confirmed by t4c at about 14:09Z): Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), each confirmed through ss-lead t58",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795478293,
+      "digest": "554b3cbe7ea14904cc5ca06c3f8c4f270d68f1a46874cb9fd68b1af477c7428f",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

@@ -787,3 +787,6 @@ verified. The transaction journal exists to put back the person's own interrupte
 
 @plane z=59 label="A new refusal on one path needs its pair on the health check (#1090)"
 #1088 made approve, check, verification and acceptance refuse a delta item that targets the frozen Change Log, and the project audit kept passing the same change, because the audit's per-change chain lists each refusal it asks by hand. CHANGE-11.b already asks the pairing: the health check reports the same problem before anything is lost. When a refusal is added to `change check`, add it to that chain in the same place in the order, so a change with several problems is told the same first problem by both, and pin the order with a change that has two problems. Keep the new sentence its own requirement when the original is under review, so the approved one is not reopened.
+
+@plane z=60 label="Publish the summary with verification evidence (#1143)"
+Once verification runs, publish its attempt, latest evidence, `state.json`, and the `change.md` state in one recoverable transaction. Materialization and verification update the generated `state` field in `change.md` and preserve its authored body. Approval, send-back, reopen, and archival regenerate the summary from the stored change record. A refusal before verification records its reason in the attempts ledger and keeps the current state.

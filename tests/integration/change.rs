@@ -7734,8 +7734,19 @@ fn after_approve_next_action_names_check_commit() {
 fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     let (_temp, root, id) = ss535_no_spec_project();
     let seed = git_ok(&root, &["rev-parse", "HEAD"]);
-    ss_ok(&root, &["change", "check", &id]);
     let workspace = root.join(".specsync/changes").join(&id);
+    let summary_path = workspace.join("change.md");
+    let summary = format!(
+        "{}\n## Handoff notes\n\nReview the README example.\n",
+        fs::read_to_string(&summary_path).unwrap()
+    );
+    assert!(summary.lines().any(|line| line == "state: approved"));
+    fs::write(&summary_path, &summary).unwrap();
+    ss_ok(&root, &["change", "check", &id]);
+    let expected_summary = summary.replacen("state: approved", "state: verifying", 1);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected_summary);
+    let status = ss_ok(&root, &["change", "status", &id]);
+    assert!(status.contains("State: verifying"), "{status}");
     let verification: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
             .unwrap();
@@ -7779,9 +7790,8 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     );
     let state: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
-    assert_ne!(
-        state["state"].as_str().unwrap_or(""),
-        "archived",
+    assert_eq!(
+        state["state"], "verifying",
         "a refused ship must leave the change unarchived: {state}"
     );
 
@@ -7794,6 +7804,13 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     assert_eq!(
         git_ok(&root, &["show", "HEAD:README.md"]),
         "hello\n\nThe greeter says hello."
+    );
+    assert_eq!(
+        git_ok(
+            &root,
+            &["show", &format!("HEAD:.specsync/changes/{id}/change.md")]
+        ),
+        expected_summary.trim_end()
     );
     ss_ok(
         &root,

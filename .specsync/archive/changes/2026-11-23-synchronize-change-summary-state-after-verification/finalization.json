@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "synchronize-change-summary-state-after-verification",
+  "implementation_commit": "1b46ce93b09634088f5124a11e10be082a6ed4cc",
+  "implementation_tree": "fd817cc5344f33f72505aa051d6dee7272f086b0",
+  "contract_digest": "af415c8023a6f0ee4ee5bd8454e48f4e9628a8965d2404051df42e177c5163e8",
+  "workspace_digest": "db36b051faa65ce2c8f633fd727f1a7b8d7c3c5d239a9b6b516144b7f05155d5",
+  "closing_digest": "a513443fb1be9d85df20dd96a89a7d9471772931182e6e6e6d53ecaf1c6b156f",
+  "review_digest": "e855c71a90636f1700c7d18770bc26a0b6bc7801775ca47892e8722a10da9c7c",
+  "finalization_digest": "2877db34a52c783987a12eed34510710224846596536bcb0081efd5f2fb0edd8",
+  "timestamp": 1795407625
+}

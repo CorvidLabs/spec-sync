@@ -530,6 +530,16 @@ fn a_provisionally_covered_change_covers_no_other_change() {
 fn a_resumed_finalization_writes_coverage_json_like_change_archive() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
+    let (record, later, archived) = finalized_change_with_temporary_coverage(root);
+    let coverage: serde_json::Value =
+        serde_json::from_slice(&fs::read(archived.join(PROVISIONAL_COVERAGE_FILE)).unwrap()).unwrap();
+    assert_eq!(coverage["schema_version"], 1, "{coverage}");
+    assert_eq!(coverage["change_id"], record.id.as_str(), "{coverage}");
+    assert_eq!(coverage["covered_by"][0]["path"], "src/auth.rs", "{coverage}");
+    assert_eq!(coverage["covered_by"][0]["change"], later.id.as_str(), "{coverage}");
+}
+
+fn finalized_change_with_temporary_coverage(root: &Path) -> (ChangeRecord, ChangeRecord, PathBuf) {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -571,12 +581,179 @@ fn a_resumed_finalization_writes_coverage_json_like_change_archive() {
         TerminalEvidenceValidity::ProvisionallyCovered
     );
     let archived = finalize_change(root, &record.id).expect("a provisionally covered change may finalize");
-    let coverage: serde_json::Value =
-        serde_json::from_slice(&fs::read(archived.join("coverage.json")).unwrap()).unwrap();
-    assert_eq!(coverage["schema_version"], 1, "{coverage}");
-    assert_eq!(coverage["change_id"], record.id.as_str(), "{coverage}");
-    assert_eq!(coverage["covered_by"][0]["path"], "src/auth.rs", "{coverage}");
-    assert_eq!(coverage["covered_by"][0]["change"], later.id.as_str(), "{coverage}");
+    (record, later, archived)
+}
+
+#[test]
+fn reopened_covered_archive_recomputes_coverage_at_finalization() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (record, _, archived) = finalized_change_with_temporary_coverage(root);
+    let prior_receipt = archived.join(PROVISIONAL_COVERAGE_FILE);
+    let archived_path = prior_receipt.strip_prefix(root).unwrap().to_str().unwrap();
+    let prior_bytes = fs::read(&prior_receipt).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the provisionally covered archive"]);
+    let original_archive = quiet_git(root, &["rev-parse", "HEAD"]);
+
+    reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence".into()).unwrap();
+    assert!(!change_dir(root, &record.id).join(PROVISIONAL_COVERAGE_FILE).exists());
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the reopened package"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Reviewer".into()).unwrap();
+    let rearchived = finalize_change(root, &record.id).expect("re-finalize without manually removing an old generated receipt");
+    assert!(!rearchived.join(PROVISIONAL_COVERAGE_FILE).exists());
+    assert_eq!(load_change(root, &record.id).unwrap().state, ChangeState::Archived);
+    let original = Command::new("git")
+        .args(["show", &format!("{original_archive}:{archived_path}")])
+        .current_dir(root)
+        .output()
+        .unwrap();
+    assert!(original.status.success());
+    assert_eq!(original.stdout, prior_bytes);
+}
+
+#[test]
+fn reopen_rollback_restores_the_receipt_and_preserves_replacements() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (record, _, archived) = finalized_change_with_temporary_coverage(root);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the provisionally covered archive"]);
+    let receipt = archived.join(PROVISIONAL_COVERAGE_FILE);
+    let original = fs::read(&receipt).unwrap();
+    let active = change_dir(root, &record.id);
+    inject_transaction_write_failure(1);
+    let error = reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence".into()).unwrap_err();
+    assert!(error.contains("injected atomic publication failure") && error.contains("archive restored"), "{error}");
+    assert!(!active.exists());
+    assert_eq!(fs::read(&receipt).unwrap(), original);
+    assert!(quiet_git(root, &["status", "--porcelain"]).is_empty());
+
+    let replacement = b"unexpected receipt replacement";
+    let replaced_path = active.join(PROVISIONAL_COVERAGE_FILE);
+    inject_transaction_after_journal_hook(move || fs::write(replaced_path, replacement).unwrap());
+    let error = reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence".into()).unwrap_err();
+    assert!(error.contains("archive coverage changed") && error.contains("archive restored"), "{error}");
+    assert!(!active.exists());
+    assert_eq!(fs::read(&receipt).unwrap(), replacement);
+    let relative_receipt = portable_project_path(root, &receipt);
+    assert_eq!(quiet_git(root, &["diff", "--name-only"]), relative_receipt);
+    assert!(read_pending_transaction(root).unwrap().is_none());
+}
+
+#[test]
+fn reopened_archive_preserves_untracked_and_edited_valid_coverage() {
+    for untracked in [false, true] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let (record, _, archived) = finalized_change_with_temporary_coverage(root);
+        let archived_receipt = archived.join(PROVISIONAL_COVERAGE_FILE);
+        let original = fs::read(&archived_receipt).unwrap();
+        if untracked {
+            fs::remove_file(&archived_receipt).unwrap();
+        }
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", "commit the provisionally covered archive"]);
+        let mut receipt: serde_json::Value = serde_json::from_slice(&original).unwrap();
+        receipt["covered_by"][0]["change"] = serde_json::json!("a-user-added-coverer");
+        let user_bytes = serde_json::to_vec_pretty(&receipt).unwrap();
+        fs::write(&archived_receipt, &user_bytes).unwrap();
+        reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence".into()).unwrap();
+        assert_eq!(
+            fs::read(change_dir(root, &record.id).join(PROVISIONAL_COVERAGE_FILE)).unwrap(),
+            user_bytes,
+            "untracked={untracked}",
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn an_archive_coverage_restore_uses_only_the_literal_receipt_path() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    let target = root.join(".specsync/archive/changes/2026-11-23-original[1]*/coverage.json");
+    let neighbor = root.join(".specsync/archive/changes/2026-11-23-original1-neighbor/coverage.json");
+    fs::create_dir_all(target.parent().unwrap()).unwrap();
+    fs::create_dir_all(neighbor.parent().unwrap()).unwrap();
+    fs::write(&target, "original receipt").unwrap();
+    fs::write(&neighbor, "archived neighbor").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit both receipt paths"]);
+    fs::write(&target, "damaged receipt").unwrap();
+    fs::write(&neighbor, "local neighbor edit").unwrap();
+    let warning = archive_coverage_warning(root, &target, "test-change", "invalid JSON");
+    let restore = warning
+        .split('`')
+        .find(|span| span.starts_with("git restore "))
+        .unwrap()
+        .replace("<known-good-commit>", "HEAD");
+    let output = Command::new("sh").args(["-c", &restore]).current_dir(root).output().unwrap();
+    assert!(output.status.success(), "{restore}: {}", String::from_utf8_lossy(&output.stderr));
+    assert_eq!(fs::read_to_string(target).unwrap(), "original receipt");
+    assert_eq!(fs::read_to_string(neighbor).unwrap(), "local neighbor edit");
+}
+
+#[test]
+fn a_present_invalid_archive_coverage_receipt_is_reported_without_changing_authentication() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (accepted, _) = accepted_change_with_moved_input(root, true);
+    let archive = archive_change(root, &accepted.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the provisionally covered archive"]);
+    let receipt = archive.join(PROVISIONAL_COVERAGE_FILE);
+    let original = fs::read(&receipt).unwrap();
+    let valid: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    let mut wrong_id = valid.clone();
+    wrong_id["change_id"] = serde_json::json!("another-change");
+    let mut unsupported = valid.clone();
+    unsupported["schema_version"] = serde_json::json!(2);
+    let mut unsafe_entry = valid;
+    unsafe_entry["covered_by"][0]["path"] = serde_json::json!("../outside");
+    let mut oversized = original;
+    oversized.resize(crate::util::MAX_STATE_FILE_BYTES as usize + 1, b' ');
+    let cases = [
+        ("absent", None),
+        ("truncated", Some(b"{\"covered_by\":".to_vec())),
+        ("wrong ID", Some(serde_json::to_vec(&wrong_id).unwrap())),
+        ("unsupported schema", Some(serde_json::to_vec(&unsupported).unwrap())),
+        ("unsafe entry", Some(serde_json::to_vec(&unsafe_entry).unwrap())),
+        ("oversized", Some(oversized)),
+    ];
+    let mut missing_diagnostics = Vec::new();
+    for (case, contents) in cases {
+        match contents {
+            None => fs::remove_file(&receipt).unwrap(),
+            Some(contents) => fs::write(&receipt, contents).unwrap(),
+        }
+        quiet_git(root, &["add", "--all"]);
+        quiet_git(root, &["commit", "-m", case]);
+        let record = load_change(root, &accepted.id).unwrap();
+        let summary = serde_json::to_value(summarize_change(root, &record)).unwrap();
+        assert_eq!(summary["terminal_evidence"]["validity"], "authenticated-history", "{case}");
+        assert!(summary.get("provisional_coverage").is_none(), "{case}");
+        let audit = audit_project_with_archives(root, true);
+        assert!(audit.errors.is_empty(), "{case}: {:?}", audit.errors);
+        let mentions_receipt = |message: &str| message.contains(PROVISIONAL_COVERAGE_FILE);
+        let summary_warns = summary["provisional_coverage_warning"].as_str().is_some_and(mentions_receipt);
+        let audit_warns = audit.warnings.iter().any(|warning| mentions_receipt(warning));
+        if case == "absent" {
+            assert!(!summary_warns && !audit_warns, "absent coverage is ordinary");
+        } else if !summary_warns || !audit_warns {
+            missing_diagnostics.push(case);
+        } else {
+            let warning = summary["provisional_coverage_warning"].as_str().unwrap();
+            assert!(warning.contains(&accepted.id) && warning.contains("git restore --source"), "{warning}");
+        }
+        assert!(quiet_git(root, &["status", "--porcelain"]).is_empty(), "{case}");
+    }
+    assert!(missing_diagnostics.is_empty(), "present invalid receipts without diagnostics: {missing_diagnostics:?}");
 }
 
 /// REQ-change-167 and the change's third criterion: after the archive, the archived change reads
@@ -770,7 +947,7 @@ fn one_explicit_owner_cannot_clear_a_shared_files_warning() {
     quiet_git(root, &["commit", "-m", "accept succession for auth only"]);
     let _scope = begin_change_read_scope(root);
     let archived = load_change(root, &predecessor.id).unwrap();
-    let coverage = archived_provisional_coverage(root, &archived);
+    let coverage = archived_provisional_coverage(root, &archived).unwrap();
     let entry = coverage.iter().find(|entry| entry.path == "src/auth.rs").unwrap();
     assert!(entry.warning.is_some(), "{coverage:?}");
 }
@@ -785,10 +962,10 @@ fn a_recorded_active_coverer_needs_its_current_approval() {
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "archive with current covering scope"]);
     let archived = load_change(root, &predecessor.id).unwrap();
-    assert!(archived_provisional_coverage(root, &archived)[0].warning.is_none());
+    assert!(archived_provisional_coverage(root, &archived).unwrap()[0].warning.is_none());
     coverer.acceptance_criteria.push("Extra unapproved work".into());
     save_change(root, &coverer).unwrap();
-    assert!(archived_provisional_coverage(root, &archived)[0].warning.is_some());
+    assert!(archived_provisional_coverage(root, &archived).unwrap()[0].warning.is_some());
 }
 
 fn approved_split_owner_successor(
@@ -868,7 +1045,7 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
     );
     let predecessor = load_change(root, &predecessor.id).unwrap();
     let assert_covered = |state| {
-        let coverage = archived_provisional_coverage(root, &predecessor);
+        let coverage = archived_provisional_coverage(root, &predecessor).unwrap();
         assert_eq!(coverage.len(), 2, "{archived:?}: {coverage:?}");
         for successor in [&auth, &shared] {
             let entry = coverage
@@ -906,7 +1083,7 @@ fn a_directly_covered_archive_does_not_need_an_unrelated_record() {
     fs::create_dir(&unrelated).unwrap();
     fs::write(unrelated.join("state.json"), b"{").unwrap();
     assert!(list_all_changes_structural(root).is_err());
-    let coverage = archived_provisional_coverage(root, &archived);
+    let coverage = archived_provisional_coverage(root, &archived).unwrap();
     assert_eq!(coverage.len(), 1);
     assert!(coverage[0].warning.is_none(), "{coverage:?}");
 }

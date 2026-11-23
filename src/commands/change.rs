@@ -1027,7 +1027,16 @@ fn print_record(
             print_handoff_line(&change::handoff_summary(root, record));
             // What an archive recorded as covered for now, and each covering change's present
             // state (#657); paths, ids and states only.
-            for entry in change::archived_provisional_coverage(root, record) {
+            let coverage =
+                change::archived_provisional_coverage(root, record).unwrap_or_else(|warning| {
+                    println!(
+                        "  {} {}",
+                        "warning:".yellow(),
+                        printable_claim_text(&warning)
+                    );
+                    Vec::new()
+                });
+            for entry in coverage {
                 let state = entry
                     .change_state
                     .map(|state| state.as_str())

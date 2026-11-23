@@ -3011,13 +3011,71 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 /// The record an archive keeps of the in-flight changes that covered its changed inputs (#657).
 const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
 
+#[derive(Deserialize)]
+struct ArchiveCoverageReceipt {
+    schema_version: u32,
+    change_id: String,
+    covered_by: Vec<ArchiveCoverageEntry>,
+}
+
+#[derive(Deserialize)]
+struct ArchiveCoverageEntry {
+    path: String,
+    change: String,
+}
+
+fn read_archive_coverage(
+    root: &Path,
+    path: &Path,
+    id: &str,
+) -> Result<Option<(String, ArchiveCoverageReceipt)>, String> {
+    reject_symlink_components_for(root, path, "archive coverage receipt")?;
+    let Some(bytes) = crate::util::read_project_file(root, path, MAX_CHANGE_ARTIFACT_BYTES)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+    let receipt: ArchiveCoverageReceipt =
+        serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    if receipt.schema_version != 1 {
+        return Err(format!("unsupported schema version {}", receipt.schema_version));
+    }
+    if receipt.change_id != id {
+        return Err("the receipt identifies a different change".into());
+    }
+    if receipt.covered_by.is_empty() {
+        return Err("the receipt contains no coverage entries".into());
+    }
+    let mut entries = BTreeSet::new();
+    for entry in &receipt.covered_by {
+        if normalize_project_path(&entry.path).as_deref() != Ok(entry.path.as_str())
+            || validate_change_id(&entry.change).is_err()
+            || entry.change == id
+            || !entries.insert((&entry.path, &entry.change))
+        {
+            return Err("the receipt contains an invalid or repeated coverage entry".into());
+        }
+    }
+    Ok(Some((text, receipt)))
+}
+
+fn archive_coverage_warning(root: &Path, path: &Path, id: &str, error: &str) -> String {
+    let relative = portable_project_path(root, path);
+    let literal = shell_word(&format!(":(literal){relative}"));
+    format!(
+        "archive `{id}` has invalid coverage at `{relative}` ({error}); restore it from a known-good commit with `git restore --source <known-good-commit> -- {literal}`"
+    )
+}
+
 /// What an archived change's `coverage.json` recorded, with each covering change's present state
 /// (REQ-change-167). A covering change that reaches acceptance needs the explicit succession
-/// evidence for the recorded input. The archive's own evidence never reads this file.
+/// evidence for the recorded input. A present invalid receipt produces a diagnostic independently
+/// of the archive's authenticated evidence.
 pub fn archived_provisional_coverage(
     root: &Path,
     record: &ChangeRecord,
-) -> Vec<ProvisionalCoverageSummary> {
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
     archived_provisional_coverage_with_roster(root, record, None)
 }
 
@@ -3025,26 +3083,19 @@ fn archived_provisional_coverage_with_roster(
     root: &Path,
     record: &ChangeRecord,
     roster: Option<&BTreeMap<String, ChangeRecord>>,
-) -> Vec<ProvisionalCoverageSummary> {
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
     if record.state != ChangeState::Archived {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     let Ok(directory) = find_change_dir(root, &record.id) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     let path = directory.join(PROVISIONAL_COVERAGE_FILE);
-    if !path.is_file() {
-        return Vec::new();
-    }
-    let Ok(text) = read_bounded_change_text(root, &path, "provisional coverage record") else {
-        return Vec::new();
+    let Some((_, coverage)) = read_archive_coverage(root, &path, &record.id)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?
+    else {
+        return Ok(Vec::new());
     };
-    let Ok(coverage) = serde_json::from_str::<serde_json::Value>(&text) else {
-        return Vec::new();
-    };
-    if coverage["change_id"].as_str() != Some(record.id.as_str()) {
-        return Vec::new();
-    }
     // Load the signed manifest and change roster at most once per archive, and only when
     // a recorded covering change can still qualify.
     let signed = std::cell::OnceCell::new();
@@ -3109,13 +3160,9 @@ fn archived_provisional_coverage_with_roster(
         });
         recorded_contributes && complete
     };
-    coverage["covered_by"]
-        .as_array()
+    Ok(coverage.covered_by
         .into_iter()
-        .flatten()
-        .filter_map(|entry| {
-            let path = entry["path"].as_str()?.to_string();
-            let change = entry["change"].as_str()?.to_string();
+        .map(|ArchiveCoverageEntry { path, change }| {
             let covering = load_change(root, &change).ok();
             let change_state = covering.as_ref().map(|record| record.state);
             let warning_reason = match covering {
@@ -3140,14 +3187,14 @@ fn archived_provisional_coverage_with_roster(
                 "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {reason}; run `specsync change reopen {} --actor <name> --reason <text>`",
                 record.id, record.id
             ));
-            Some(ProvisionalCoverageSummary {
+            ProvisionalCoverageSummary {
                 path,
                 change,
                 change_state,
                 warning,
-            })
+            }
         })
-        .collect()
+        .collect())
 }
 
 /// The later accepted changes that declare `path` under a stale owner, or whose delivery changed it: each
@@ -4709,6 +4756,11 @@ fn summarize_change_with_effective(
         },
         )
     };
+    let (provisional_coverage, provisional_coverage_warning) =
+        match archived_provisional_coverage(root, record) {
+            Ok(entries) => (entries, None),
+            Err(warning) => (Vec::new(), Some(warning)),
+        };
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),
@@ -4729,7 +4781,8 @@ fn summarize_change_with_effective(
             .unwrap_or_default(),
         next_action,
         terminal_evidence,
-        provisional_coverage: archived_provisional_coverage(root, record),
+        provisional_coverage,
+        provisional_coverage_warning,
         handoff,
     }
 }
@@ -4821,10 +4874,13 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
         // closed is a warning, never an error.
         if let Ok(records) = list_all_changes_structural(root) {
             for record in records.values().filter(|record| record.state == ChangeState::Archived) {
-                for entry in archived_provisional_coverage_with_roster(root, record, Some(&records)) {
-                    if let Some(warning) = entry.warning {
-                        report.warnings.push(format!("{}: {warning}", record.id));
+                match archived_provisional_coverage_with_roster(root, record, Some(&records)) {
+                    Ok(entries) => {
+                        for warning in entries.into_iter().filter_map(|entry| entry.warning) {
+                            report.warnings.push(format!("{}: {warning}", record.id));
+                        }
                     }
+                    Err(warning) => report.warnings.push(warning),
                 }
             }
         }

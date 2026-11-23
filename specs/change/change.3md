@@ -799,3 +799,6 @@ The input validator carries the signed path and failed owners into the archive r
 
 @plane z=63 label="Explicit succession after temporary coverage (#657)"
 The coverage receipt records which change was working on a path. To clear its warning after acceptance, check the recorded change against the predecessor’s signed input and succession obligation. The archive’s own evidence stays historical. A path can have several signed owners. Each owner needs coverage, and the recorded change must account for at least one. Recheck its approval while it remains active. When that change covers all owners directly, the status can be decided without opening unrelated archives.
+
+@plane z=66 label="Retire one archive generation’s coverage receipt"
+After moving an archived package back to the active workspace, publish the reopen state and retire its old generated coverage receipt through one journal. Only the unchanged committed receipt can be retired automatically. A refused publish restores the original when the receipt is missing and preserves a replacement at its path. The next archive computes its own coverage. A present invalid receipt is an advisory diagnostic and never determines terminal archive authentication.

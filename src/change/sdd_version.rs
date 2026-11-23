@@ -930,10 +930,29 @@ fn pending_transaction_entry_path(root: &Path, entry: &TransactionEntry) -> Resu
         .unwrap_or_else(|| PathBuf::from(TRANSACTION_FILE));
     let refused =
         |reason: String| invalid_journal_error(&journal_path, &format!("entry `{}`: {reason}", entry.path));
-    let path = safe_project_path(root, &entry.path).map_err(refused)?;
     replayable_transaction_path(root, &entry.path).map_err(refused)?;
+    // A journaled receipt removal never writes over a replacement at the leaf.
+    // The parent is still confined before deciding whether that leaf is present.
+    if entry.original.is_some()
+        && is_active_archive_coverage_receipt(&entry.path)
+        && let Some((parent, name)) = entry.path.rsplit_once('/')
+    {
+        let parent = safe_project_path(root, parent).map_err(refused)?;
+        reject_symlink_components_for(root, &parent, "transaction journal entry").map_err(refused)?;
+        return Ok(parent.join(name));
+    }
+    let path = safe_project_path(root, &entry.path).map_err(refused)?;
     reject_symlink_components_for(root, &path, "transaction journal entry").map_err(refused)?;
     Ok(path)
+}
+
+fn is_active_archive_coverage_receipt(relative: &str) -> bool {
+    let mut components = relative.split('/');
+    matches!(
+        (components.next(), components.next(), components.next(), components.next(), components.next()),
+        (Some(".specsync"), Some("changes"), Some(id), Some(PROVISIONAL_COVERAGE_FILE), None)
+            if validate_change_id(id).is_ok()
+    )
 }
 
 fn recover_pending_transaction(root: &Path) -> Result<(), String> {
@@ -945,10 +964,20 @@ fn recover_pending_transaction(root: &Path) -> Result<(), String> {
     let mut planned = Vec::with_capacity(entries.len());
     for entry in entries {
         let path = pending_transaction_entry_path(root, &entry)?;
-        planned.push((path, entry.original));
+        let restore_only_if_missing = is_active_archive_coverage_receipt(&entry.path);
+        planned.push((path, entry.original, restore_only_if_missing));
     }
-    for (path, original) in planned {
+    for (path, original, restore_only_if_missing) in planned {
         if let Some(original) = original {
+            // The active receipt is only a removal target. If it is present, it was never
+            // removed or someone supplied a replacement. Rollback must not overwrite it.
+            if restore_only_if_missing {
+                match fs::symlink_metadata(&path) {
+                    Ok(_) => continue,
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(error) => return Err(format!("failed to inspect {}: {error}", path.display())),
+                }
+            }
             atomic_write_durable(root, &path, original.as_bytes())
                 .map_err(|error| format!("failed to restore {}: {error}", path.display()))?;
         } else if path.exists() {
@@ -1981,6 +2010,9 @@ pub struct ChangeSummary {
     /// What an archive's `coverage.json` recorded (#657); empty for every other change.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub provisional_coverage: Vec<ProvisionalCoverageSummary>,
+    /// Optional diagnostic for a present unreadable or malformed archive receipt.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provisional_coverage_warning: Option<String>,
     /// Whether clearing context now loses anything, and what to do first if it does.
     pub handoff: HandoffSummary,
 }
@@ -4530,19 +4562,20 @@ pub fn reopen_change(
     // `from_state`, so a reopen out of the archive is distinguishable from a reopen
     // of a still-accepted change without inventing a new event type.
     let reopened_from = record.state;
-    let unarchived_from = if record.state == ChangeState::Archived {
+    let unarchived = if record.state == ChangeState::Archived {
         Some(unarchive_change_workspace(root, &record)?)
     } else {
         None
     };
-    let outcome = reopen_unarchived_change(root, id, reopened_from, actor, reason);
+    let prior_coverage = unarchived.as_ref().and_then(|(_, content)| content.as_deref());
+    let outcome = reopen_unarchived_change(root, id, reopened_from, actor, reason, prior_coverage);
     // The un-archive above is a move performed *before* the reopen preconditions are
     // known to hold, so a correctly refused reopen would otherwise consume the archive:
     // the package would sit in the active workspace with an `archived` state.json, and
     // no verb puts it back. A refusal must leave the tree exactly as it was found, so
     // the move is undone on every failure, exactly as `archive_change` restores its own
     // source when post-move validation fails.
-    let Some(archived_location) = unarchived_from else {
+    let Some((archived_location, _)) = unarchived else {
         return outcome;
     };
     let error = match outcome {
@@ -4559,9 +4592,12 @@ pub fn reopen_change(
 }
 
 /// Move an archived change package out of the dated archive and back into the active
-/// workspace, returning the archive location it came from so a failed reopen can put it
-/// back. The caller owns that restore: this helper only performs the move.
-fn unarchive_change_workspace(root: &Path, record: &ChangeRecord) -> Result<PathBuf, String> {
+/// workspace. Capture a valid receipt while it is still in its archived generation and return
+/// the original location for rollback. Invalid or unexpected files are carried without cleanup.
+fn unarchive_change_workspace(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(PathBuf, Option<String>), String> {
     let archived_location = find_change_dir(root, &record.id)?;
     let active = change_dir(root, &record.id);
     if active.exists() {
@@ -4575,9 +4611,32 @@ fn unarchive_change_workspace(root: &Path, record: &ChangeRecord) -> Result<Path
         crate::util::create_project_dir(root, parent)
             .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
     }
+    let coverage = committed_coverage_for_reopen(
+        root,
+        &archived_location.join(PROVISIONAL_COVERAGE_FILE),
+        &record.id,
+    );
     rename_durable(root, &archived_location, &active)
         .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
-    Ok(archived_location)
+    Ok((archived_location, coverage))
+}
+
+/// A valid-looking file is eligible for retirement only when it is the unchanged,
+/// committed receipt at this archive path. Preserve untracked, staged and edited files.
+fn committed_coverage_for_reopen(root: &Path, path: &Path, id: &str) -> Option<String> {
+    let (content, _) = read_archive_coverage(root, path, id).ok()??;
+    let relative = portable_project_path(root, path);
+    let repo_relative = git_repo_relative_path(root, &relative).ok()?;
+    let committed = scoped_review_file_at_commit(root, "HEAD", &repo_relative).ok()??;
+    if committed != content.as_bytes() {
+        return None;
+    }
+    let literal = format!(":(literal){relative}");
+    let status = run_git_bounded(
+        root, &["status", "--porcelain=v1", "--untracked-files=all", "--", &literal],
+        None, MAX_GIT_DIAGNOSTIC_BYTES,
+    ).ok()?;
+    (status.status.success() && status.stdout.is_empty()).then_some(content)
 }
 
 /// Reopen a change whose workspace is already active. Every failure here is recoverable
@@ -4588,6 +4647,7 @@ fn reopen_unarchived_change(
     reopened_from: ChangeState,
     actor: String,
     reason: String,
+    prior_coverage: Option<&str>,
 ) -> Result<ReopenResult, String> {
     let mut record = load_change(root, id)?;
     let reason = reason.trim();
@@ -4723,7 +4783,8 @@ fn reopen_unarchived_change(
     record.state = ChangeState::Verifying;
     record.canonical_applied = true;
     record.updated_at = now();
-    write_prepared_files(
+    let receipt_path = change_dir(root, &record.id).join(PROVISIONAL_COVERAGE_FILE);
+    publish_prepared_files(
         root,
         &[
             {
@@ -4746,6 +4807,8 @@ fn reopen_unarchived_change(
                 change_markdown_content(&record),
             ),
         ],
+        prior_coverage.map(|content| (receipt_path.as_path(), content)),
+        || Ok(()),
     )?;
     Ok(ReopenResult {
         change: record,

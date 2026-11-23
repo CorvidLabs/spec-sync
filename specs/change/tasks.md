@@ -127,3 +127,4 @@ spec: change.spec.md
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).
 - [x] Use the explicit succession obligation to decide whether an accepted or archived coverer clears the recorded shared-input warning (#657).
 - [x] Check current approval for a recorded in-flight coverer and explicit succession for every signed owner of a permanently covered path (#657).
+- [x] Retire a valid coverage receipt during archived reopen and restore its bytes on publication failure (REQ-change-reopened-coverage-receipt-001).

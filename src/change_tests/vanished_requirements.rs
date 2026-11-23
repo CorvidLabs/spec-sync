@@ -307,6 +307,45 @@ fn another_active_change_s_approved_removal_accounts_for_the_loss() {
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &second.id).unwrap()), Ok(None));
 }
 
+#[test]
+fn a_sibling_removal_must_survive_the_selected_changes_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let first = vanished_repository(root, ADDED_THIRD, &[]);
+    let sibling = completed_section_only_current_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    let sibling = approve_definition(root, &sibling.id, Some("Scope owner".into()), None).unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+
+    // The selected workspace will be staged by its own lifecycle command.
+    assert_eq!(ensure_no_lost_requirements(root, &sibling), Ok(None));
+    let refused = || {
+        let error = ensure_no_lost_requirements(root, &first)
+            .expect_err("the sibling removal authority is missing from the index");
+        assert!(error.contains("REQ-auth-001"), "{error}");
+    };
+    refused();
+    let package = format!("{CHANGES_PATH}/{}", sibling.id);
+    let git = git_in(root);
+    git(&["add", "--", &format!("{package}/state.json"), &format!("{package}/approvals.json")]);
+    refused();
+    git(&["add", "--", &package]);
+    let approvals = format!("{package}/approvals.json");
+    let approved = fs::read(root.join(&approvals)).unwrap();
+    fs::write(root.join(&approvals), "{}").unwrap();
+    git(&["add", "--", &approvals]);
+    fs::write(root.join(&approvals), approved).unwrap();
+    refused();
+    git(&["add", "--", &approvals]);
+    fs::write(root.join(&package).join("notes.local"), "Private scratch notes.").unwrap();
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+
+    git(&["commit", "-qam", "record the removal and its authority"]);
+    let fresh = TempDir::new().unwrap();
+    git(&["clone", "--quiet", "--no-local", ".", fresh.path().to_str().unwrap()]);
+    let first = load_change(fresh.path(), &first.id).unwrap();
+    assert_eq!(ensure_no_lost_requirements(fresh.path(), &first), Ok(None));
+}
+
 /// Two approved changes on `origin/main`, one adding REQ-auth-003 and one removing REQ-auth-001,
 /// checked out on branch `change`: `(adding, removing)`.
 fn two_change_repository(root: &Path) -> (ChangeRecord, ChangeRecord) {
@@ -367,7 +406,7 @@ fn a_change_archived_on_the_branch_accounts_for_its_removal() {
     .unwrap();
     git_in(root)(&["commit", "-q", "-am", "the archived change's removal"]);
 
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, &first.id).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
@@ -393,7 +432,7 @@ fn a_bare_archived_delta_or_a_retired_change_accounts_for_no_removal() {
     .unwrap();
     git_in(root)(&["add", "--all"]);
     git_in(root)(&["commit", "-q", "-m", "a bare delta under the archive path"]);
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, &record.id).unwrap();
     assert!(!removed.contains("REQ-auth-001"), "{removed:?}");
     let error = ensure_no_lost_requirements(root, &record).unwrap_err();
     assert!(error.contains("REQ-auth-001"), "{error}");
@@ -1030,7 +1069,7 @@ fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
     move_into_archive_uncommitted(root, &second, ChangeState::Archived);
     fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
 
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, &first.id).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));

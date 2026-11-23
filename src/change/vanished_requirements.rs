@@ -442,12 +442,48 @@ fn working_tree_requirement_blocks(
         .collect()
 }
 
+/// A lifecycle commit owns its selected workspace. A sibling authorizes a removal only
+/// when Git's index already contains the definition and delta that authorize it.
+fn sibling_removal_is_staged(
+    root: &Path,
+    change: &ChangeRecord,
+    approval: &ApprovalRecord,
+    delta: &Path,
+) -> Result<bool, String> {
+    let package = format!("{CHANGES_PATH}/{}", change.id);
+    let corrections = format!("{package}/{CORRECTIONS_FILE}");
+    let mut paths = BTreeSet::from([
+        format!("{package}/state.json"),
+        format!("{package}/approvals.json"),
+        strict_portable_project_path(root, delta)?,
+        corrections.clone(),
+    ]);
+    // Legacy definition approvals bind the selected artifacts as well as the scope.
+    if change.workflow_version < 2 || approval.approved_scope.is_none() {
+        let ledger = load_correction_ledger(root, change)?;
+        let definition = definition_artifact_snapshot(root, change, &ledger.corrections)?;
+        paths.extend(definition.entries.into_iter().map(|(path, _, _, _)| path));
+    }
+    let staged = inspect_git_candidates(root, &paths, true, true)?;
+    Ok(staged.entries.iter().all(|(path, entry)| {
+        entry.object_identity
+            || (path == &corrections
+                && entry.kind == AcceptanceInputKind::Missing
+                && entry.object.is_none())
+    }))
+}
+
 /// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the
 /// items of each delta its valid definition approval binds by digest. An approval that records
 /// no delta digests, as one made before they existed, binds no wording, so its change adds
 /// nothing until it is approved again (Codex on #1108, third round). A change whose approval or
 /// delta cannot be read adds nothing either.
-fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTreeSet<String>) {
+fn add_approved_removals(
+    root: &Path,
+    change: &ChangeRecord,
+    active_sibling: bool,
+    removed: &mut BTreeSet<String>,
+) {
     let Ok(ledger) = load_approvals(root, change) else {
         return;
     };
@@ -468,11 +504,21 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
         if !approved {
             continue;
         }
-        for item in parse_delta(&delta).unwrap_or_default() {
-            if item.operation == DeltaOperation::Removed && item.target == DeltaTarget::Requirement {
-                removed.insert(item.key.clone());
-            }
+        let removals: Vec<_> = parse_delta(&delta)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|item| {
+                item.operation == DeltaOperation::Removed && item.target == DeltaTarget::Requirement
+            })
+            .map(|item| item.key)
+            .collect();
+        if removals.is_empty() {
+            continue;
         }
+        if active_sibling && sibling_removal_is_staged(root, change, approval, &path) != Ok(true) {
+            continue;
+        }
+        removed.extend(removals);
     }
 }
 
@@ -481,7 +527,11 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
 /// branch archived after `reference`, committed or not yet, taken from its archived record. A retired change accounts
 /// for nothing, in the active roster or in the archive, and neither does a delta file under the
 /// archive path with no archived record around it (Codex on #1108; one mechanism for both).
-fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTreeSet<String>, String> {
+fn removed_requirement_ids_on_branch(
+    root: &Path,
+    reference: &str,
+    selected_id: &str,
+) -> Result<BTreeSet<String>, String> {
     let mut removed = BTreeSet::new();
     // A change that cannot be read accounts for no removal, and never turns this refusal into its
     // own error (ss-lead's review of #1081, #1104's pattern); so is every change when the changes
@@ -496,7 +546,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
                 | ChangeState::Accepted
         )
     }) {
-        add_approved_removals(root, change, &mut removed);
+        add_approved_removals(root, change, change.id != selected_id, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
     let added = git_raw_utf8(
@@ -560,7 +610,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         if archived_at(root, reference, &change.id)? {
             continue;
         }
-        add_approved_removals(root, &change, &mut removed);
+        add_approved_removals(root, &change, false, &mut removed);
     }
     Ok(removed)
 }
@@ -751,7 +801,7 @@ fn lost_requirements_check(
     if lost.is_empty() {
         return Ok(None);
     }
-    let removed = removed_requirement_ids_on_branch(root, &reference)?;
+    let removed = removed_requirement_ids_on_branch(root, &reference, &record.id)?;
     let mut unaccounted: Vec<&(String, String, String)> = lost
         .into_iter()
         .filter(|(id, _, _)| !removed.contains(id))

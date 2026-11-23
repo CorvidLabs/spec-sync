@@ -3029,7 +3029,7 @@ pub fn archived_provisional_coverage(
     if !path.is_file() {
         return Vec::new();
     }
-    let Ok(text) = read_bounded_change_text(&path, "provisional coverage record") else {
+    let Ok(text) = read_bounded_change_text(root, &path, "provisional coverage record") else {
         return Vec::new();
     };
     let Ok(coverage) = serde_json::from_str::<serde_json::Value>(&text) else {

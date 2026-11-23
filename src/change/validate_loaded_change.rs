@@ -284,7 +284,8 @@ fn later_sequence_owner_covers_historical_input(
     }) {
         return Ok(false);
     }
-    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending).is_ok())
+    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending)
+        .is_ok_and(|validity| validity != AcceptedInputValidity::ProvisionallyCovered))
 }
 
 /// True when `candidate` declares the obligation that would let it cover `predecessor_entry`

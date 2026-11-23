@@ -441,6 +441,8 @@ struct AcceptedInputValidationMemo {
     /// Per accepted change, each changed input an in-flight later change covers for now, as
     /// `(path, covering change)` (#657).
     provisional: BTreeMap<String, Vec<(String, String)>>,
+    /// A covering change can declare many inputs. Validate its approval once per traversal.
+    covering_approvals: BTreeMap<String, bool>,
     authenticated: BTreeMap<String, Result<VerificationRecord, String>>,
     historical_receipts: BTreeMap<(String, String), Result<HistoricalReceiptProof, String>>,
     accepted_transitions: BTreeMap<String, Result<AcceptedTransitionProof, String>>,

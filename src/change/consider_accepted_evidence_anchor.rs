@@ -3785,6 +3785,8 @@ enum AcceptedInputValidity {
 /// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
 /// so the obligation is deferred, not dropped (#657).
 fn in_flight_coverer(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
     records: &BTreeMap<String, ChangeRecord>,
     record: &ChangeRecord,
     path: &str,
@@ -3792,7 +3794,7 @@ fn in_flight_coverer(
 ) -> Option<String> {
     records
         .values()
-        .filter(|candidate| {
+        .find(|candidate| {
             candidate.id != record.id
                 && matches!(
                     candidate.state,
@@ -3804,9 +3806,11 @@ fn in_flight_coverer(
                     .affected_paths
                     .iter()
                     .any(|scope| path_matches_scope(path, scope))
+                && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
+                    ensure_definition_approval_valid(root, candidate).is_ok()
+                })
         })
         .map(|candidate| candidate.id.clone())
-        .min()
 }
 
 /// The sentence for an accepted change whose changed inputs in-flight changes cover for now.
@@ -4030,19 +4034,14 @@ fn terminal_evidence_summary_with_validation_state(
         };
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
-        Ok(AcceptedInputValidity::Exact) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
-            }
+        Ok(_) if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") => {
+            historical_terminal_summary()
+        }
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact, reason: None,
         },
-        Ok(AcceptedInputValidity::SuccessorCovered) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
-            }
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered, reason: None,
         },
         Ok(AcceptedInputValidity::ProvisionallyCovered) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::ProvisionallyCovered,
@@ -5334,7 +5333,7 @@ fn validate_accepted_inputs_recursive(
                     &mut rejected_successors,
                     &mut historically_reconciled,
                 ) {
-                    if let Some(coverer) = in_flight_coverer(records, record, &expected.path, owner)
+                    if let Some(coverer) = in_flight_coverer(root, memo, records, record, &expected.path, owner)
                     {
                         provisional.push((expected.path.clone(), coverer));
                         continue;

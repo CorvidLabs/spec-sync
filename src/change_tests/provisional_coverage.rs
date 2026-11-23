@@ -91,6 +91,109 @@ fn an_in_flight_change_that_declares_the_input_covers_it_for_now() {
 }
 
 #[test]
+fn only_a_current_approval_can_supply_provisional_coverage() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (accepted, in_flight) = accepted_change_with_moved_input(root, true);
+    let mut covering = in_flight.unwrap();
+    covering
+        .acceptance_criteria
+        .push("Additional unapproved work.".into());
+    save_change(root, &covering).unwrap();
+
+    assert!(ensure_definition_approval_valid(root, &covering).is_err());
+    assert_eq!(
+        terminal_validity(root, &accepted).validity,
+        TerminalEvidenceValidity::Stale
+    );
+    assert!(archive_change(root, &accepted.id).is_err());
+}
+
+#[test]
+fn provisional_coverage_keeps_an_unproven_historical_transition_visible() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (mut accepted, _) = accepted_change_with_moved_input(root, true);
+    // The marker is recorded during historical reconciliation. Here the graph verdict is
+    // already known. Exercise its projection without changing the accepted receipt.
+    accepted
+        .answers
+        .insert(HISTORICAL_RECONCILIATION.into(), "unproven".into());
+    let mut memo = AcceptedInputValidationMemo::default();
+    memo.validity.insert(
+        accepted.id.clone(),
+        Ok(AcceptedInputValidity::ProvisionallyCovered),
+    );
+    let evidence = terminal_evidence_summary_with_validation_state(
+        root,
+        &accepted,
+        &BTreeMap::new(),
+        &mut BTreeSet::new(),
+        &mut memo,
+        &mut ArchivedIntegrityCache::default(),
+    );
+    assert_eq!(
+        evidence.validity,
+        TerminalEvidenceValidity::HistoricalTransitionUnproven
+    );
+}
+
+#[test]
+fn a_sequence_owner_with_provisional_coverage_cannot_cover_a_predecessor() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    quiet_git(root, &["init", "-b", "main"]);
+    quiet_git(root, &["config", "user.email", "test@example.com"]);
+    quiet_git(root, &["config", "user.name", "Test"]);
+    let mut owner = reidentify_as_ordinal(root, &completed_no_spec_record(root), "CHG-0002-owner");
+    owner.affected_paths.push(SEQUENCE_PATH.into());
+    save_change(root, &owner).unwrap();
+    write_json(
+        &root.join(SEQUENCE_PATH),
+        &ChangeSequenceLedger {
+            schema_version: 1,
+            sequence: 2,
+            id: owner.id.clone(),
+            acknowledged_collisions: Vec::new(),
+        },
+    )
+    .unwrap();
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "record the sequence owner"]);
+    approve_definition(root, &owner.id, Some("Reviewer".into()), None).unwrap();
+    start_implementation(root, &owner.id).unwrap();
+    verify_change(root, &owner.id).unwrap();
+    let owner = accept_change(root, &owner.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "."]);
+    quiet_git(root, &["commit", "-m", "accept the sequence owner"]);
+
+    let mut earlier = owner.clone();
+    earlier.id = "CHG-0001-earlier".into();
+    earlier.created_at = owner.created_at - 1;
+    let records = BTreeMap::from([(owner.id.clone(), owner.clone())]);
+    let mut memo = AcceptedInputValidationMemo::default();
+    for (validity, covers) in [
+        (AcceptedInputValidity::Exact, true),
+        (AcceptedInputValidity::ProvisionallyCovered, false),
+    ] {
+        memo.validity.insert(owner.id.clone(), Ok(validity));
+        assert_eq!(
+            later_sequence_owner_covers_historical_input(
+                root,
+                &earlier,
+                &records,
+                &mut BTreeSet::new(),
+                &mut memo,
+                None,
+            )
+            .unwrap(),
+            covers,
+            "{validity:?}"
+        );
+    }
+}
+
+#[test]
 fn with_no_change_declaring_the_input_it_is_stale_as_before() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
@@ -173,23 +276,24 @@ fn only_an_in_flight_change_that_declares_the_module_and_path_covers_it() {
     let in_flight = in_flight.unwrap();
     let mut records = BTreeMap::from([(accepted.id.clone(), accepted.clone())]);
     let mut candidate = in_flight.clone();
+    let mut memo = AcceptedInputValidationMemo::default();
     for state in [ChangeState::Approved, ChangeState::Implementing, ChangeState::Verifying] {
         candidate.state = state;
         records.insert(candidate.id.clone(), candidate.clone());
         assert_eq!(
-            in_flight_coverer(&records, &accepted, "src/auth.rs", "auth"),
+            in_flight_coverer(root, &mut memo, &records, &accepted, "src/auth.rs", "auth"),
             Some(in_flight.id.clone()),
             "{state:?}"
         );
     }
     candidate.state = ChangeState::Draft;
     records.insert(candidate.id.clone(), candidate.clone());
-    assert_eq!(in_flight_coverer(&records, &accepted, "src/auth.rs", "auth"), None, "a draft");
+    assert_eq!(in_flight_coverer(root, &mut memo, &records, &accepted, "src/auth.rs", "auth"), None, "a draft");
     candidate.state = ChangeState::Approved;
     candidate.affected_specs.clear();
     records.insert(candidate.id.clone(), candidate.clone());
     assert_eq!(
-        in_flight_coverer(&records, &accepted, "src/auth.rs", "auth"),
+        in_flight_coverer(root, &mut memo, &records, &accepted, "src/auth.rs", "auth"),
         None,
         "the path without its owning module"
     );

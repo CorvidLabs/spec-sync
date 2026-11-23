@@ -365,45 +365,39 @@ fn verification_ignored_excluded_depth(
     exclude_dirs: &[String],
 ) -> Result<usize, String> {
     let components: Vec<_> = entry.trim_end_matches('/').split('/').collect();
-    let candidates = components
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(_, component)| exclude_dirs.iter().any(|excluded| excluded == **component));
-    let mut candidates = candidates.peekable();
-    if candidates.peek().is_none() {
-        return Ok(0);
-    }
-    let project = cap_std::fs::Dir::open_ambient_dir(root, cap_std::ambient_authority())
-        .map_err(|error| format!("could not inspect excluded directories ({error})"))?;
-    for (index, component) in candidates {
-        let path: PathBuf = components[..=index].iter().collect();
+    for (index, component) in components.iter().enumerate().rev() {
+        if !exclude_dirs.iter().any(|excluded| excluded == *component) {
+            continue;
+        }
+        let relative: PathBuf = components[..=index].iter().collect();
+        let path = root.join(&relative);
         let inspect_error = |error| {
             format!(
                 "could not inspect excluded directory `{}` ({error})",
-                path.display()
+                relative.display()
             )
         };
-        match project.symlink_metadata(&path) {
+        if let Some(error) = crate::util::project_path_refusal(root, &path) {
+            return Err(inspect_error(std::io::Error::other(error)));
+        }
+        match fs::symlink_metadata(&path) {
             Ok(_) => {}
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(index + 1),
             Err(error) => return Err(inspect_error(error)),
         }
-        let parent = if index == 0 {
-            Path::new(".")
-        } else {
-            path.parent().unwrap_or(Path::new("."))
-        };
-        for (count, candidate) in project.read_dir(parent).map_err(inspect_error)?.enumerate() {
-            if count == MAX_EXCLUSION_PARENT_ENTRIES {
-                return Err(format!(
-                    "could not confirm excluded directory `{}` after {MAX_EXCLUSION_PARENT_ENTRIES} entries",
-                    path.display()
-                ));
-            }
-            if candidate.map_err(inspect_error)?.file_name() == std::ffi::OsStr::new(component) {
-                return Ok(index + 1);
-            }
+        let parent = path.parent().unwrap_or(root);
+        let entries = crate::util::read_project_dir(root, parent).map_err(inspect_error)?;
+        if entries.len() > MAX_EXCLUSION_PARENT_ENTRIES {
+            return Err(format!(
+                "could not confirm excluded directory `{}` after {MAX_EXCLUSION_PARENT_ENTRIES} entries",
+                relative.display()
+            ));
+        }
+        if entries
+            .iter()
+            .any(|candidate| candidate.file_name() == Some(std::ffi::OsStr::new(component)))
+        {
+            return Ok(index + 1);
         }
     }
     Ok(0)

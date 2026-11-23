@@ -621,12 +621,50 @@ fn sibling_removal_is_staged(
         }
     }
     let staged = inspect_git_candidates(root, &paths, true, true)?;
-    Ok(staged.entries.iter().all(|(path, entry)| {
-        entry.object_identity
+    let mut compare_bytes = BTreeSet::new();
+    for (path, entry) in &staged.entries {
+        if entry.object_identity
             || (path == &corrections
                 && entry.kind == AcceptanceInputKind::Missing
                 && entry.object.is_none())
-    }))
+        {
+            continue;
+        }
+        if entry.kind != AcceptanceInputKind::File
+            || !matches!(entry.mode, 0o100644 | 0o100755)
+            || staged.modes.get(path) != Some(&entry.mode)
+            || entry.object.is_none()
+        {
+            return Ok(false);
+        }
+        compare_bytes.insert(path.clone());
+    }
+
+    // A write followed by restoring the original bytes may leave Git's stat data stale.
+    let _live = crate::git_utils::live_repository_reads();
+    let lfs_paths = validate_canonical_git_attributes(root, &compare_bytes)?;
+    for path in compare_bytes {
+        let entry = &staged.entries[&path];
+        let object = entry.object.as_deref().expect("tracked index object");
+        let blob = git_blob_bytes(root, object)?;
+        if blob != entry.payload || (lfs_paths.contains(&path) && !is_git_lfs_pointer(&blob)) {
+            return Ok(false);
+        }
+        if blob.is_empty() {
+            // An intent-to-add entry also reports the empty blob, which is not staged evidence.
+            let args = literal_candidate_git_args(
+                &git_repo_prefix(root)?,
+                &["diff-files", "--diff-filter=A", "--name-only", "-z"],
+                &[&path],
+            );
+            if !run_git_required(root, &borrowed_git_args(&args), None, MAX_GIT_COMMAND_OUTPUT_BYTES)?
+                .is_empty()
+            {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the

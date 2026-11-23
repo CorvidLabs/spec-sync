@@ -1263,6 +1263,28 @@ fn an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibl
     refused();
     git(&["add", "--", &archive]);
     assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+
+    let state = root.join(&archive).join("state.json");
+    let indexed = fs::read(&state).unwrap();
+    let mut changed = indexed.clone();
+    changed.push(b'\n');
+    fs::write(&state, changed).unwrap();
+    refused();
+    fs::write(&state, indexed).unwrap();
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        git(&["config", "core.filemode", "true"]);
+        let original = fs::metadata(&state).unwrap().permissions();
+        fs::set_permissions(&state, fs::Permissions::from_mode(original.mode() | 0o111)).unwrap();
+        refused();
+        fs::set_permissions(&state, original).unwrap();
+        assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+    }
+
     git(&["commit", "-qam", "record the archived sibling and its removal"]);
     let fresh = TempDir::new().unwrap();
     git(&["clone", "--quiet", "--no-local", ".", fresh.path().to_str().unwrap()]);

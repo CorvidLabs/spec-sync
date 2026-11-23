@@ -120,4 +120,6 @@ spec: change.spec.md
 - [x] Keep the transaction journal in the local state folder and never replay one in the work tree (REQ-change-162). Evidence: `a_journal_in_the_work_tree_is_never_replayed`, `a_running_transaction_keeps_its_journal_outside_the_work_tree`.
 - [x] Never read a journal under a Git directory, and open a registry replay only for a `*.spec.md` path (REQ-change-162). Evidence: `a_journal_under_the_git_directory_is_never_replayed`, `a_registry_entry_that_is_not_a_spec_never_opens_a_replay`.
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
+- [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
+- [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
 - [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).

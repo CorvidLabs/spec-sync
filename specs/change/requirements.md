@@ -2254,3 +2254,23 @@ Acceptance Criteria
 - `change answer` refuses a dangling artifact link and creates nothing outside.
 - `change new` creates no workspace in a `.specsync/changes` linked outside the repository.
 - `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+
+### REQ-change-170
+
+`change audit` SHALL report, for each approved, implementing or verifying change, the refusal REQ-change-159 gives a delta item that targets the frozen `## Change Log` section, with the message `change check` gives, prefixed by the change id, and SHALL ask it in the order `change check` asks it: after the definition approval and the delta files hold, and before the approved delta bodies and bases. An archived change SHALL NOT be judged again.
+
+Acceptance Criteria
+- An approved, implementing or verifying change whose approved delta holds a `SPEC SECTION Change Log` item, as an older SpecSync approved it, makes `change audit` report the refusal `change check` gives, prefixed by the change id, and `change audit --strict` exits 1.
+- An archived change whose package holds such an item is not reported.
+- An active change whose delta holds no such item audits as before, and so does a project with no active change.
+
+### REQ-change-check-summary-state-001
+
+When a scoped check records a completed verification, SpecSync SHALL publish its latest evidence, attempt ledger, and Verifying state in both state.json and change.md in one recoverable transaction.
+
+Acceptance Criteria
+
+- A passing verification and a completed spec-to-code failure both leave state.json, the change.md frontmatter, and change status at verifying.
+- Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
+- A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
+- check --commit commits the synchronized summary and passing evidence that still allows scoped review.

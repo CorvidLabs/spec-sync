@@ -1,6 +1,6 @@
 ---
 id: in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before
-state: implementing
+state: verifying
 type: bug_fix
 base_commit: ed258f58d734be7c4c0ac092ddbc934f492630d3
 ---

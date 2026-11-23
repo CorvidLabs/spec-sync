@@ -2267,3 +2267,11 @@ Acceptance Criteria
 - With no default branch, the change's `base_commit` is the reference. With neither, the check is skipped with a note. An `origin/HEAD`, `origin/main` or `origin/master` that does not resolve, or that is the branch `HEAD` is on, is not a default branch. With a default branch whose merge-base or file Git cannot read, the check refuses, naming what could not be read.
 - These flows pass as before: an ADDED or MODIFIED change, a REMOVED change, a send-back, and a delta rebased under REQ-change-161.
 
+### REQ-change-170
+
+`change audit` SHALL report, for each approved, implementing or verifying change, the refusal REQ-change-159 gives a delta item that targets the frozen `## Change Log` section, with the message `change check` gives, prefixed by the change id, and SHALL ask it in the order `change check` asks it: after the definition approval and the delta files hold, and before the approved delta bodies and bases. An archived change SHALL NOT be judged again.
+
+Acceptance Criteria
+- An approved, implementing or verifying change whose approved delta holds a `SPEC SECTION Change Log` item, as an older SpecSync approved it, makes `change audit` report the refusal `change check` gives, prefixed by the change id, and `change audit --strict` exits 1.
+- An archived change whose package holds such an item is not reported.
+- An active change whose delta holds no such item audits as before, and so does a project with no active change.

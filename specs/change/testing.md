@@ -365,6 +365,8 @@ Every link points inside the test's own temporary directory.
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
 
+REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
+
 ## Lost-requirement refusals (REQ-change-169)
 
 - `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.

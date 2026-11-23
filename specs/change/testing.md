@@ -369,3 +369,5 @@ Every link points inside the test's own temporary directory.
 
 - `a_modified_delta_skips_a_fenced_example_of_the_same_id` checks that the real requirement is replaced and the preceding example and next requirement survive.
 - `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.
+- `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
+- `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.

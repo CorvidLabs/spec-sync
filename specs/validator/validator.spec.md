@@ -60,6 +60,7 @@ instead of a false success.
 | `validate_spec_content_with_sources` | `spec_path, content, root, schema_tables, schema_columns, config, sources: &HashMap<String, SourceSnapshot>` | `ValidationResult` | Validate supplied spec bytes and supplied mapped-source observations without ambient spec/source reopening |
 | `validate_local_dependency` | Shared confined dependency verdict |
 | `requirement_heading_id` | `line: &str` | `Option<&str>` | The requirement id a `### ` heading names (title suffix, trailing punctuation and up to three spaces of indent tolerated); the one parser every reader and the delta materializer share |
+| `update_fence` | `line: &str, fence: &mut Option<(char, usize)>` | `bool` | Update CommonMark fence state and identify a delimiter for the requirement reader and canonical delta block scan |
 
 ## Invariants
 

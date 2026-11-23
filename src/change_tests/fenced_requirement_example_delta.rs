@@ -55,4 +55,43 @@ mod fenced_requirement_example_delta {
         assert!(modified.contains("### REQ-auth-001\n\nNew"), "{modified}");
         assert!(modified.contains("### REQ-auth-002\n\nKeep"), "{modified}");
     }
+
+    #[test]
+    fn a_removed_requirement_is_applied_when_only_a_fenced_example_remains() {
+        let requirements = "# Requirements\n\n```markdown\n### REQ-auth-001\n\nExample\n```\n\n### REQ-auth-002\n\nKeep\n";
+        let item = DeltaItem {
+            operation: DeltaOperation::Removed,
+            target: DeltaTarget::Requirement,
+            key: "REQ-auth-001".into(),
+            content: String::new(),
+        };
+        assert!(delta_item_is_applied("", requirements, &item));
+    }
+
+    #[test]
+    fn a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body() {
+        let requirements = "# Requirements\n\n```markdown\n### REQ-auth-001\n\nExample\n```\n\n### REQ-auth-001\n\nNew\n\n### REQ-auth-002\n\nKeep\n";
+        let item = DeltaItem {
+            operation: DeltaOperation::Modified,
+            target: DeltaTarget::Requirement,
+            key: "REQ-auth-001".into(),
+            content: "New".into(),
+        };
+        assert!(delta_item_is_applied("", requirements, &item));
+    }
+
+    #[test]
+    fn a_backtick_in_an_info_string_keeps_the_next_heading_visible() {
+        let prefix = "# Contract\n\n```markdown `example`\n\n";
+        for (level, key) in [("### ", "REQ-auth-001"), ("## ", "Purpose")] {
+            let heading = format!("{level}{key}");
+            let source = format!("{prefix}{heading}\n\nOld\n\n## Keep\n\nText\n");
+            let modified =
+                apply_markdown_block(&source, level, key, "New", DeltaOperation::Modified).unwrap();
+            assert_eq!(
+                modified,
+                format!("{prefix}{heading}\n\nNew\n\n## Keep\n\nText\n"),
+            );
+        }
+    }
 }

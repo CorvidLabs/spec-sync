@@ -49,6 +49,13 @@
         "where": "SpecSync Codex session, reply to the explicit #1143 scope approval prompt, relayed by the coordinating Codex agent on 2026-11-22",
         "recorded_by": "Codex #1143 implementation agent"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795407625,
+      "digest": "a513443fb1be9d85df20dd96a89a7d9471772931182e6e6e6d53ecaf1c6b156f",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

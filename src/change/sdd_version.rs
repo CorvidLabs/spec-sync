@@ -3730,10 +3730,9 @@ fn materialize_change_deltas_inner(
         relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
-    prepared.push((
-        change_dir(root, &record.id).join("change.md"),
-        change_markdown_content(&record),
-    ));
+    let summary_path = change_dir(root, &record.id).join("change.md");
+    let summary = change_markdown_with_state(root, &summary_path, &record)?;
+    prepared.push((summary_path, summary));
     write_prepared_files(root, &prepared)?;
     Ok(record)
 }
@@ -3973,10 +3972,23 @@ fn verify_change_locked(
         requirement_ids,
         refusal: None,
     };
-    record_verification_attempt(root, &record, &verification)?;
+    let [latest, attempts] = verification_attempt_files(root, &record, &verification)?;
     record.state = ChangeState::Verifying;
     record.updated_at = now();
-    save_change(root, &record)?;
+    let workspace = change_dir(root, &record.id);
+    let state_path = workspace.join("state.json");
+    let state = json_content_keeping_unknown_members(
+        root,
+        &state_path,
+        relay_gated_record(root, &workspace, &record).as_ref(),
+    )?;
+    let summary_path = workspace.join("change.md");
+    let summary = change_markdown_with_state(root, &summary_path, &record)?;
+    // A completed attempt and both projections of its lifecycle state recover together.
+    write_prepared_files(
+        root,
+        &[latest, attempts, (state_path, state), (summary_path, summary)],
+    )?;
     if !verification.passed {
         let summary = if findings.is_empty() {
             "specs are out of sync with code".to_string()

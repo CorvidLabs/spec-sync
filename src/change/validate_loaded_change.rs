@@ -1066,38 +1066,33 @@ fn load_verification_attempt_ledger(
     Ok((history_path, history))
 }
 
+fn verification_attempt_files(
+    root: &Path,
+    record: &ChangeRecord,
+    verification: &VerificationRecord,
+) -> Result<[(PathBuf, String); 2], String> {
+    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
+    history.attempts.push(verification.clone());
+    let attempts = json_content_keeping_unknown_members(root, &history_path, &history)?;
+    Ok([
+        (
+            change_dir(root, &record.id).join("verification.json"),
+            json_content(verification)?,
+        ),
+        (history_path, attempts),
+    ])
+}
+
+/// Write only the evidence when constructing historical verification fixtures.
+#[cfg(test)]
 fn record_verification_attempt(
     root: &Path,
     record: &ChangeRecord,
     verification: &VerificationRecord,
 ) -> Result<(), String> {
-    let (history_path, mut history) = load_verification_attempt_ledger(root, record)?;
-    history.attempts.push(verification.clone());
-    let workspace = change_dir(root, &record.id);
-    let mut record = record.clone();
-    record.state = ChangeState::Verifying;
-    record.updated_at = now();
-    let state_path = workspace.join("state.json");
-    let state = json_content_keeping_unknown_members(
-        root,
-        &state_path,
-        relay_gated_record(root, &workspace, &record).as_ref(),
-    )?;
-    let summary_path = workspace.join("change.md");
-    let summary = change_markdown_with_state(root, &summary_path, &record)?;
-    let attempts = json_content_keeping_unknown_members(root, &history_path, &history)?;
-    // A completed attempt and both projections of its lifecycle state recover together.
     write_prepared_files(
         root,
-        &[
-            (
-                workspace.join("verification.json"),
-                json_content(verification)?,
-            ),
-            (history_path, attempts),
-            (state_path, state),
-            (summary_path, summary),
-        ],
+        &verification_attempt_files(root, record, verification)?,
     )
 }
 

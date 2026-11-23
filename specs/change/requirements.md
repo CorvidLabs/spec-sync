@@ -2265,4 +2265,3 @@ Acceptance Criteria
 - Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
 - A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
 - check --commit commits the synchronized summary and passing evidence that still allows scoped review.
-

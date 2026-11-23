@@ -3866,7 +3866,7 @@ fn verify_change_locked(
     strict: bool,
     rerun: &str,
 ) -> Result<VerificationRecord, String> {
-    let record = load_change(root, id)?;
+    let mut record = load_change(root, id)?;
     require_state(
         &record,
         &[ChangeState::Implementing, ChangeState::Verifying],
@@ -3965,7 +3965,23 @@ fn verify_change_locked(
         requirement_ids,
         refusal: None,
     };
-    record_verification_attempt(root, &record, &verification)?;
+    let [latest, attempts] = verification_attempt_files(root, &record, &verification)?;
+    record.state = ChangeState::Verifying;
+    record.updated_at = now();
+    let workspace = change_dir(root, &record.id);
+    let state_path = workspace.join("state.json");
+    let state = json_content_keeping_unknown_members(
+        root,
+        &state_path,
+        relay_gated_record(root, &workspace, &record).as_ref(),
+    )?;
+    let summary_path = workspace.join("change.md");
+    let summary = change_markdown_with_state(root, &summary_path, &record)?;
+    // A completed attempt and both projections of its lifecycle state recover together.
+    write_prepared_files(
+        root,
+        &[latest, attempts, (state_path, state), (summary_path, summary)],
+    )?;
     if !verification.passed {
         let summary = if findings.is_empty() {
             "specs are out of sync with code".to_string()

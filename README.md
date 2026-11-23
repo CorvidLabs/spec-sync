@@ -44,14 +44,15 @@ brew install CorvidLabs/tap/spec-sync
 ### GitHub Action
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.1
+- uses: CorvidLabs/spec-sync@v6.4.2
   with:
-    version: '6.4.1'
+    version: '6.4.2'
     strict: 'true'
     require-coverage: '100'
 ```
 
-Use the explicit `@v6.4.1` Action and binary pins shown above for release gates.
+After the 6.4.2 assets are published, use the explicit `@v6.4.2` Action and binary pins shown
+above for release gates. Until then, use `@v6.4.1` with `version: '6.4.1'`.
 `@v6.0.0` still defaults the download to `6.0.0-rc.14`, so pass `version: '6.0.0'` only
 when using that older tag. This main wrapper's omitted-input default is published
 `6.4.1`, following supported-platform asset and Action checks. The immutable
@@ -62,9 +63,9 @@ its actual consumer checks pass; the immutable `@v6.4.1` ref is never moved here
 Minimal immutable configuration:
 
 ```yaml
-- uses: CorvidLabs/spec-sync@v6.4.1
+- uses: CorvidLabs/spec-sync@v6.4.2
   with:
-    version: '6.4.1'
+    version: '6.4.2'
 ```
 
 ### Pre-built binaries

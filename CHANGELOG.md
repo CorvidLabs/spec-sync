@@ -7,13 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.2]
+
 ### Changed
 
 - Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
+- Correct the README and documentation for SpecSync 6.4 history fragments, Git merge driver setup, the change workflow, and the supported language families (#1141).
+
+### Security
+
+- Update `url` to 2.5.9 and its `form_urlencoded` dependency to 1.2.3 to address RUSTSEC-2026-0592 (#1146).
+
 ### Fixed
 
 - `specsync change audit --strict` now reports a delta item targeting the frozen `## Change Log` in an approved, implementing, or verifying change. The diagnostic names the change and matches `change check` (#1090, REQ-change-170).
+- Completed scoped checks publish verification evidence, the attempt history, and the Verifying state in both `state.json` and `change.md` in one recoverable transaction. Rechecking repairs stale summaries and preserves surrounding Markdown notes when the summary frontmatter is intact (#1147).
 
 ## [6.4.1] - 2026-11-21
 
@@ -3875,7 +3884,8 @@ Published from candidate `v6.1.2-rc.2` (d08d2746), qualified on Ubuntu and macOS
   phantom documentation for non-existent exports (errors).
 - Dependency spec cross-referencing and Consumed By section validation.
 
-[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.1...HEAD
+[Unreleased]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.2...HEAD
+[6.4.2]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.1...v6.4.2
 [6.4.1]: https://github.com/CorvidLabs/spec-sync/compare/v6.4.0...v6.4.1
 [6.4.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.3.0...v6.4.0
 [6.3.0]: https://github.com/CorvidLabs/spec-sync/compare/v6.2.0...v6.3.0

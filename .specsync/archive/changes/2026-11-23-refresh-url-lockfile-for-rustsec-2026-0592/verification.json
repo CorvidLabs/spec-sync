@@ -1,0 +1,32 @@
+{
+  "timestamp": 1795403854,
+  "commit": "786f9362098e49a98e15b436a80154c0b61c3373",
+  "contract_digest": "c6776dc9de8ef837907febca5f9f72a9e80c2df0cef5959d08fb669a3060ff51",
+  "execution_digest": "602e935522f22b0b96fcec2c31ec21fdc198fb766518867932e56c7f22c144a3",
+  "workspace_digest": "84f866bed706838effd64241102e2bbc7201b2b9abfbb1dbcaa31a725354177c",
+  "acceptance_input_digest": "8fcc921b2ce858aa176eeef6bbfbbcde764334b9e91baab11f5a5a9b0c41499c",
+  "acceptance_manifest": {
+    "schema_version": 1,
+    "entries": [
+      {
+        "path": "Cargo.lock",
+        "kind": "file",
+        "mode": 33188,
+        "payload_digest": "1b7726396eec701d4343feffc4520ef6077953ba514cd0f534816659c89a5794",
+        "entry_digest": "9cb9728f01f442239c1afec17979c11d7f53943b350bb2972eca163b84de6916",
+        "owners": [
+          "@exact:delivery"
+        ]
+      }
+    ]
+  },
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check (no spec in scope)",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": []
+}

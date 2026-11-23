@@ -69,6 +69,15 @@ fn nul_separated(listing: &str) -> impl Iterator<Item = &str> {
     listing.split('\0').filter(|name| !name.is_empty())
 }
 
+/// Read a bounded Git `-z` listing with its path whitespace intact.
+fn git_nul_listing(root: &Path, args: &[&str]) -> Option<String> {
+    let output = run_git_bounded(root, args, None, MAX_GIT_COMMAND_OUTPUT_BYTES).ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    String::from_utf8(output.stdout).ok()
+}
+
 /// Where canonical requirements files live ("under the specs directory or beside a registered
 /// spec"). `directories`, the specs directories, are read to any depth. `companions`, the
 /// directories of the registered specs, are read without descending, each for its own
@@ -196,7 +205,7 @@ fn add_reference_requirement_scope(
         .collect();
     let mut args = vec!["ls-tree", "-z", "--name-only", "--end-of-options", reference, "--"];
     args.extend(candidates.iter().map(String::as_str));
-    let listed = git_output_allow_empty(root, &args)
+    let listed = git_nul_listing(root, &args)
         .ok_or_else(|| format!("cannot read the tree of {short}"))?;
     let present: BTreeSet<&str> = nul_separated(&listed).collect();
     let read = |path: &str| {
@@ -480,7 +489,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         add_approved_removals(root, change, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
-    let added = git_output_allow_empty(
+    let added = git_nul_listing(
         root,
         &[
             "diff",
@@ -497,7 +506,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
     .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
     // `change finalize` moves a change into the archive before its tip is committed, and Git's diff
     // does not list a file it does not track yet (corvid-agent on #1108).
-    let untracked = git_output_allow_empty(
+    let untracked = git_nul_listing(
         root,
         &["ls-files", "-z", "--others", "--exclude-standard", "--", archive.as_str()],
     )
@@ -550,7 +559,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
 /// `change finalize` names it (`<date>-<id>`, or `<id>`) whose `state.json` there names `id`.
 fn archived_at(root: &Path, commit: &str, id: &str) -> Result<bool, String> {
     let archive = format!(":(literal){ARCHIVE_PATH}/");
-    let listed = git_output_allow_empty(
+    let listed = git_nul_listing(
         root,
         &["ls-tree", "-z", "--name-only", "--end-of-options", commit, "--", archive.as_str()],
     )
@@ -602,6 +611,20 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
             lost_requirements_way_out(root, record)
         ),
     })
+}
+
+/// Mutating lifecycle callers hold the project lock when recording a refusal.
+fn ensure_no_lost_requirements_recording_refusal(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Option<String>, String> {
+    let result = ensure_no_lost_requirements(root, record);
+    if let Err(error) = &result {
+        record_refused_attempt(root, record, error).map_err(|write_error| {
+            format!("{error}\ncould not record refused attempt ({write_error})")
+        })?;
+    }
+    result
 }
 
 /// Why `lost_requirements_check` refuses: requirements were lost, the configuration names a
@@ -660,7 +683,7 @@ fn lost_requirements_check(
         "--",
     ];
     args.extend(pathspecs.iter().map(String::as_str));
-    let changed = git_output_allow_empty(root, &args)
+    let changed = git_nul_listing(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
     // The files that differ, as the reference judged them: its blocks are what can be lost.
     let changed: Vec<&str> = nul_separated(&changed)
@@ -675,7 +698,7 @@ fn lost_requirements_check(
     let mut at_reference: Vec<(String, String, String)> = Vec::new();
     for path in &changed {
         let literal = format!(":(literal){path}");
-        let listed = git_output_allow_empty(
+        let listed = git_nul_listing(
             root,
             &["ls-tree", "-z", "--name-only", "--end-of-options", reference.as_str(), "--", literal.as_str()],
         )
@@ -703,7 +726,7 @@ fn lost_requirements_check(
     // #1108, fourth round; Leif's 'continue with 95% confidence').
     let mut args = vec!["ls-files", "-z", "--cached", "--"];
     args.extend(pathspecs.iter().map(String::as_str));
-    let tracked_listing = git_output_allow_empty(root, &args)
+    let tracked_listing = git_nul_listing(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
     let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
     let present: BTreeSet<&str> = working
@@ -846,7 +869,7 @@ fn default_branch_requirement_ids(
         .collect();
     let mut args = vec!["ls-tree", "-r", "-z", "--name-only", "--end-of-options", default.as_str(), "--"];
     args.extend(pathspecs.iter().map(String::as_str));
-    let mut listed = git_output_allow_empty(root, &args)?;
+    let mut listed = git_nul_listing(root, &args)?;
     // `ls-tree` takes no glob, so a companion's own files come from its directory's listing.
     for companion in scope.own_companions() {
         let directory = format!(":(literal){companion}/");
@@ -855,7 +878,7 @@ fn default_branch_requirement_ids(
             args.extend(["--", directory.as_str()]);
         }
         listed.push('\0');
-        listed.push_str(&git_output_allow_empty(root, &args)?);
+        listed.push_str(&git_nul_listing(root, &args)?);
     }
     let mut held = BTreeSet::new();
     for path in nul_separated(&listed)
@@ -871,4 +894,23 @@ fn default_branch_requirement_ids(
 /// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042).
 pub fn lost_requirements_refusal(root: &Path, record: &ChangeRecord) -> Option<String> {
     ensure_no_lost_requirements(root, record).err()
+}
+
+/// Real `ship` reports a preflight blocker before it calls finalize. Recheck that refusal under
+/// the project lock so a completed or restored change cannot acquire a stale attempt.
+pub(crate) fn record_ship_lost_requirements_refusal(
+    root: &Path,
+    id: &str,
+    refusal: &str,
+) -> Result<(), String> {
+    let _lock = acquire_project_lock(root)?;
+    crate::git_utils::invalidate_repository_facts();
+    let record = load_change(root, id)?;
+    if !matches!(record.state, ChangeState::Archived | ChangeState::Retired)
+        && change_dir(root, id).is_dir()
+        && lost_requirements_refusal(root, &record).as_deref() == Some(refusal)
+    {
+        record_refused_attempt(root, &record, refusal)?;
+    }
+    Ok(())
 }

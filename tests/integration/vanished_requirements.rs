@@ -22,6 +22,10 @@ struct Project {
 
 impl Project {
     fn new() -> Self {
+        Self::with_workflow_version(2)
+    }
+
+    fn with_workflow_version(version: u32) -> Self {
         let temp = TempDir::new().unwrap();
         let root = temp.path().to_path_buf();
         let project = Self { _temp: temp, root };
@@ -39,7 +43,7 @@ impl Project {
         project.write(
             ".specsync/sdd.json",
             &serde_json::to_string_pretty(&serde_json::json!({
-                "version": 2,
+                "version": version,
                 "enabled": true,
                 "require_change_for_meaningful_files": false,
                 "meaningful_paths": ["src/", ".specsync/sdd.json"],
@@ -195,6 +199,8 @@ fn ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it() {
         requirements[..start].trim_end(),
     );
     project.git(&["commit", "-q", "-am", "truncate"]);
+    let ledger_path = format!(".specsync/changes/{id}/verification-attempts.json");
+    let attempts_before = project.read(&ledger_path);
 
     let status = project.invoke(&["change", "ship-status", &id]);
     let text = combined(&status);
@@ -218,9 +224,29 @@ fn ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it() {
         "{}",
         combined(&dry_run)
     );
-    // Finalize refuses and archives nothing. A loss committed after a passing check stales that
-    // check first, so finalize names the stale verification, and the check it asks for names the
-    // lost requirement; finalize's own gate is the second line behind it.
+    assert_eq!(project.read(&ledger_path), attempts_before);
+    let tasks_path = format!(".specsync/changes/{id}/tasks.md");
+    let tasks = project.read(&tasks_path);
+    assert!(tasks.contains("- [x]"));
+    project.write(&tasks_path, &tasks.replacen("- [x]", "- [ ]", 1));
+    let ship = project.invoke(&["change", "ship", &id]);
+    let text = combined(&ship);
+    assert!(
+        !ship.status.success() && text.contains("tasks.md contains incomplete tasks"),
+        "{text}"
+    );
+    assert_eq!(project.read(&ledger_path), attempts_before);
+    project.write(&tasks_path, &tasks);
+
+    let ship = project.invoke(&["change", "ship", &id]);
+    let text = combined(&ship);
+    assert!(
+        !ship.status.success() && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+    assert_appended_refusal(&project, &ledger_path, &attempts_before);
+    assert_refusal_preserves_audit_error(&project, &ledger_path, &["change", "ship", &id]);
+
     let finalize = project.invoke(&["change", "finalize", &id]);
     assert!(!finalize.status.success(), "{}", combined(&finalize));
     assert!(
@@ -247,6 +273,111 @@ fn ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it() {
         !combined(&status).contains("lost canonical requirements"),
         "{}",
         combined(&status)
+    );
+    project.run(&["change", "check", &id, "--commit"]);
+    project.run(&["change", "review", &id, "--reviewer", "Scoped reviewer"]);
+    let attempts = project.read(&ledger_path);
+    let head = project.git(&["rev-parse", "HEAD"]);
+    project.run(&["change", "ship", &id, "--dry-run"]);
+    assert_eq!(project.git(&["rev-parse", "HEAD"]), head);
+    assert_eq!(project.read(&ledger_path), attempts);
+    project.run(&["change", "ship", &id]);
+    assert!(
+        !project
+            .root
+            .join(format!(".specsync/changes/{id}"))
+            .exists()
+    );
+}
+
+fn assert_appended_refusal(project: &Project, ledger_path: &str, before: &str) {
+    let before: Value = serde_json::from_str(before).unwrap();
+    let after: Value = serde_json::from_str(&project.read(ledger_path)).unwrap();
+    let before = before["attempts"].as_array().unwrap();
+    let after = after["attempts"].as_array().unwrap();
+    assert_eq!(after.len(), before.len() + 1);
+    assert_eq!(&after[..before.len()], before);
+    let refusal = after.last().unwrap();
+    assert_eq!(refusal["passed"], false);
+    assert!(
+        refusal["refusal"]
+            .as_str()
+            .unwrap()
+            .contains("REQ-auth-002")
+    );
+}
+
+fn assert_refusal_preserves_audit_error(project: &Project, ledger_path: &str, args: &[&str]) {
+    let attempts = project.read(ledger_path);
+    let broken = "{";
+    project.write(ledger_path, broken);
+    let refusal = project.invoke(args);
+    let text = combined(&refusal);
+    assert!(!refusal.status.success(), "{text}");
+    assert!(text.contains("REQ-auth-002"), "{text}");
+    assert!(text.contains("could not record refused attempt"), "{text}");
+    assert!(
+        text.contains("invalid verification attempt history"),
+        "{text}"
+    );
+    assert_eq!(project.read(ledger_path), broken);
+    project.write(ledger_path, &attempts);
+}
+
+#[test]
+fn accept_records_a_lost_requirement_and_can_retry_after_restore() {
+    let project = Project::with_workflow_version(1);
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.run(&["change", "check", &id]);
+    let path = "specs/auth/requirements.md";
+    let requirements = project.read(path);
+    let start = requirements.find("### REQ-auth-002").unwrap();
+    project.write(path, &requirements[..start]);
+    let workspace = format!(".specsync/changes/{id}");
+    let ledger_path = format!("{workspace}/verification-attempts.json");
+    let state_path = format!("{workspace}/state.json");
+    let verification_path = format!("{workspace}/verification.json");
+    let attempts = project.read(&ledger_path);
+    let state = project.read(&state_path);
+    let verification = project.read(&verification_path);
+    let accept = ["change", "accept", &id, "--actor", "Closing reviewer"];
+
+    let refusal = project.invoke(&accept);
+    let text = combined(&refusal);
+    assert!(
+        !refusal.status.success() && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+    assert_appended_refusal(&project, &ledger_path, &attempts);
+    assert_eq!(project.read(&state_path), state);
+    assert_eq!(project.read(&verification_path), verification);
+    assert_refusal_preserves_audit_error(&project, &ledger_path, &accept);
+
+    project.write(path, &requirements);
+    project.git(&["add", "--", path]);
+    let refused_history: Value = serde_json::from_str(&project.read(&ledger_path)).unwrap();
+    project.run(&["change", "check", &id]);
+    project.run(&accept);
+    assert_eq!(
+        serde_json::from_str::<Value>(&project.read(&state_path)).unwrap()["state"],
+        "accepted"
+    );
+    let accepted_history: Value = serde_json::from_str(&project.read(&ledger_path)).unwrap();
+    let before = refused_history["attempts"].as_array().unwrap();
+    let after = accepted_history["attempts"].as_array().unwrap();
+    assert_eq!(after.len(), before.len() + 2);
+    assert_eq!(&after[..before.len()], before);
+    assert_eq!(after[before.len()]["passed"], true);
+    assert!(after[before.len()]["acceptance_input_digest"].is_null());
+    let closing_attempt = after.last().unwrap();
+    assert_eq!(closing_attempt["passed"], true);
+    assert!(closing_attempt["acceptance_input_digest"].is_string());
+    assert_eq!(
+        closing_attempt,
+        &serde_json::from_str::<Value>(&project.read(&verification_path)).unwrap()
     );
 }
 

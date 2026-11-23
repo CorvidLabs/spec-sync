@@ -2732,6 +2732,9 @@ fn accept_change_with_gate(
     ensure_definition_approval_valid(root, &record)?;
     ensure_no_orphaned_applied_text(root, &record)?;
     let mut verification = load_verification(root, &record)?;
+    // Name a missing requirement before the workspace digest can report the same edit as
+    // generic staleness (REQ-change-169).
+    ensure_no_lost_requirements_recording_refusal(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
     validate_verification_for_commit_binding(root, &record, &verification, require_scoped_review)
         .map_err(|error| format!("cannot accept stale verification: {error}"))?;
@@ -2766,8 +2769,6 @@ fn accept_change_with_gate(
     // And for the same reason a body approved over canonical text that has since moved is
     // refused here, before `prepare_pending_delta_application` could write it over (#843).
     ensure_approved_delta_bases_current(root, &record)?;
-    // A branch that lost a canonical requirement no approved REMOVED delta names (#1081).
-    ensure_no_lost_requirements(root, &record)?;
     let records = list_changes_checked(root)?;
     // Same as verification: acceptance reports only failures, and the project
     // surfaces report every suppression this gate applied.
@@ -2959,7 +2960,7 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
     // state that determines whether finalization can resume.
-    drop(acquire_project_lock(root)?);
+    let preflight_lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     require_state(
@@ -2995,8 +2996,10 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // requirement, since it can lose one in between (Codex on #1108; REQ-change-169). A first
     // finalization asks it in `accept_change_with_gate`.
     if record.state == ChangeState::Accepted && change_dir(root, &record.id).is_dir() {
-        ensure_no_lost_requirements(root, &record)?;
+        ensure_no_lost_requirements_recording_refusal(root, &record)?;
     }
+    // Acceptance and archival each take this non-reentrant lock themselves.
+    drop(preflight_lock);
     if record.state == ChangeState::Verifying {
         // REQ-change-157: ship and finalize refuse a verification commit that
         // lacks the change's work, before acceptance writes anything.

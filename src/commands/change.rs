@@ -1462,6 +1462,13 @@ fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Re
 /// all archived, so HEAD is where the merge decision is made. Offline / no-token stays on `local_guidance`. Force offline with
 /// `SPECSYNC_SHIP_LOCAL_GUIDANCE=1`.
 fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::Value, String> {
+    ship_status_report_with_lost_requirements(root, record).map(|(report, _)| report)
+}
+
+fn ship_status_report_with_lost_requirements(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(serde_json::Value, Option<String>), String> {
     let lifecycle_next = text_mode_next_action(root, record);
     let tip = classify_head_tip(root)?;
 
@@ -1566,11 +1573,11 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
     }
     // A branch that lost a canonical requirement no approved REMOVED delta names: check,
     // finalize and ship refuse it, so ship-status lists it (REQ-cmd-change-042, #1081).
-    if upstream_archive.is_none()
-        && let Some(refusal) = change::lost_requirements_refusal(root, record)
-    {
-        blockers.push(refusal);
-    }
+    let lost_requirements = upstream_archive
+        .is_none()
+        .then(|| change::lost_requirements_refusal(root, record))
+        .flatten();
+    blockers.extend(lost_requirements.iter().cloned());
     // Finalize refuses production source no declared module owns; ship-status and ship
     // preflight run the same check so "ready to finalize" never names a change it refuses
     // (REQ-cmd-change-008, #986, #956).
@@ -1766,7 +1773,7 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
 
     let trust = build_ship_trust(root, &tip);
 
-    Ok(serde_json::json!({
+    let report = serde_json::json!({
         "id": record.id,
         "state": record.state,
         "tip_class": tip.tip_class,
@@ -1791,7 +1798,8 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         "sibling_active_ids": sibling_active_ids,
         "lifecycle_next": lifecycle_next,
         "ship_next": ship_next,
-    }))
+    });
+    Ok((report, lost_requirements))
 }
 
 /// Sibling active changes, counting the ones that could not be read.
@@ -3090,7 +3098,7 @@ fn run_ship(
         return Ok(());
     }
 
-    let report = ship_status_report(root, &record)?;
+    let (report, lost_requirements) = ship_status_report_with_lost_requirements(root, &record)?;
     let ready = report["ready_to_finalize"].as_bool() == Some(true);
     let tip_class = report["tip_class"].as_str().unwrap_or("other");
     let trust_status = report
@@ -3141,9 +3149,17 @@ fn run_ship(
             .unwrap_or("this change is not ready to archive");
         // `ship_next` is already the action. Wrapping it in another `Run \`...\``
         // nested the backticks and hid the command.
-        return Err(format!(
-            "This pull request is not finished. {reason} {action}"
-        ));
+        let refusal = format!("This pull request is not finished. {reason} {action}");
+        if !dry_run
+            && lost_requirements.as_deref() == Some(reason)
+            && let Err(write_error) =
+                change::record_ship_lost_requirements_refusal(root, &record.id, reason)
+        {
+            return Err(format!(
+                "{refusal}\ncould not record refused attempt ({write_error})"
+            ));
+        }
+        return Err(refusal);
     }
 
     if dry_run {

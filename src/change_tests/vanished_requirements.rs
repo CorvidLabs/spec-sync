@@ -728,18 +728,27 @@ fn a_root_level_registered_spec_s_requirements_are_read_and_the_rest_of_the_tree
 fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let record = vanished_repository(root, ADDED_THIRD, &[]);
-    let mut accepted = load_change(root, &record.id).unwrap();
-    accepted.state = ChangeState::Accepted;
-    accepted.canonical_applied = true;
-    save_change(root, &accepted).unwrap();
+    let record = vanished_repository(
+        root,
+        "## MODIFIED\n\n### SPEC SECTION Invariants\n\nStable and reviewed.\n",
+        &[],
+    );
+    check_change(root, Some(&record.id)).unwrap();
+    git_in(root)(&["add", "--all"]);
+    git_in(root)(&["commit", "-q", "-m", "materialize"]);
+    check_change(root, Some(&record.id)).unwrap();
+    record_scoped_review(root, &record.id, "Scoped reviewer".into()).unwrap();
+    let accepted =
+        accept_change_with_gate(root, &record.id, None, None, "finalization", true, true).unwrap();
+    assert_eq!(accepted.state, ChangeState::Accepted);
+    let workspace = change_dir(root, &record.id);
+    let (attempts_path, before) = load_verification_attempt_ledger(root, &accepted).unwrap();
+    let verification = fs::read(workspace.join("verification.json")).unwrap();
     fs::write(
         requirements_path(root),
         drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001"),
     )
     .unwrap();
-    git_in(root)(&["add", "--all"]);
-    git_in(root)(&["commit", "-q", "-m", "accepted, then a loss"]);
 
     let error = finalize_change(root, &record.id).expect_err("the resume must refuse the loss");
 
@@ -748,6 +757,14 @@ fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it(
         "{error}"
     );
     assert!(change_dir(root, &record.id).is_dir(), "nothing was archived");
+    let (_, after) = load_verification_attempt_ledger(root, &accepted).unwrap();
+    assert_eq!(after.attempts.len(), before.attempts.len() + 1);
+    let refusal = after.attempts.last().unwrap();
+    assert!(!refusal.passed);
+    assert_eq!(refusal.refusal.as_deref(), Some(error.as_str()));
+    assert_eq!(load_change(root, &record.id).unwrap(), accepted);
+    assert_eq!(fs::read(workspace.join("verification.json")).unwrap(), verification);
+    let attempts = fs::read(&attempts_path).unwrap();
     let report = audit_project(root);
     assert!(
         report
@@ -757,6 +774,13 @@ fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it(
         "{:?}",
         report.errors
     );
+    assert_eq!(fs::read(&attempts_path).unwrap(), attempts);
+
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    record_ship_lost_requirements_refusal(root, &record.id, &error).unwrap();
+    assert_eq!(fs::read(attempts_path).unwrap(), attempts);
+    let archive = finalize_change(root, &record.id).expect("restoring the requirement allows archival");
+    assert_eq!(fs::read(archive.join("verification-attempts.json")).unwrap(), attempts);
 }
 
 /// Codex on #1108 (P1): a requirements file canonical at the reference ("in such a file at the
@@ -828,6 +852,30 @@ fn a_non_ascii_module_directory_is_read() {
     assert!(error.contains(&format!("REQ-modulo-001 ({path})")), "{error}");
     // The way out prints the block from the reference by that same path, quoted as one word.
     assert!(error.contains(&format!(":{path}'`")), "{error}");
+}
+
+#[test]
+fn a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids() {
+    let path = " specs/requirements.md";
+    let requirements = "# Requirements\n\n### REQ-space-001\n\nThe system SHALL keep the path.\n";
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[(".specsync/config.toml", "specs_dir = \" specs\"\n"), (path, requirements)],
+    );
+
+    fs::write(root.join(path), requirements.replace("keep the path", "preserve the path")).unwrap();
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    fs::remove_file(root.join(path)).unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the requirement was lost");
+    assert!(error.contains(&format!("REQ-space-001 ({path})")), "{error}");
+    let command = error.split('`').find(|part| part.starts_with("git show ")).unwrap();
+    let restore = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
+    assert!(restore.status.success(), "{command}: {}", String::from_utf8_lossy(&restore.stderr));
+    assert_eq!(restore.stdout, requirements.as_bytes());
 }
 
 /// Codex on #1108 (P2): the working tree is read to the same depth as Git's listing, so a

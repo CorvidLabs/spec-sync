@@ -364,3 +364,9 @@ Every link points inside the test's own temporary directory.
 |------|-------------------|------|
 | A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
 | A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
+
+## Lost-requirement refusals (REQ-change-169)
+
+- `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.
+- `an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it` checks one refused attempt, an unchanged acceptance receipt, a read-only audit, and successful archival after restore.
+- `accept_records_a_lost_requirement_and_can_retry_after_restore` covers the legacy CLI. `ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it` checks the read-only status and dry-run, open-task priority, and exactly one attempt from a real ship. Both check that a broken attempts ledger leaves the loss diagnostic and the storage error visible.

@@ -1,0 +1,43 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795402895,
+      "digest": "c6776dc9de8ef837907febca5f9f72a9e80c2df0cef5959d08fb669a3060ff51",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refresh-url-lockfile-for-rustsec-2026-0592",
+        "title": "Refresh url lockfile for RUSTSEC-2026-0592",
+        "description": "Refresh url lockfile for RUSTSEC-2026-0592",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A compatible dependency patch and its required companion update change the lockfile without changing the SpecSync contract.",
+        "acceptance_criteria": [
+          "Cargo audit clears RUSTSEC-2026-0592 and the full project verification lane passes on pinned Rust.",
+          "Cargo.lock resolves url 2.5.9 and its required form_urlencoded 1.2.3 with no other dependency changes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve the lockfile-only fix",
+        "where": "This Codex conversation, responding to the separately presented scope for the SpecSync RUSTSEC-2026-0592 lockfile-only fix, relayed by the coordinating Codex agent",
+        "recorded_by": "Codex delta_block"
+      }
+    }
+  ],
+  "reopenings": []
+}

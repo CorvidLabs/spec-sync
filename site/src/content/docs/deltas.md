@@ -126,6 +126,53 @@ Two active changes that touch the same delta surface produce deterministic valid
 
 Fix classification edits to accepted metadata with `change correct` rather than editing delta files after acceptance — fresh classification edits no longer conflict with sibling accepted deltas, but stale accepted content still routes through the audited correction chain.
 
+### A requirement lost without a REMOVED delta
+
+A branch that lost a canonical requirement is refused too. `change check`, verification, `change
+accept`, `change finalize` and `change ship` compare the requirement ids in every `requirements.md`
+(and legacy `<module>.req.md`) with those at the merge-base of `HEAD` and the default branch, or at
+the change's base commit when there is no default branch. The default branch is `origin/HEAD`, else
+`origin/main` or `origin/master`, each only when it resolves and is not the branch `HEAD` is on. So
+a clone of a single branch, whose `origin/HEAD` can name that branch, is still compared with the
+default branch, and work done directly on `main` is compared from the change's base commit. An id
+that is gone from every requirements file Git tracks is refused, by name, unless an approved `## REMOVED` item of a change on the branch names it. A
+requirement moved to another file under the same id is not lost; a renumbered one is lost under its
+old id, because a requirement id is permanent. To put a lost block back, `git show <commit>:<file>`
+prints it as the merge-base held it; to remove it on purpose, name it in a `## REMOVED` delta and
+approve the change again. When the default branch has removed it too, because the branch took that
+removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
+merge the default branch into this one (`git merge origin/main`). `change audit` reports the same
+refusal for every active change, a draft included, and `change ship-status` lists it as a blocker and
+exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance asks again when it is
+retried.
+
+The requirements files are those under the specs directory, at any depth, and those beside every
+registered spec: the `requirements.md` and `<module>.req.md` in the spec's own directory, not below
+it. For a spec registered at the project root, that means the root's own files, not the rest of the
+tree, and a registry path that leaves the project adds nothing. A directory that leads outside the
+project, or is itself a link, is not read, and a `specs_dir` outside the project is refused in the
+words `specsync check` uses, naming the setting to fix. A requirement kept only in a file Git does
+not track counts for nothing, since `change check --commit` would not commit that file; the
+refusal names the `git add` that keeps it. The check takes them from the
+configuration and registry in the working tree and from those at the commit it compares with, so a
+branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
+were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
+record, with a valid approval, archived after the commit it compares with), accounts for a
+removal. A retired change does not. The approval
+must bind the delta's wording: one that records no delta digests, as an approval made before they
+existed, accounts for nothing until the change is approved again.
+
+The check reads no requirements under `.git`, `.specsync` (change workspaces and archives hold
+`requirements.md` artifacts, not canonical requirements) or any `exclude_dirs` directory, even when
+`specs_dir` is the project root, and a change workspace it cannot read accounts for no removal. A
+file that was canonical at the commit it compares with is judged by the exclusions configured there,
+so adding its directory to `exclude_dirs` neither removes its requirements nor hides the ones it
+still holds. When
+Git cannot answer, for example in a shallow clone that lacks the merge-base, the check refuses and
+says so: repair the repository or fetch the default branch (`git fetch --unshallow origin` in a
+shallow clone, `git fetch origin` otherwise), then run `change check` again. With no default branch
+and no base commit in `HEAD`'s history, as in a depth-1 CI checkout, it is skipped with a note.
+
 ---
 
 ## Check and Finalization: Atomic Application

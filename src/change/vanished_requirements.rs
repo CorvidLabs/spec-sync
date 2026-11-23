@@ -856,10 +856,17 @@ fn lost_requirements_check(
         ),
     };
     let way_out = match (main_removed.is_empty(), lost_requirements_default_ref(root)) {
-        (false, Some(default)) if others.is_empty() => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `{retry}`",
-            main_removed.join(", ")
-        ),
+        (false, Some(default)) if others.is_empty() => {
+            let merge = format!(
+                "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss.",
+                main_removed.join(", ")
+            );
+            if record.is_some() {
+                format!("{merge} Then run `{retry}`")
+            } else {
+                format!("{merge} To inspect the original blocks, run {restore}. Then run `{retry}`")
+            }
+        }
         (false, Some(default)) => format!(
             "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `{retry}`",
             main_removed.join(", "),

@@ -714,3 +714,27 @@ fn shallow_project_requirement_comparison_refuses_with_fetch_guidance() {
         );
     }
 }
+
+#[test]
+fn project_requirement_comparison_lists_original_block_when_default_also_removed_it() {
+    let project = Project::new();
+    ship_requirement_fixture(&project, REWORD_DELTA);
+    remove_sign_out(&project);
+    project.git(&["commit", "-qam", "branch drops a requirement"]);
+
+    project.git(&["checkout", "-q", "main"]);
+    remove_sign_out(&project);
+    project.git(&[
+        "commit",
+        "-qam",
+        "default independently removes the same requirement",
+    ]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "change"]);
+
+    for args in [&["check", "--strict"][..], &["change", "audit", "--strict"]] {
+        assert_project_loss(&project, args);
+        let text = combined(&project.invoke(args));
+        assert!(text.contains("git merge origin/main"), "{text}");
+    }
+}

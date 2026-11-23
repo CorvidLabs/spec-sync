@@ -386,3 +386,4 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 
 - The archive-only CLI fixture checks committed verification, an unstaged and staged loss, a warm drift cache, and the text and JSON audit results. Strict check also exposes the result through Markdown, GitHub, table, and CSV.
 - A separate archive-only no-loss control, an approved removal, and a tracked move keep both command families passing. A shallow checkout with a known default ref fails with fetch instructions. A local clone with no default ref discloses that history was not compared.
+- When both the branch and default tip removed the same requirement independently, both project commands show the reference block inspection command beside the merge advice.

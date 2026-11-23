@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "synchronize-change-summary-state-after-verification",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "1b46ce93b09634088f5124a11e10be082a6ed4cc",
+      "contract_digest": "af415c8023a6f0ee4ee5bd8454e48f4e9628a8965d2404051df42e177c5163e8",
+      "execution_digest": "64625789ba1e09c4c1cbc416385d53fb7b8f71c87ea7d4aa69ad01e526d6b5bf",
+      "workspace_digest": "db36b051faa65ce2c8f633fd727f1a7b8d7c3c5d239a9b6b516144b7f05155d5",
+      "timestamp": 1795407579,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected #1147; archive and merge when green",
+        "where": "This Codex conversation, responding to the human implementation review and merge question for CorvidLabs/spec-sync PR #1147 at 1b46ce93b09634088f5124a11e10be082a6ed4cc, relayed by the coordinating Codex agent",
+        "recorded_by": "Codex delta_block"
+      }
+    }
+  ]
+}

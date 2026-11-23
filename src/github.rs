@@ -247,6 +247,7 @@ pub fn resolve_repo(config_repo: Option<&str>, root: &Path) -> Result<String, St
 
 /// Check if the `gh` CLI is available and authenticated.
 pub fn gh_is_available() -> bool {
+    // spawned command writes no project file: `gh api` reads from GitHub and writes no file
     Command::new("gh")
         .args(["auth", "status"])
         .status()
@@ -1318,6 +1319,7 @@ pub fn create_drift_issue(
         args.push(&label_str);
     }
 
+    // spawned command writes no project file: `gh` reads from GitHub and writes no file
     let output = Command::new("gh")
         .args(&args)
         .output()

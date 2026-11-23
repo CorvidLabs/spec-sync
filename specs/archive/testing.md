@@ -37,3 +37,11 @@ spec: archive.spec.md
 - Reproduce one Behavioral Verification row with a temporary project fixture before changing user-visible output.
 - If an operation name or error schema changes, update the matching Regression Matrix row and structured-output assertion in the same commit.
 - Run the release checks for this module: `fledge run fmt`, `fledge run lint`, `fledge run test`, `fledge spec check --strict`.
+
+## Bounded reads (REQ-archive-002)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `archive_tasks_does_not_wait_on_a_tasks_file_that_is_not_a_regular_file`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |

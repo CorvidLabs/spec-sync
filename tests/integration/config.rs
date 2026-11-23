@@ -81,10 +81,14 @@ fn check_creates_hash_cache() {
         .assert()
         .success();
 
-    let cache_path = root.join(".specsync/hashes.json");
+    let cache_path = state_cache_file(&root);
     assert!(
         cache_path.exists(),
-        "Expected .specsync/hashes.json to be created after check"
+        "Expected the hash cache to be created in its local state folder after check"
+    );
+    assert!(
+        !root.join(".specsync/hashes.json").exists(),
+        "the cache is never kept in the work tree"
     );
 
     let content = fs::read_to_string(&cache_path).unwrap();

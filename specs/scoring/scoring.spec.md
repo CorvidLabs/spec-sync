@@ -11,6 +11,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/exports/exports.spec.md
   - specs/git_utils/git_utils.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Scoring
@@ -57,6 +58,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 8. Suggestions are always actionable — each corresponds to a specific improvement the user can make
 9. No exports to document = full API score (20/20) — specs for config-only modules are not penalized
 10. `SpecScore.explain` is always populated during `score_spec` — one `ExplainDetail` per dimension, each containing one or more `CriterionResult` entries
+11. Every read of a project file here, spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-scoring-007).
 
 ## Behavioral Examples
 
@@ -91,6 +93,7 @@ Scores spec quality on a 0-100 scale with letter grades. Uses a 5-component rubr
 | Spec file unreadable | Returns score=0, grade="F", suggestion: "Cannot read spec file" |
 | Missing frontmatter | Returns score=0, grade="F", suggestion: "Add YAML frontmatter" |
 | No spec files in project | `compute_project_score` returns average=0, grade="F" |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

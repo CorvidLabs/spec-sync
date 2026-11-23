@@ -80,7 +80,7 @@ fn an_older_specsync_appending_to_a_ledger_keeps_what_a_newer_one_wrote() {
     // The older SpecSync reads what it knows and appends an entry.
     let mut older: OlderLedger = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     older.entries.push(older_entry("Grace"));
-    let written = json_content_keeping_unknown_members(&path, &older).unwrap();
+    let written = json_content_keeping_unknown_members(temp.path(), &path, &older).unwrap();
 
     let reread: NewerLedger = serde_json::from_str(&written).unwrap();
     let mut expected = newer_ledger();
@@ -122,7 +122,7 @@ fn every_entry_keeps_its_own_members_or_the_rewrite_is_refused() {
     let reset = || fs::write(&path, &written_by_newer).unwrap();
     let older = || -> OlderLedger { serde_json::from_slice(&fs::read(&path).unwrap()).unwrap() };
     let keep = |ledger: &OlderLedger| -> NewerLedger {
-        serde_json::from_str(&json_content_keeping_unknown_members(&path, ledger).unwrap()).unwrap()
+        serde_json::from_str(&json_content_keeping_unknown_members(temp.path(), &path, ledger).unwrap()).unwrap()
     };
     let by_actor = |ledger: &NewerLedger, actor: &str| -> NewerEntry {
         ledger.entries.iter().find(|entry| entry.actor == actor).unwrap().clone()
@@ -164,7 +164,7 @@ fn every_entry_keeps_its_own_members_or_the_rewrite_is_refused() {
     reset();
     let mut ledger = older();
     ledger.entries.remove(1);
-    let error = json_content_keeping_unknown_members(&path, &ledger).unwrap_err();
+    let error = json_content_keeping_unknown_members(temp.path(), &path, &ledger).unwrap_err();
     assert!(
         error.contains("entries[1] hold members") && error.contains("upgrade specsync"),
         "{error}"
@@ -182,7 +182,7 @@ fn kept_members_keep_their_exact_text_and_known_members_their_order() {
     fs::write(&path, previous).unwrap();
     let mut older: OlderLedger = serde_json::from_str(previous).unwrap();
     older.entries.push(older_entry("Grace"));
-    let written = json_content_keeping_unknown_members(&path, &older).unwrap();
+    let written = json_content_keeping_unknown_members(temp.path(), &path, &older).unwrap();
     for exact in [
         "\"future_count\": 123456789012345678901234567890",
         "\"future_ratio\": 1.50",
@@ -215,19 +215,19 @@ fn a_rewrite_with_nothing_unknown_writes_exactly_what_it_wrote_before() {
     };
     // No previous file.
     assert_eq!(
-        json_content_keeping_unknown_members(&path, &ledger).unwrap(),
+        json_content_keeping_unknown_members(temp.path(), &path, &ledger).unwrap(),
         json_content(&ledger).unwrap()
     );
     fs::write(&path, json_content(&ledger).unwrap()).unwrap();
     ledger.entries.push(older_entry("Grace"));
     assert_eq!(
-        json_content_keeping_unknown_members(&path, &ledger).unwrap(),
+        json_content_keeping_unknown_members(temp.path(), &path, &ledger).unwrap(),
         json_content(&ledger).unwrap()
     );
     // A previous file that is not this record's shape is the reader's problem, not the writer's.
     fs::write(&path, "{\"schema_version\": \"one\"}\n").unwrap();
     assert_eq!(
-        json_content_keeping_unknown_members(&path, &ledger).unwrap(),
+        json_content_keeping_unknown_members(temp.path(), &path, &ledger).unwrap(),
         json_content(&ledger).unwrap()
     );
 }
@@ -245,7 +245,7 @@ fn a_known_field_the_rewrite_sets_or_removes_is_never_overridden_by_the_old_text
     let mut older: OlderLedger = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
     older.entries[0].note = Some("set".into());
     older.labels.clear();
-    let written = json_content_keeping_unknown_members(&path, &older).unwrap();
+    let written = json_content_keeping_unknown_members(temp.path(), &path, &older).unwrap();
     let reread: OlderLedger = serde_json::from_str(&written).unwrap();
     assert_eq!(reread.entries[0].note.as_deref(), Some("set"), "{written}");
     assert!(reread.labels.is_empty(), "a removed map entry stays removed: {written}");
@@ -268,6 +268,6 @@ fn an_empty_object_in_the_new_text_still_takes_its_unknown_members() {
     let path = temp.path().join("state.json");
     fs::write(&path, "{\n  \"inner\": {\n    \"future\": true\n  }\n}\n").unwrap();
     let holder: Holder = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-    let written = json_content_keeping_unknown_members(&path, &holder).unwrap();
+    let written = json_content_keeping_unknown_members(temp.path(), &path, &holder).unwrap();
     assert_eq!(written, "{\n  \"inner\": {\n    \"future\": true\n  }\n}\n");
 }

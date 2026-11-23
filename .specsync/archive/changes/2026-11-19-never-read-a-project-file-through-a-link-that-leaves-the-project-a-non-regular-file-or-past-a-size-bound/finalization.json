@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound",
+  "implementation_commit": "0d9cbde58d6637dc8192c627291dfbe9eb7efb04",
+  "implementation_tree": "ee2517113f0663f2c49a098486614db936b1e303",
+  "contract_digest": "54a8d1c3f2c6ce77014f26428cc71ed7f0b2ef3761ff5059d1426f604ca61bc0",
+  "workspace_digest": "c66fd727e9e5e590b7118c917c1761c1a6e1b4f479029e91993c6af9f63ca900",
+  "closing_digest": "743c65a040dc055f5f5177523ae3ac9c63b329d5a8e79d279753c46b09106a7c",
+  "review_digest": "4f4ae2bb1f941c75eeb2427ef8453094cce7f3607cd27dd5e4450b89b212c4ac",
+  "finalization_digest": "978666178915713a2b6cecb53ace092c876e81e744f4d1d63684994b7417279a",
+  "timestamp": 1795102902
+}

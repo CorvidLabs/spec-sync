@@ -39,3 +39,8 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 - A `Name` header does not mark an export table: parameter tables commonly use `| Name | Type | Description |`. #815 preferred the first `Name` table and moved rows out of a correct `| Function | Description |` table into a parameters table.
 - `--fix` now trusts the signal the checker trusts: the last table holding a row `get_spec_symbols` reads as documented. Only when no table holds one does the header rule (`Name`, `Function`, `Export`, `Symbol`, not a parameter or field table) decide, and the final fallback is the old last table.
 - Width and insertion point come from that one table. Taking them from two different tables (first table width, last table position) was the original #768 case 1 bug.
+
+@plane z=6 label="Lesson: say the cache was not used before anything can end the run (GHSA-7q5v-8jcc-rx54)"
+- `check` saved the hash cache with `let _ = cache.save(root)`, so nothing told a person when the cache was not what it seemed. A cache refused because it is a symbolic link is now said once on stderr, and stdout, the verdict and the exit code stay those of a run with no cache.
+- The warning is printed first, before discovery. Printed where the cache is loaded, it never appeared for a linked `.specsync`, because source discovery refuses that directory and ends the run earlier.
+- A cache is an optimisation: when it cannot be trusted, drop it and say so. It never gets to change a verdict, and it never gets to fail the command.

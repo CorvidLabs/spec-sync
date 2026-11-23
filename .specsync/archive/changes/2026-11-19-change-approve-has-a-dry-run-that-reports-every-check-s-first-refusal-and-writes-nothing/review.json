@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "3fb40d8f235076b2acc233a9cbe2762f0eb06748",
+  "contract_digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+  "execution_digest": "f518f2318ec8a7779a890a298db59ffb41ad2cc79503351df88112f754ce99fb",
+  "workspace_digest": "bae62ce4681ba603cc1762a67d9cd90116f3144c11e021797ea3a8432b4ea88d",
+  "timestamp": 1795117654,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "All as recommended",
+    "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on t4c's table of recommendations, in which #1100's review passing was the recommendation, on the frozen ss-lead/gates/1100-review-request.md at PR #1100 head 3fb40d8f; relayed by hc t4c through ss-lead (hc t58)",
+    "recorded_by": "claude-code (hc t59)"
+  }
+}

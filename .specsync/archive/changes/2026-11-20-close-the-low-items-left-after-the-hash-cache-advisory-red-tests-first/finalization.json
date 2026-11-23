@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first",
+  "implementation_commit": "25bbd814e63c0e9cede88b0f9a5443cff056ed3e",
+  "implementation_tree": "722afb86501ec2d62f9cc5c7a575b7ab1bdae9c5",
+  "contract_digest": "7f32aa44b614bd11a7cdc4ce814e64377fb6e68b98aa29ee47a6161ec70f2eb3",
+  "workspace_digest": "0cc99447074b82b7ae52a6796d39e5c4a98c290b82fea92a0f28ebd9c5696d59",
+  "closing_digest": "5f163439cdec6b026182b8c470c451503e3898168d3b8f9283842649ef4b3ee3",
+  "review_digest": "296ffd0511de2b045e217eca207989ce001079ae70e3e694cfb095b840cff6a8",
+  "finalization_digest": "2b7bf9ae67df5e7be5068380f3a352a40dc54d2548ef7e48bfe0c5ad4f49be30",
+  "timestamp": 1795214615
+}

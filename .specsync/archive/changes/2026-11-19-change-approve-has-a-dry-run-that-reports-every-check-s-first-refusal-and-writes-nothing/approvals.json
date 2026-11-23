@@ -1,0 +1,291 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795066031,
+      "digest": "9847d9e8014b00aae9ab09e9a702bbfa9f48a80cd091a90fdc358eef6bae916d",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing\": \"Approve\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T05:26:59Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+        "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
+        "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each refusal is its own JSON entry carrying the check's name and the message `change approve` prints.",
+          "It runs `change approve`'s own checks in the same order through the same functions: for each of the 25 refused drafts on the Chough tester's list the dry run reports the message the real approve gives, and the real approve afterwards still refuses with it; a clean draft reports nothing and exits 0, and the real approve then succeeds.",
+          "It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.",
+          "It works on a draft and on a change that was sent back.",
+          "It writes nothing: every file in the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte unchanged after it, for a refused draft and for a clean one.",
+          "`change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.",
+          "`specsync change approve <id> --dry-run` says whether the approval would be accepted, in text and with `--json`, and exits 0 when it would and 1 when it would not."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6 and CHANGE-6.a (one approval, bound to its content): the dry run records nothing and is never an approval; REQ-change-133's refusal texts stay as they are, because the dry run reports the messages change approve gives; Leif's depth choice on #1091, 'First problem from each check'; the change lesson that one rule kept in two places drifts, so approve and its dry run walk one list of checks; the change lesson that a printed recovery command runs as printed; the doctor lesson that a dry run reuses the lifecycle lock's no-symlink walk to predict that refusal",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7771fae3f0edc783439734e2d7f569d68189a3fd0db75f5930c3e7764b079a26",
+        "cli_args": "8087eb3b968b4c897d1276da45e0b6eec803c3f2aa716a75c217a7574bf92ccd",
+        "cmd_change": "eafa046084eec04d1b868ceee1e24e333bc35f57d2ebef237d29719b49247d49"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795099565,
+      "digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing\": \"all as recommended, builder runs the send-back\" (Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T14:46:02Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+        "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
+        "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each refusal is its own JSON entry carrying the check's name and the message `change approve` prints.",
+          "It runs `change approve`'s own checks in the same order through the same functions: for each of the 25 refused drafts on the Chough tester's list the dry run reports the message the real approve gives, and the real approve afterwards still refuses with it; a clean draft reports nothing and exits 0, and the real approve then succeeds.",
+          "It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.",
+          "It works on a draft and on a change that was sent back.",
+          "It writes nothing: every file in the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte unchanged after it, for a refused draft and for a clean one.",
+          "With `--json`, a refused `definition` or `ownership` check whose message names a `specsync change answer` command carries that command as `fix`, taken from the code that writes the message. A `fix` may hold a placeholder, and the docs say it must not be run blindly.",
+          "`change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.",
+          "`specsync change approve <id> --dry-run` says whether the approval would be accepted, in text and with `--json`, and exits 0 when it would and 1 when it would not."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6 and CHANGE-6.a (one approval, bound to its content): the dry run records nothing and is never an approval; REQ-change-133's refusal texts stay as they are, because the dry run reports the messages change approve gives; Leif's depth choice on #1091, 'First problem from each check'; the change lesson that one rule kept in two places drifts, so approve and its dry run walk one list of checks; the change lesson that a printed recovery command runs as printed; the doctor lesson that a dry run reuses the lifecycle lock's no-symlink walk to predict that refusal",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "c29f5bf6856449efd7d07a4948144179104615734031c60cb6c9e278017b1bcb",
+        "cli_args": "8087eb3b968b4c897d1276da45e0b6eec803c3f2aa716a75c217a7574bf92ccd",
+        "cmd_change": "d7ab9d6ce9208fd875d0de48a251e768626f58412ddd1eab79559cde0f0df631"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "all as recommended, builder runs the send-back",
+        "where": "Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795106122,
+      "digest": "1d9b8dacfd4f3310010a218dccd3efc89653b1e988681c16066194a03bf41e3d",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing\": \"Leif's six rules, rule 6 (a) and (c)\" (a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text). Relayed and recorded by claude-code-t59 at 2026-11-19T16:35:20Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+        "title": "Change approve has a dry run that reports every check's first refusal and writes nothing",
+        "description": "change approve has a dry run that reports every check's first refusal and writes nothing",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cli_args",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cli_args/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/cli.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "Each refusal is its own JSON entry carrying the check's name and the message `change approve` prints.",
+          "It runs `change approve`'s own checks in the same order through the same functions: for each of the 25 refused drafts on the Chough tester's list the dry run reports the message the real approve gives, and the real approve afterwards still refuses with it; a clean draft reports nothing and exits 0, and the real approve then succeeds.",
+          "It runs every check that can run on its own, reports the first problem from each, and names each check it skipped with the refused check it waits on.",
+          "It works on a draft and on a change that was sent back.",
+          "It writes nothing: every file in the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte unchanged after it, for a refused draft and for a clean one.",
+          "With `--json`, a refused `definition` or `ownership` check whose message names a `specsync change answer` command carries that command as `fix`, taken from the code that writes the message. A `fix` may hold a placeholder, and the docs say it must not be run blindly.",
+          "`change approve` without `--dry-run` refuses exactly what it refused before, with the same messages, and approves what it approved before.",
+          "`specsync change approve <id> --dry-run` says whether the approval would be accepted, in text and with `--json`, and exits 0 when it would and 1 when it would not."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6 and CHANGE-6.a (one approval, bound to its content): the dry run records nothing and is never an approval; REQ-change-133's refusal texts stay as they are, because the dry run reports the messages change approve gives; Leif's depth choice on #1091, 'First problem from each check'; the change lesson that one rule kept in two places drifts, so approve and its dry run walk one list of checks; the change lesson that a printed recovery command runs as printed; the doctor lesson that a dry run reuses the lifecycle lock's no-symlink walk to predict that refusal",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "822a4fc6e975846efdc1ac94b4303651d3460afd4fa5a9e509d817ece651a3bc",
+        "cli_args": "8087eb3b968b4c897d1276da45e0b6eec803c3f2aa716a75c217a7574bf92ccd",
+        "cmd_change": "d7ab9d6ce9208fd875d0de48a251e768626f58412ddd1eab79559cde0f0df631"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Leif's six rules, rule 6 (a) and (c)",
+        "where": "a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795117671,
+      "digest": "9367e3c0b37795bc018e34c6c29530f83d4dd9aa561574228b568f475e61ac6d",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+      "actor": "0xLeif",
+      "reason": "REQ-cmd-change-040 gains the optional fix field and REQ-change-163 names the lifecycle-lock check, as approved in ss-lead/gates/1091-fix-field-and-lock-check.md (PR #1100) (run by the builder on Leif's relayed word, via t4c, 2026-11-19)",
+      "timestamp": 1795099490,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-163",
+          "content": "The system SHALL offer a dry run of the definition approval that says whether `change approve` would accept a change as it stands, and writes nothing. It SHALL run the checks `change approve` runs, in the same order and through the same functions, so the two cannot differ: the relayed-decision check, loading the change, the sequence-collision check, the state guard, the roster check, the legacy-baseline binding, the definition check, the delta check, the declared-path ownership check, the `verification_ignored_paths` check, building the approval record, and resolving the actor. It SHALL run every check that can run on its own and report the first problem from each, with the message `change approve` gives for it. It SHALL name each check it skipped and the refused check that check waits on: every later check when the change does not load or its state does not admit approval, and building the approval record when the delta check refuses. The first problem it reports SHALL be the one refusal `change approve` gives for the same change and flags, except when an interrupted lifecycle write is waiting to be recovered. It SHALL create, change or remove no file: not the change's `state.json`, `approvals.json` or `change.md`, no canonical spec file, not `.specsync/hashes.json`, not the lifecycle lock, and not the read cache. The legacy-baseline binding and a relayed decision's workflow-version raise SHALL stay in memory. When an interrupted lifecycle write is waiting to be recovered, it SHALL refuse with that reason and run no other check, because a real approval recovers it first, which is a write. It SHALL accept every state `change approve` accepts, including a draft and a change that was sent back. `change approve` itself SHALL refuse exactly what it refused before, with the same messages.\n\nAcceptance Criteria\n- For a complete draft with one of these faults, the dry run reports the message `change approve` then gives, and `change approve` still refuses with it: an unknown delta operation heading; an invalid, bare or non-ASCII delta item heading; a delta with no recognized heading or no item; an empty item; an empty delta file; an ADDED requirement whose id already exists; one item declared twice; a requirement with no SHALL; an ADDED requirement with no Acceptance Criteria; another module's requirement id; a malformed requirement id; an affected path no declared module owns, with and without a declared spec; a declared spec whose front matter does not parse; an unfinished interview.\n- A clean draft reports no refusal, and `change approve` then succeeds.\n- A draft with an open interview question and an invalid delta reports both in one run, each under its own check.\n- A change id that does not exist reports one refusal and names every later check as skipped.\n- Every file of the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte the same before and after the dry run, for a refused draft and for a clean one, with and without an existing lifecycle lock and hash cache.\n- A change that was sent back reports what its re-approval would."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-040",
+          "content": "`specsync change approve <id> --dry-run` SHALL print the dry run of REQ-change-163 and record nothing. It SHALL take the flags `change approve` takes and check them as the approval does. In text it SHALL print one line for each refused check, with the check's name and its message, one line for each skipped check naming the refused check it waits on, and a closing line that says whether the change would be approved and that nothing was written. With `--json` it SHALL print one document holding the change id, `dry_run: true`, `would_approve`, and `checks`: one entry per check in approval order, with its `check` name, its `result` (`passed`, `refused` or `skipped`), the `message` of a refused check and the `skipped_because` check of a skipped one. It SHALL exit 0 when no check refuses and 1 when any does, and SHALL NOT print a refusal as the `error` document a real refusal prints.\n\nAcceptance Criteria\n- For a refused draft, the text names the check and its message and the command exits 1; with `--json`, stdout is one document with one `refused` entry carrying that message, and the exit code is 1.\n- For a clean draft, `would_approve` is true, every check is `passed`, the exit code is 0, and the text says the change would be approved and that nothing was written.\n- The first `refused` entry's `message` equals the `error` a real `change approve` with the same flags then prints.\n- With `--words` and no `--where`, the `relay` check is refused with the approval's own message."
+        },
+        {
+          "module": "cli_args",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cli-args-027",
+          "content": "The `change approve` subcommand SHALL accept `--dry-run` together with its existing flags and the global output flags.\n\nAcceptance Criteria\n- `specsync change approve <id> --dry-run` and `specsync --json change approve <id> --dry-run --actor Ada` parse; `specsync change approve <id>` still parses, with the dry run off."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change",
+        "cli_args"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing",
+      "actor": "0xLeif",
+      "reason": "REQ-change-163's lock-check sentence and criterion name the lock file's open-or-create question the tested code asks (Codex round 2 on PR #1100) (standing OK, relayed via t4c)",
+      "timestamp": 1795106094,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-163",
+          "content": "The system SHALL offer a dry run of the definition approval that says whether `change approve` would accept a change as it stands, and writes nothing. It SHALL run the checks `change approve` runs, in the same order and through the same functions, so the two cannot differ: the relayed-decision check, the lifecycle-lock check, loading the change, the sequence-collision check, the state guard, the roster check, the legacy-baseline binding, the definition check, the delta check, the declared-path ownership check, the `verification_ignored_paths` check, building the approval record, and resolving the actor. The lifecycle-lock check asks what taking the lock asks, without taking it: whether the lock path holds a symlink, and whether an interrupted lifecycle write is waiting to be recovered. It SHALL run every check that can run on its own and report the first problem from each, with the message `change approve` gives for it. It SHALL name each check it skipped and the refused check that check waits on: every later check when the lifecycle-lock check refuses, the change does not load or its state does not admit approval, and building the approval record when the delta check refuses. The first problem it reports SHALL be the one refusal `change approve` gives for the same change and flags, except when an interrupted lifecycle write is waiting to be recovered. It SHALL create, change or remove no file: not the change's `state.json`, `approvals.json` or `change.md`, no canonical spec file, not `.specsync/hashes.json`, not the lifecycle lock, and not the read cache. The legacy-baseline binding and a relayed decision's workflow-version raise SHALL stay in memory. When an interrupted lifecycle write is waiting to be recovered, it SHALL refuse with that reason and run no other check, because a real approval recovers it first, which is a write. It SHALL accept every state `change approve` accepts, including a draft and a change that was sent back. `change approve` itself SHALL refuse exactly what it refused before, with the same messages.\n\nAcceptance Criteria\n- For a complete draft with one of these faults, the dry run reports the message `change approve` then gives, and `change approve` still refuses with it: an unknown delta operation heading; an invalid, bare or non-ASCII delta item heading; a delta with no recognized heading or no item; an empty item; an empty delta file; an ADDED requirement whose id already exists; one item declared twice; a requirement with no SHALL; an ADDED requirement with no Acceptance Criteria; another module's requirement id; a malformed requirement id; an affected path no declared module owns, with and without a declared spec; a declared spec whose front matter does not parse; an unfinished interview.\n- A clean draft reports no refusal, and `change approve` then succeeds.\n- A draft with an open interview question and an invalid delta reports both in one run, each under its own check.\n- A change id that does not exist reports one refusal and names every later check as skipped.\n- Every file of the project, with ignored and untracked files, the Git index and SpecSync's caches, is byte for byte the same before and after the dry run, for a refused draft and for a clean one, with and without an existing lifecycle lock and hash cache.\n- A change that was sent back reports what its re-approval would.\n- A symlinked lifecycle lock path, and an interrupted lifecycle write waiting to be recovered, each give one refusal from the lifecycle-lock check and name every later check as skipped; a transaction journal that cannot be replayed gets the refusal `change approve` gives, word for word."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-040",
+          "content": "`specsync change approve <id> --dry-run` SHALL print the dry run of REQ-change-163 and record nothing. It SHALL take the flags `change approve` takes and check them as the approval does. In text it SHALL print one line for each refused check, with the check's name and its message, one line for each skipped check naming the refused check it waits on, and a closing line that says whether the change would be approved and that nothing was written. With `--json` it SHALL print one document holding the change id, `dry_run: true`, `would_approve`, and `checks`: one entry per check in approval order, with its `check` name, its `result` (`passed`, `refused` or `skipped`), the `message` of a refused check and the `skipped_because` check of a skipped one. A refused `definition` entry for a draft with an unanswered interview question, and a refused `ownership` entry whose message names the `change answer … affected_specs` command that declares the owning modules, SHALL also carry `fix`: that same command as plain text, built by the code that writes it into the message and never read back out of the message; no other entry SHALL carry `fix`. A `fix` MAY hold a placeholder in angle brackets, such as `<observable outcome>` or `<yes|no>`, that the caller must fill in, so a `fix` SHALL NOT be described as safe to run as printed. It SHALL exit 0 when no check refuses and 1 when any does, and SHALL NOT print a refusal as the `error` document a real refusal prints.\n\nAcceptance Criteria\n- For a refused draft, the text names the check and its message and the command exits 1; with `--json`, stdout is one document with one `refused` entry carrying that message, and the exit code is 1.\n- For a clean draft, `would_approve` is true, every check is `passed`, the exit code is 0, and the text says the change would be approved and that nothing was written.\n- The first `refused` entry's `message` equals the `error` a real `change approve` with the same flags then prints.\n- With `--words` and no `--where`, the `relay` check is refused with the approval's own message.\n- A draft with no acceptance criterion gets a `definition` entry whose `fix` is `specsync change answer <id> acceptance_criteria \"<observable outcome>\"`, and the entry's `message` names that same command. A draft whose only open question is `public_contract` gets `fix` `specsync change answer <id> public_contract <yes|no>`.\n- A draft with an affected path that an undeclared module's spec lists gets an `ownership` entry whose `fix` is the `change answer <id> affected_specs <modules>` command its message names. After that command is run as printed, the next dry run's `ownership` check passes.\n- A `deltas`, `relay`, `state` or other refused entry has no `fix`, and the text output is the same as without the field."
+        },
+        {
+          "module": "cli_args",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cli-args-027",
+          "content": "The `change approve` subcommand SHALL accept `--dry-run` together with its existing flags and the global output flags.\n\nAcceptance Criteria\n- `specsync change approve <id> --dry-run` and `specsync --json change approve <id> --dry-run --actor Ada` parse; `specsync change approve <id>` still parses, with the dry run off."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change",
+        "cli_args"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "cover-the-call-sites-that-pass-the-project-root-to-change-3-s-reads",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ac7effc65541e706d01147b172cc10da5c386f73",
+  "contract_digest": "9616b5b60ad32574a477cf496ef2fe8ef22810123c616f9376743332ed72d73c",
+  "execution_digest": "076e987d4def8280406cc7c96f0b87e9de7c1f2acf0411ecf45e443862c7376b",
+  "workspace_digest": "eeae6ad6761c83679bf6b4f49c46e70f99fd652b4cf85e539a4ebf9d7cacce78",
+  "timestamp": 1795103644,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "yes",
+    "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:50Z, after t4c described the coverage-only change (Cover the call sites that pass the project root to change 3's reads, --no-spec-change, exactly the six call-site files, no new code, already in the code he reviewed) and asked whether one yes covers both its scope approval and its implementation review; relayed by t4c over hc to t5r as his implementation review",
+    "recorded_by": "claude-code-t5r"
+  }
+}

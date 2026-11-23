@@ -6562,7 +6562,7 @@ fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
     };
     let read = |envs: &[(&str, &str)], fresh: bool| {
         if fresh {
-            let _ = fs::remove_file(fixture.root.join(".git/specsync/read-cache-v1.json"));
+            let _ = fs::remove_file(read_cache_file(&fixture.root));
         }
         let mut command = specsync();
         command.args([
@@ -7734,8 +7734,19 @@ fn after_approve_next_action_names_check_commit() {
 fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     let (_temp, root, id) = ss535_no_spec_project();
     let seed = git_ok(&root, &["rev-parse", "HEAD"]);
-    ss_ok(&root, &["change", "check", &id]);
     let workspace = root.join(".specsync/changes").join(&id);
+    let summary_path = workspace.join("change.md");
+    let summary = format!(
+        "{}\n## Handoff notes\n\nReview the README example.\n",
+        fs::read_to_string(&summary_path).unwrap()
+    );
+    assert!(summary.lines().any(|line| line == "state: approved"));
+    fs::write(&summary_path, &summary).unwrap();
+    ss_ok(&root, &["change", "check", &id]);
+    let expected_summary = summary.replacen("state: approved", "state: verifying", 1);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected_summary);
+    let status = ss_ok(&root, &["change", "status", &id]);
+    assert!(status.contains("State: verifying"), "{status}");
     let verification: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
             .unwrap();
@@ -7779,9 +7790,8 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     );
     let state: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
-    assert_ne!(
-        state["state"].as_str().unwrap_or(""),
-        "archived",
+    assert_eq!(
+        state["state"], "verifying",
         "a refused ship must leave the change unarchived: {state}"
     );
 
@@ -7794,6 +7804,13 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     assert_eq!(
         git_ok(&root, &["show", "HEAD:README.md"]),
         "hello\n\nThe greeter says hello."
+    );
+    assert_eq!(
+        git_ok(
+            &root,
+            &["show", &format!("HEAD:.specsync/changes/{id}/change.md")]
+        ),
+        expected_summary.trim_end()
     );
     ss_ok(
         &root,
@@ -7959,6 +7976,22 @@ fn uncommitted_specsync_evidence_alone_does_not_refuse_review() {
         String::from_utf8_lossy(&ship.stdout),
         String::from_utf8_lossy(&ship.stderr)
     );
+}
+
+/// Where SpecSync keeps the change read cache of the repository at `root` (REQ-util-009): in the
+/// tests' user cache folder, named by the digest of the canonical Git common directory.
+fn read_cache_file(root: &std::path::Path) -> std::path::PathBuf {
+    use sha2::{Digest, Sha256};
+    let common = root.join(".git").canonicalize().unwrap();
+    let mut hasher = Sha256::new();
+    hasher.update(b"repository\0");
+    hasher.update(common.as_os_str().as_encoded_bytes());
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    crate::helpers::test_cache_home()
+        .join("specsync")
+        .join("repositories")
+        .join(key)
+        .join("read-cache-v1.json")
 }
 
 // #654: `change ship-status` exits 1 whenever it reports a blocker, in text and in JSON, for one

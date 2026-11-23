@@ -231,8 +231,8 @@ fn verification_ignored_protected_scopes(
             template.clone(),
             format!("custom_artifacts template `{template}`"), false));
     }
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
-        let Ok(content) = fs::read_to_string(&spec) else {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
+        let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");

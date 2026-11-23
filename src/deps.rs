@@ -10,7 +10,6 @@ use crate::types::Language;
 use crate::validator::{find_spec_files, is_cross_project_ref};
 use regex::Regex;
 use std::collections::{HashMap, HashSet};
-use std::fs;
 use std::path::Path;
 use std::sync::LazyLock;
 
@@ -117,13 +116,17 @@ struct CheckedDepGraph {
 
 fn build_dep_graph_checked(root: &Path, specs_dir: &str) -> CheckedDepGraph {
     let specs_path = root.join(specs_dir);
-    let spec_files = find_spec_files(&specs_path);
+    let spec_files = find_spec_files(root, &specs_path);
     let mut graph: HashMap<String, DepNode> = HashMap::new();
     let mut unreadable: Vec<String> = Vec::new();
     let mut reported_edges: HashSet<(String, String)> = HashSet::new();
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(err) => {
                 let rel = spec_file
@@ -920,7 +923,11 @@ fn jvm_package_owners(root: &Path, graph: &HashMap<String, DepNode>) -> JvmPacka
             // `validator::source_within_root`); an unreadable file is left to
             // the hard error `check_undeclared_imports` already raises for it.
             if crate::validator::source_within_root(root, file)
-                && let Ok(content) = fs::read_to_string(root.join(file))
+                && let Ok(content) = crate::util::read_project_string(
+                    root,
+                    &root.join(file),
+                    crate::util::MAX_SOURCE_FILE_BYTES,
+                )
                 && let Some(package) = jvm_declared_package(&content)
             {
                 declared
@@ -1031,7 +1038,11 @@ fn check_undeclared_imports(
                 continue;
             }
             let full_path = root.join(file);
-            let content = match fs::read_to_string(&full_path) {
+            let content = match crate::util::read_project_string(
+                root,
+                &full_path,
+                crate::util::MAX_SOURCE_FILE_BYTES,
+            ) {
                 Ok(c) => c,
                 // A declared source file that can't be read as UTF-8 silently
                 // contributed no imports, so `deps --strict` could pass while

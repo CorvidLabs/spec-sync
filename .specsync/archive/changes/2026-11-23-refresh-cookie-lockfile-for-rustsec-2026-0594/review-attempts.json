@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "refresh-cookie-lockfile-for-rustsec-2026-0594",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "28e05731184c42ab4b45f991359c3ac97fb3a90d",
+      "contract_digest": "8dc7c7024aa220c5d9581b746d8589caffdfe611d87c824b166149ce27581899",
+      "execution_digest": "21911fa36449811a57a0cdbcb97e51139b705b72955deaebaa50fb79812de416",
+      "workspace_digest": "48471be6545ec395bdd5f4cad2423d165e82f588a288b674d1d6461e1bff5147",
+      "timestamp": 1795470051,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Can you get this ready for the release? I approve if you are 95% confidence and tested it and dogfooded it",
+        "where": "SpecSync release conversation, 2026-11-23, following the exact #1148 lockfile diff and test evidence at 28e05731. Codex confirmed the requested confidence, tests and dogfooding for this change.",
+        "recorded_by": "agent:codex"
+      }
+    }
+  ]
+}

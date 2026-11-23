@@ -137,6 +137,10 @@ so `change status` points back to `change check`.
 A completed check records `verifying` in `change.md`, `state.json`, and `change status`. The
 `passed` field in `verification.json` reports whether the check passed.
 
+Materialization and verification preserve the authored body of `change.md` when updating its
+`state` field. Approval, send-back, reopen, and archival regenerate the summary from the
+stored change record.
+
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,

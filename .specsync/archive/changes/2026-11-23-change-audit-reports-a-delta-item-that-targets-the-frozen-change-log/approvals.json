@@ -44,6 +44,13 @@
         "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:19Z, on the frozen ss-lead/gates/1090-definition.md (REQ-change-170 ADDED; affected spec change; paths src/change/historical_definition_digest_matches.rs, src/change_tests/stale_modified_delta.rs, specs/change/, CHANGELOG.md; to be built after #1088 merged); relayed through ss-lead t58",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795402063,
+      "digest": "6834c374a4f8d7ad1f0a7e22fe209593f969b1b7f776807cbd6f4b036af247dd",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

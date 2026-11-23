@@ -797,5 +797,17 @@ Once verification runs, publish its attempt, latest evidence, `state.json`, and 
 @plane z=63 label="Preserve Git names and record the refusal (#1108)"
 Use the bounded raw Git reader for paths and historical blobs. A leading space belongs to a path, and Markdown uses indentation to tell a code example from a fence. Remove only Git's terminating newline from the project prefix. On acceptance, check for a lost requirement before the workspace digest can reduce its deletion to a generic stale-evidence error. Record the refusal under the lifecycle lock when it stops acceptance, an active finalize retry, or a real ship preflight. Audit, status, and dry-run readers use the same check without appending attempts.
 
-@plane z=65 label="Keep checkout support and Git isolation together (#1122)"
+@plane z=64 label="Normalize registry paths before deriving companions (#1108)"
+Use the shared project-path normalization before looking for the parent directory of a registered spec in either snapshot. A registry entry with backslash separators can resolve to a spec outside the default specs directory. Deriving its parent from the original spelling left the real companion out of Git's scan. In a recovery diagnostic, quote the default ref as one shell word in the merge command.
+
+@plane z=65 label="Keep another change's removal authority in Git (#1108)"
+A lifecycle commit stages new files from the selected workspace. Before crediting an active sibling's removal, establish that Git's index contains the records and delta that authorized it. A local approval can disappear on checkout. A staged sibling definition survives it.
+
+@plane z=66 label="Compare the contents of linked requirements (#1108)"
+A canonical requirements symlink can keep its Git blob while its target loses an ID. Discover tracked file links in the reference tree even when the canonical path is unchanged. Resolve bounded relative file links inside the project in each snapshot. Report the canonical name and print the resolved Git blob for restoration. A worktree link preserves an ID only when Git tracks the complete chain through the content file. An unreadable historical link stops the check before the absence can be mistaken for an empty document.
+
+@plane z=67 label="An interrupted archive still needs staged authority (#1108)"
+Moving an approved package into the archive leaves new paths outside the index until finalize stages them. Resolve the package on disk and check its removal records at those paths before another change relies on it. If Git reports a stat change, compare the captured bytes and regular file mode to the index without refreshing it. The selected change can finish its own interrupted finalization.
+
+@plane z=71 label="Keep checkout support and Git isolation together (#1122)"
 Read linked-worktree pointers with a regular-file bound. A trusted checkout's private Git configuration belongs in a private system temporary directory outside the worktree and Git directories. For partial clones, find historical requirements names before asking Git for missing object IDs. An incomplete tree walk gives a recovery fetch that can target missing objects below a local commit. When a baseline refusal occurs in a shallow partial clone, name the fetch that restores commit history first.

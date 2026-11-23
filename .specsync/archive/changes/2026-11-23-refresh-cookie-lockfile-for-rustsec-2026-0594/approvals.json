@@ -1,0 +1,51 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795447660,
+      "digest": "8dc7c7024aa220c5d9581b746d8589caffdfe611d87c824b166149ce27581899",
+      "note": "Approval covers this definition and its one-package Cargo.lock update.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "refresh-cookie-lockfile-for-rustsec-2026-0594",
+        "title": "Refresh cookie lockfile for RUSTSEC-2026-0594",
+        "description": "Refresh cookie lockfile for RUSTSEC-2026-0594",
+        "kind": "bug_fix",
+        "affected_specs": [],
+        "affected_paths": [
+          "Cargo.lock"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "Resolve a compatible transitive dependency patch through Cargo.lock without changing the SpecSync contract.",
+        "acceptance_criteria": [
+          "Cargo.lock resolves cookie 0.18.3 instead of 0.18.1. Only the version and checksum in the existing cookie entry change.",
+          "The full project verification lane passes on the pinned Rust toolchain.",
+          "The resolved features and dependency graph match the baseline apart from the cookie version, and audit runs with the existing policy and clears RUSTSEC-2026-0594."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve all",
+        "where": "SpecSync scope-approval conversation on 2026-11-23, relayed by the coordinating Codex agent",
+        "recorded_by": "codex:state_check"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795470074,
+      "digest": "7c135653de5f7849e814dc6b59cd7a30586657ddec9fc42fb7e83f582555e165",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

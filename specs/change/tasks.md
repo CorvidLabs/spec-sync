@@ -122,6 +122,7 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
 
 - [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).

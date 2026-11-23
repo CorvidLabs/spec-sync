@@ -7,11 +7,11 @@
   "title": "A path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
   "description": "a path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "2cc0897fc00eee7db2b07f5134ba05639af39018",
   "created_at": 1795105066,
-  "updated_at": 1795471439,
+  "updated_at": 1795477951,
   "affected_specs": [
     "change"
   ],

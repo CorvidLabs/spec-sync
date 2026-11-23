@@ -1,0 +1,246 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795098443,
+      "digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names\": \"Approve as written\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T14:27:20Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+        "title": "Check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "description": "check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/vanished_requirements.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check, change verify, change accept, change finalize and change ship refuse, writing nothing, a change on a branch that lost a canonical requirement no approved REMOVED delta names, and name every lost id and its file; a removal an approved REMOVED item of a change on the branch accounts for passes, and so does one the branch merged in from the default branch; a requirement moved between files under its id passes, and a renumbered one is refused under its old id with the permanence hint; change audit reports the same refusal and change ship-status lists it as a blocker; the usual flows pass as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-142: fail closed when a default branch exists and Git cannot answer; #847: a refusal before verification records a refused attempt; CHANGE-11.b: the health check reports what check refuses; REQ-change-122: the new gate sits beside the base check at check, acceptance and audit",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "986eea99b2f8b7a2ce08d05c8bc37a73e6be56f9a297db6a9628623f87327ca1",
+        "cmd_change": "2345beed8e0e4907b08f8fd76569e2eab521646955927412923e1be03cd5cc79"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:17Z, on ss-lead's frozen gates/1081-definition.md (CHANGE-17 and .a to .c marked as the agent's draft, REQ-change-169, REQ-cmd-change-042, five choices, no CI-side guard); relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795141138,
+      "digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: origin/HEAD, origin/main or origin/master only when it resolves and is not HEAD's branch)\": \"A\" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: \"A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main.\" The two insertions are ss-lead's exact texts). Relayed and recorded by claude-code-t4t at 2026-11-20T02:18:56Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+        "title": "Check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "description": "check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/vanished_requirements.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check, change verify, change accept, change finalize and change ship refuse, writing nothing, a change on a branch that lost a canonical requirement no approved REMOVED delta names, and name every lost id and its file; a removal an approved REMOVED item of a change on the branch accounts for passes, and so does one the branch merged in from the default branch; a requirement moved between files under its id passes, and a renumbered one is refused under its old id with the permanence hint; change audit reports the same refusal and change ship-status lists it as a blocker; the usual flows pass as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-142: fail closed when a default branch exists and Git cannot answer; #847: a refusal before verification records a refused attempt; CHANGE-11.b: the health check reports what check refuses; REQ-change-122: the new gate sits beside the base check at check, acceptance and audit",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "af8a8151c4deed4fd0f69213f8e7fa8061738a4415d94c7f24ae3a6030dd4e6e",
+        "cmd_change": "2345beed8e0e4907b08f8fd76569e2eab521646955927412923e1be03cd5cc79"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "A",
+        "where": "a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 02:15Z, relayed through ss-lead t58; the question as t4c put it: \"A (recommended): only trust origin/HEAD when it actually exists and isn't the branch you're on. Otherwise use origin/main, then origin/master. If none of those works, fall back to the change's starting commit, as your approved wording already says for 'no default branch'. This adds a few words to one approved sentence, through a send-back t4t runs. Side effect: if you work directly on main, the check compares from the change's starting commit instead of origin/main.\" The two insertions are ss-lead's exact texts",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795148155,
+      "digest": "965fec9814a812fe67b65ec5bfea5bff7d813fafc83cb0699230ff80600afcce",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names (REQ-change-169: only tracked files count)\": \"continue with 95% confidence\" (a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: \"(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs.\" and \"(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause.\" The replacement is ss-lead's exact text). Relayed and recorded by claude-code-t4t at 2026-11-20T04:15:53Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+        "title": "Check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "description": "check, verification and ship refuse a branch that lost canonical requirements no approved REMOVED delta names",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/vanished_requirements.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "change check, change verify, change accept, change finalize and change ship refuse, writing nothing, a change on a branch that lost a canonical requirement no approved REMOVED delta names, and name every lost id and its file; a removal an approved REMOVED item of a change on the branch accounts for passes, and so does one the branch merged in from the default branch; a requirement moved between files under its id passes, and a renumbered one is refused under its old id with the permanence hint; change audit reports the same refusal and change ship-status lists it as a blocker; the usual flows pass as before"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-142: fail closed when a default branch exists and Git cannot answer; #847: a refusal before verification records a refused attempt; CHANGE-11.b: the health check reports what check refuses; REQ-change-122: the new gate sits beside the base check at check, acceptance and audit",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "ded89378c821b46733f9c63e9db08c91c887661d324c5efc6c4a069446b95d69",
+        "cmd_change": "2345beed8e0e4907b08f8fd76569e2eab521646955927412923e1be03cd5cc79"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "continue with 95% confidence",
+        "where": "a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 04:09Z, answering t4c's five-item list, each item with a recommendation; relayed through ss-lead t58. t4c's reading: go ahead with the recommendations where t4c is at least 95% sure, which it is for this item. Item 1 as t4c put it: \"(a) For the accident case: A (recommended): only files Git tracks count. A requirement that survives only in an untracked file is reported as lost, with the hint 'git add the file, then check again'. One word goes into the sentence ('in none of the tracked ones'), through a send-back t4t runs.\" and \"(b) Where to stop: fix all three in this push. From the next round on, file any P1 that needs deliberate tampering, and fix only P1s an ordinary mistake can cause.\" The replacement is ss-lead's exact text",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795209572,
+      "digest": "310aef780a11bad5fb06afed22e40643411f5090b1c9ea82ea0aed9a74deb949",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+      "actor": "0xLeif",
+      "reason": "REQ-change-169 gains two insertions for corvid-agent's review of #1108: the default branch is origin/HEAD, else origin/main or origin/master, each only when it resolves and is not the branch HEAD is on; and the criterion beginning 'With no default branch' says such a ref is not a default branch (Leif's 'A', 2026-11-20 about 02:15Z) (run by the builder on Leif's relayed word, via t4c, 2026-11-20)",
+      "timestamp": 1795141112,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-169",
+          "content": "`change check`, `change verify`, `change accept`, `change finalize` and `change ship` SHALL refuse, before anything is written, a change on a branch that has lost a canonical requirement that no approved `## REMOVED` delta names (#1081). The branch's requirements SHALL be compared with those at a reference commit: the merge-base of `HEAD` and the default branch (`origin/HEAD`, else `origin/main` or `origin/master`), or, when there is no default branch, the change's `base_commit` when that commit is in `HEAD`'s history. A requirement is a `### REQ-` heading outside a fenced block in a `requirements.md` or a legacy `<module>.req.md` under the specs directory or beside a registered spec. A requirement is lost when its id is in such a file at the reference commit and in none of them in the working tree; a requirement that moved to another such file under the same id is not lost. A lost requirement is accounted for when an approved `## REMOVED` requirement item names its id in the delta of this change, of another active change on the branch whose definition approval is valid, or of a change the branch archived after the reference commit. The refusal SHALL name every lost requirement that is not accounted for and the file that held it at the reference commit, SHALL record a refused attempt as other check refusals do (#847), and SHALL name the way out: restore each block from the reference commit (`git show <commit>:<file>` prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again. When a lost requirement's text is in the working tree under a new id, the refusal SHALL also say that a requirement id is permanent, so a renumbered requirement needs a `## REMOVED` item for its old id. When there is a default branch and Git cannot read the merge-base or a requirements file at it, the refusal SHALL name what could not be read. When there is neither a default branch nor a `base_commit` in `HEAD`'s history, the comparison SHALL be skipped, and `change check` SHALL print one note saying so. `change audit` SHALL report the same refusal for each active change.\n\nAcceptance Criteria\n- On a branch whose `requirements.md` was truncated to the change's one added requirement (the starling case), `change check` refuses before writing, names every lost id and its file, and records a refused attempt. `change verify`, `change accept`, `change finalize` and `change ship` refuse the same way, and `change audit` reports it.\n- A requirement that an approved `## REMOVED` item removes is not reported, whether the item is in this change, in another active change on the branch, or in a change the branch archived. Nor is a requirement that another change removed on the default branch, once the branch has merged that in.\n- A requirement whose block moved to another requirements file under the same id is not reported. A renumbered requirement is reported under its old id, with the permanence hint.\n- A deleted requirements file reports every id it held, and a legacy `<module>.req.md` is read like `requirements.md`.\n- With no default branch, the change's `base_commit` is the reference. With neither, the check is skipped with a note. With a default branch whose merge-base or file Git cannot read, the check refuses, naming what could not be read.\n- These flows pass as before: an ADDED or MODIFIED change, a REMOVED change, a send-back, and a delta rebased under REQ-change-161."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-042",
+          "content": "`change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.\n\nAcceptance Criteria\n- On the starling-shaped branch, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.\n- With the lost blocks restored, `ready_to_finalize` is true again."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names",
+      "actor": "0xLeif",
+      "reason": "REQ-change-169: 'and in none of them in the working tree' becomes 'and in none of the tracked ones in the working tree', for Codex's fourth round on #1108 (an id copied into a file Git does not track kept a loss from being refused); Leif's 'continue with 95% confidence', 2026-11-20 about 04:09Z, on t4c's item 1 recommending A (run by the builder on Leif's relayed word, via t4c, 2026-11-20)",
+      "timestamp": 1795148139,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-169",
+          "content": "`change check`, `change verify`, `change accept`, `change finalize` and `change ship` SHALL refuse, before anything is written, a change on a branch that has lost a canonical requirement that no approved `## REMOVED` delta names (#1081). The branch's requirements SHALL be compared with those at a reference commit: the merge-base of `HEAD` and the default branch (`origin/HEAD`, else `origin/main` or `origin/master`, each only when it resolves and is not the branch `HEAD` is on), or, when there is no default branch, the change's `base_commit` when that commit is in `HEAD`'s history. A requirement is a `### REQ-` heading outside a fenced block in a `requirements.md` or a legacy `<module>.req.md` under the specs directory or beside a registered spec. A requirement is lost when its id is in such a file at the reference commit and in none of them in the working tree; a requirement that moved to another such file under the same id is not lost. A lost requirement is accounted for when an approved `## REMOVED` requirement item names its id in the delta of this change, of another active change on the branch whose definition approval is valid, or of a change the branch archived after the reference commit. The refusal SHALL name every lost requirement that is not accounted for and the file that held it at the reference commit, SHALL record a refused attempt as other check refusals do (#847), and SHALL name the way out: restore each block from the reference commit (`git show <commit>:<file>` prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again. When a lost requirement's text is in the working tree under a new id, the refusal SHALL also say that a requirement id is permanent, so a renumbered requirement needs a `## REMOVED` item for its old id. When there is a default branch and Git cannot read the merge-base or a requirements file at it, the refusal SHALL name what could not be read. When there is neither a default branch nor a `base_commit` in `HEAD`'s history, the comparison SHALL be skipped, and `change check` SHALL print one note saying so. `change audit` SHALL report the same refusal for each active change.\n\nAcceptance Criteria\n- On a branch whose `requirements.md` was truncated to the change's one added requirement (the starling case), `change check` refuses before writing, names every lost id and its file, and records a refused attempt. `change verify`, `change accept`, `change finalize` and `change ship` refuse the same way, and `change audit` reports it.\n- A requirement that an approved `## REMOVED` item removes is not reported, whether the item is in this change, in another active change on the branch, or in a change the branch archived. Nor is a requirement that another change removed on the default branch, once the branch has merged that in.\n- A requirement whose block moved to another requirements file under the same id is not reported. A renumbered requirement is reported under its old id, with the permanence hint.\n- A deleted requirements file reports every id it held, and a legacy `<module>.req.md` is read like `requirements.md`.\n- With no default branch, the change's `base_commit` is the reference. With neither, the check is skipped with a note. An `origin/HEAD`, `origin/main` or `origin/master` that does not resolve, or that is the branch `HEAD` is on, is not a default branch. With a default branch whose merge-base or file Git cannot read, the check refuses, naming what could not be read.\n- These flows pass as before: an ADDED or MODIFIED change, a REMOVED change, a send-back, and a delta rebased under REQ-change-161."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-042",
+          "content": "`change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.\n\nAcceptance Criteria\n- On the starling-shaped branch, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.\n- With the lost blocks restored, `ready_to_finalize` is true again."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
+}

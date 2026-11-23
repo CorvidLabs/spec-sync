@@ -3691,6 +3691,11 @@ fn materialize_change_deltas_inner(
         let _ = record_refused_attempt(root, &record, &error);
         return Err(error);
     }
+    // A branch that lost a canonical requirement no approved REMOVED delta names is refused
+    // before anything is written (#1081, REQ-change-169).
+    if let Some(note) = ensure_no_lost_requirements_recording_refusal(root, &record)? {
+        eprintln!("{note}");
+    }
     // A body approved over a requirement main has since edited gets a proposed rebase over main's
     // edit when the two do not overlap: the merge is written into the delta, and the check refuses
     // until a person approves it (#1085, REQ-change-rebase-proposal-001). Whatever is left stale is then refused,
@@ -3890,6 +3895,8 @@ fn verify_change_locked(
     ensure_no_orphaned_applied_text(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
+    // #1081 (REQ-change-169): verification refuses a branch that lost a canonical requirement.
+    ensure_no_lost_requirements_recording_refusal(root, &record)?;
     // The gate judges the change being verified as verifying, the state this attempt records
     // (REQ-change-112). On the first check `materialize_change_deltas` has just set
     // `canonical_applied` and `Implementing`, and the gate's roster filter used to drop exactly

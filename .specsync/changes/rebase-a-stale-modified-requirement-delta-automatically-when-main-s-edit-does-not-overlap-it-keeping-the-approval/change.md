@@ -1,6 +1,6 @@
 ---
 id: rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval
-state: implementing
+state: verifying
 type: feature
 base_commit: 99f61b2b5667d60c3b0705902486f910c8e067c5
 ---

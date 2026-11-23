@@ -275,6 +275,58 @@
         "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:59Z, on the frozen ss-lead/gates/1089-option2-definition.md (REQ-change-161 replaced whole, REQ-cmd-change-038 dropped, REQ-change-122's second sentence and fourth criterion); relayed through ss-lead t58",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795477954,
+      "digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the edits do not overlap word by word, change check writes the word merge into the delta as a proposal and refuses until a person approves it with change approve, after which change check applies it; when the edits overlap, main deleted the requirement or edited its heading, the working tree holds other text, the requirement is too long, or Git cannot read main's text, it refuses as today naming the cause and the way on, and writes nothing; nothing is proposed in CI"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-122: a stale delta is never applied over text the change did not approve; CHANGE-6.a: only a person approves wording; REQ-change-142: fail closed when a default branch exists and Git cannot answer; Leif's rule 3: every refusal names its way out",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "eb77fd362dc41f4f9243cbf58437c7b32cce93b6b75fe115b22eb421c16a1fa5"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "4e56659da0433b7079995eb196ee61f710e902c285ce79d95b743895b260d1f2"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "SpecSync 6.4.2 release conversation on 2026-11-23, in response to the two permanent-ID renewal proposals linked in the remaining-PR review question.",
+        "recorded_by": "Codex"
+      }
     }
   ],
   "reopenings": [],

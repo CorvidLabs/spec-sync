@@ -3564,10 +3564,18 @@ fn workflow_v1_record_present_in_cutoff_tree(
     Ok(present)
 }
 
-/// Whether the repository at `root` is a shallow clone, asked only once a lifecycle-history check
-/// has refused (or `change new` is about to check that history), so a full clone pays nothing.
+/// Read the shallow flag alongside the repository prefix lifecycle commands already need.
+fn shallow_and_repo_prefix(root: &Path) -> Option<(bool, String)> {
+    let probe = git_output(
+        root,
+        &["rev-parse", "--is-shallow-repository", "--show-prefix"],
+    )?;
+    let (shallow, prefix) = probe.split_once('\n').unwrap_or((&probe, ""));
+    Some((shallow.trim_end().parse().ok()?, prefix.trim().replace('\\', "/")))
+}
+
 fn clone_is_shallow(root: &Path) -> bool {
-    git_output(root, &["rev-parse", "--is-shallow-repository"]).is_some_and(|value| value == "true")
+    shallow_and_repo_prefix(root).is_some_and(|(shallow, _)| shallow)
 }
 
 /// REQ-change-173's refusal: the clone is shallow, so the history the workflow-v2 baseline check
@@ -4834,9 +4842,8 @@ fn git_repo_prefix(root: &Path) -> Result<String, String> {
     if let Some(prefix) = memoized_repo_prefix(root) {
         return Ok(prefix);
     }
-    let prefix = git_output_allow_empty(root, &["rev-parse", "--show-prefix"])
-        .ok_or_else(|| "unable to determine project path within Git repository".to_string())?
-        .replace('\\', "/");
+    let (_, prefix) = shallow_and_repo_prefix(root)
+        .ok_or_else(|| "unable to determine project path within Git repository".to_string())?;
     remember_repo_prefix(root, &prefix);
     Ok(prefix)
 }

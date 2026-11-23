@@ -1703,6 +1703,26 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
         warnings.extend(multi_active_ordering_warnings(&sibling_active_ids));
     }
 
+    // Accepted and archived records need a verdict on their own evidence, as `change reopen`
+    // judges it (#922). A roster error is a blocker, not evidence of currency or staleness.
+    let (own_evidence, evidence_blocker) = match matches!(
+        record.state,
+        ChangeState::Accepted | ChangeState::Archived
+    )
+    .then(|| change::own_accepted_evidence(root, record))
+    {
+        Some(Ok(evidence)) => (Some(evidence), None),
+        Some(Err(reason)) => {
+            let step = format!(
+                "cannot inspect accepted evidence: {reason}. Then run `specsync change ship-status {}`",
+                record.id
+            );
+            blockers.push(step.clone());
+            (None, Some(step))
+        }
+        None => (None, None),
+    };
+
     // #689: readiness is a CONTENT question, not a history one. The rest of this module settled
     // that (see `verification_is_current`); ship-status was the caller that never got the change,
     // so a squash-merged repo could never reach `ready_to_finalize`.
@@ -1723,19 +1743,15 @@ fn ship_status_report(root: &Path, record: &ChangeRecord) -> Result<serde_json::
             _ => false,
         };
 
-    // #922 (REQ-cmd-change-033): an accepted or archived change is judged by its own accepted
-    // evidence, as `change reopen` judges it. Only stale evidence names reopen; an unreadable
-    // `verification.json` names its restore.
-    let own_evidence = matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
-        .then(|| change::own_accepted_evidence(root, record).ok())
-        .flatten();
     let verification_display = evidence_dir
         .join("verification.json")
         .strip_prefix(root)
         .map(|path| path.display().to_string())
         .unwrap_or_else(|_| "verification.json".to_string());
-    let own_evidence_step = own_evidence.as_ref().and_then(|evidence| {
-        own_evidence_step(record, evidence, &verification_display, &lifecycle_next)
+    let own_evidence_step = evidence_blocker.or_else(|| {
+        own_evidence.as_ref().and_then(|evidence| {
+            own_evidence_step(record, evidence, &verification_display, &lifecycle_next)
+        })
     });
 
     let stages = ship_stages(
@@ -2408,13 +2424,7 @@ fn ship_stages(
     let product_done = retired
         || match own_evidence {
             Some(evidence) => *evidence == change::OwnAcceptedEvidence::Current,
-            None => {
-                verified
-                    && matches!(
-                        record.state,
-                        ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
-                    )
-            }
+            None => verified && record.state == ChangeState::Verifying,
         };
     stages.push(serde_json::json!({
         "id": "product_tip",

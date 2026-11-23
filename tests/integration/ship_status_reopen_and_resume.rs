@@ -346,6 +346,53 @@ fn change_ship_finishes_a_finalization_that_stopped_before_the_archive_move() {
             .contains(&format!("specsync change ship {ID}")),
         "{report}"
     );
+    let blocked = root
+        .join(".specsync/archive/changes")
+        .join(format!("{}-broken-retirement", utc_today()));
+    fs::create_dir(&blocked).unwrap();
+    let mut sibling: Value = serde_json::from_slice(
+        &fs::read(root.join(".specsync/changes").join(ID).join("state.json")).unwrap(),
+    )
+    .unwrap();
+    sibling["id"] = Value::from("broken-retirement");
+    sibling["slug"] = Value::from("broken-retirement");
+    sibling["state"] = Value::from("retired");
+    fs::write(
+        blocked.join("state.json"),
+        serde_json::to_vec(&sibling).unwrap(),
+    )
+    .unwrap();
+
+    let (finalized, refusal) = run(&root, &["change", "finalize", ID]);
+    assert!(
+        !finalized && refusal.contains("retirement.json"),
+        "{refusal}"
+    );
+    let report = ship_status(&root);
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    assert!(
+        report["blockers"].to_string().contains("retirement.json"),
+        "{report}"
+    );
+    assert!(
+        report["stages"][0]["action"]
+            .as_str()
+            .unwrap()
+            .contains("retirement.json"),
+        "{report}"
+    );
+    assert!(
+        !report["ship_next"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("change ship {ID}")),
+        "{report}"
+    );
+    let (shipped, refusal) = run(&root, &["change", "ship", ID]);
+    assert!(!shipped && refusal.contains("retirement.json"), "{refusal}");
+
+    fs::remove_dir_all(blocked).unwrap();
+    assert_eq!(ship_status(&root)["ready_to_finalize"], true);
     run_ok(&root, &["change", "ship", ID]);
     assert_eq!(state(&root), "archived");
 }

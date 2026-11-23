@@ -119,12 +119,10 @@ impl RequirementScope {
     /// path it was there, not by today's tree (Codex's fourth round).
     fn add_registry(&mut self, root: &Path, registry: &crate::types::RegistryEntry, on_disk: bool) {
         for (_, path) in &registry.specs {
-            let leaves = if on_disk {
-                safe_project_path(root, path).is_err()
-            } else {
-                normalize_project_path(path).is_err()
+            let Ok(path) = normalize_project_path(path) else {
+                continue;
             };
-            if leaves {
+            if on_disk && safe_project_path(root, &path).is_err() {
                 continue;
             }
             let directory = path
@@ -824,34 +822,36 @@ fn lost_requirements_check(
     // brought in some other way than a merge (a cherry-pick, or the same edit made by hand). The
     // way out is to merge it, not to restore the block or approve a REMOVED delta (Leif's rule 3;
     // the tester's L2b). When the tip cannot be read, the general way out stands.
-    let (main_removed, others): (Vec<&str>, Vec<&str>) = match default_branch_requirement_ids(root, &scope) {
-        Some((_, held)) => unaccounted
-            .iter()
-            .map(|(lost, _, _)| lost.as_str())
-            .partition(|lost| !held.contains(*lost)),
-        None => (Vec::new(), unaccounted.iter().map(|(lost, _, _)| lost.as_str()).collect()),
-    };
     let restore_or_remove = format!(
         "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`"
     );
-    let way_out = match (main_removed.is_empty(), lost_requirements_default_ref(root)) {
-        (false, Some(default)) if others.is_empty() => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `specsync change check {id}`",
-            main_removed.join(", ")
-        ),
-        (false, Some(default)) => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `specsync change check {id}`",
-            main_removed.join(", "),
-            others.join(", ")
-        ),
-        _ => {
-            let mut way = restore_or_remove;
-            if let Some(first) = way.get_mut(0..1) {
-                first.make_ascii_uppercase();
-            }
-            format!("{way}, then `specsync change check {id}`")
+    let default_remediation = default_branch_requirement_ids(root, &scope).and_then(|(default, held)| {
+        let (main_removed, others): (Vec<&str>, Vec<&str>) = unaccounted
+            .iter()
+            .map(|(lost, _, _)| lost.as_str())
+            .partition(|lost| !held.contains(*lost));
+        if main_removed.is_empty() {
+            return None;
         }
-    };
+        let merge_ref = shell_word(&default);
+        let merge = format!(
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {merge_ref}`)",
+            main_removed.join(", ")
+        );
+        let followup = if others.is_empty() {
+            ": a removal merged from the default branch is not this branch's loss".to_string()
+        } else {
+            format!(". For {}, {restore_or_remove}", others.join(", "))
+        };
+        Some(format!("{merge}{followup}. Then run `specsync change check {id}`"))
+    });
+    let way_out = default_remediation.unwrap_or_else(|| {
+        let mut way = restore_or_remove;
+        if let Some(first) = way.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+        format!("{way}, then `specsync change check {id}`")
+    });
     Err(LostRequirementsRefusal::Lost(format!(
         "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. {way_out}{untracked_hint}{renumber_hint}"
     )))

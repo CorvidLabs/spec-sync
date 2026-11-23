@@ -157,6 +157,33 @@ fn a_removal_merged_in_from_main_is_not_lost_but_a_cherry_pick_is() {
     }
 }
 
+#[test]
+fn a_merge_hint_quotes_the_default_ref_in_both_diagnostics() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    let remote_ref = "refs/remotes/origin/review's-default";
+    git(&["checkout", "-q", "main"]);
+    let removed = drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001");
+    fs::write(requirements_path(root), &removed).unwrap();
+    git(&["commit", "-q", "-am", "default branch removes REQ-auth-001"]);
+    git(&["update-ref", remote_ref, "HEAD"]);
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", remote_ref]);
+    git(&["checkout", "-q", "change"]);
+
+    // Inspect the rendered command only. The ref's apostrophe is literal text.
+    let expected = "`git merge 'origin/review'\\''s-default'`";
+    fs::write(requirements_path(root), &removed).unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("one lost requirement");
+    assert!(error.contains(expected) && !error.contains("For REQ-auth-002"), "{error}");
+
+    let removed_both = drop_block(&removed, "REQ-auth-002");
+    fs::write(requirements_path(root), removed_both).unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("two lost requirements");
+    assert!(error.contains(expected) && error.contains("For REQ-auth-002"), "{error}");
+}
+
 /// REQ-change-169: a block moved to another requirements file under its id is not lost; a
 /// renumbered one is lost under its old id, and the refusal says ids are permanent.
 #[test]
@@ -783,9 +810,36 @@ fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it(
     assert_eq!(fs::read(archive.join("verification-attempts.json")).unwrap(), attempts);
 }
 
-/// Codex on #1108 (P1): a requirements file canonical at the reference ("in such a file at the
-/// reference commit") is read even when the branch dropped its registry mapping or moved the
-/// specs directory away from it.
+/// A registry with backslash separators can map an external companion in each snapshot.
+#[test]
+fn registry_companions_use_normalized_paths_in_the_worktree_and_reference() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let original = "modules/billing/requirements.md";
+    let moved = "packages/billing/billing.req.md";
+    let registry = ".specsync/registry.toml";
+    let mapping = |path: &str| format!("[registry]\nname = \"vanished\"\n\n[specs]\nbilling = '{path}'\n");
+    let text = "# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once a month.\n";
+    let record = vanished_repository(
+        root,
+        ADDED_THIRD,
+        &[(registry, &mapping(r"modules\billing\billing.spec.md")), (original, text)],
+    );
+    let git = git_in(root);
+    fs::write(root.join(registry), mapping(r"packages\billing\billing.spec.md")).unwrap();
+    fs::create_dir_all(root.join("packages/billing")).unwrap();
+    fs::rename(root.join(original), root.join(moved)).unwrap();
+    git(&["add", "--all"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    fs::remove_file(root.join(moved)).unwrap();
+    git(&["add", "--all"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-billing-001 was lost");
+    assert!(error.contains("REQ-billing-001 (modules/billing/requirements.md)"), "{error}");
+}
+
+/// A requirements file canonical at the reference is still read after the branch drops its
+/// registry mapping or moves the specs directory away from it.
 #[test]
 fn requirements_canonical_only_at_the_reference_are_still_read() {
     // The branch drops the registry mapping and the file beside its spec.

@@ -439,8 +439,8 @@ struct WorkingRequirements {
 
 /// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
 /// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
-/// directory named in `excluded` is entered. A directory that cannot be listed or a tracked file
-/// that cannot be read for a reason other than not existing is named in `unreadable` (#1117).
+/// directory named in `excluded` is entered. A path that cannot be read for a reason other than
+/// not existing is named in `unreadable` if it could contain tracked requirements (#1117).
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
@@ -448,9 +448,29 @@ fn working_tree_requirement_blocks(
     tracked: &BTreeSet<&str>,
 ) -> WorkingRequirements {
     let mut unreadable = Vec::new();
-    let note = |unreadable: &mut Vec<String>, path: &Path, error: std::io::Error| {
-        if error.kind() != std::io::ErrorKind::NotFound {
-            unreadable.push(format!("{}: {error}", portable_project_path(root, path)));
+    let git_path = |path: &Path| {
+        let relative = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
+        if cfg!(windows) {
+            relative.replace('\\', "/")
+        } else {
+            relative.into_owned()
+        }
+    };
+    let could_contain_tracked_requirements = |path: &str| {
+        if matches!(path, "" | ".") {
+            return !tracked.is_empty();
+        }
+        let prefix = format!("{path}/");
+        tracked.contains(path)
+            || tracked
+                .range(prefix.as_str()..)
+                .next()
+                .is_some_and(|candidate| candidate.starts_with(&prefix))
+    };
+    let note_listing_error = |unreadable: &mut Vec<String>, path: &Path, error: std::io::Error| {
+        let relative = git_path(path);
+        if error.kind() != std::io::ErrorKind::NotFound && could_contain_tracked_requirements(&relative) {
+            unreadable.push(format!("{relative}: {error}"));
         }
     };
     let mut files = Vec::new();
@@ -459,14 +479,18 @@ fn working_tree_requirement_blocks(
         match scope_directory(root, directory) {
             ScopeDirectory::Read => pending.push(root.join(directory)),
             ScopeDirectory::Skip => {}
-            ScopeDirectory::Unreadable(what) => unreadable.push(what),
+            ScopeDirectory::Unreadable(what) => {
+                if could_contain_tracked_requirements(directory) {
+                    unreadable.push(what);
+                }
+            }
         }
     }
     while let Some(directory) = pending.pop() {
         let entries = match crate::util::read_project_dir_entries(root, &directory) {
             Ok(entries) => entries,
             Err(error) => {
-                note(&mut unreadable, &directory, error);
+                note_listing_error(&mut unreadable, &directory, error);
                 continue;
             }
         };
@@ -475,7 +499,7 @@ fn working_tree_requirement_blocks(
             let (path, kind) = match listed_entry(&directory, entry) {
                 Ok(listed) => listed,
                 Err((path, error)) => {
-                    note(&mut unreadable, &path, error);
+                    note_listing_error(&mut unreadable, &path, error);
                     continue;
                 }
             };
@@ -494,7 +518,9 @@ fn working_tree_requirement_blocks(
             ScopeDirectory::Read => {}
             ScopeDirectory::Skip => continue,
             ScopeDirectory::Unreadable(what) => {
-                unreadable.push(what);
+                if could_contain_tracked_requirements(companion) {
+                    unreadable.push(what);
+                }
                 continue;
             }
         }
@@ -502,7 +528,7 @@ fn working_tree_requirement_blocks(
         let entries = match crate::util::read_project_dir_entries(root, &directory) {
             Ok(entries) => entries,
             Err(error) => {
-                note(&mut unreadable, &directory, error);
+                note_listing_error(&mut unreadable, &directory, error);
                 continue;
             }
         };
@@ -516,7 +542,7 @@ fn working_tree_requirement_blocks(
                         files.push(path);
                     }
                 }
-                Err((path, error)) => note(&mut unreadable, &path, error),
+                Err((path, error)) => note_listing_error(&mut unreadable, &path, error),
             }
         }
     }
@@ -525,15 +551,15 @@ fn working_tree_requirement_blocks(
     let files = files
         .into_iter()
         .filter_map(|path| {
-            let relative = portable_project_path(root, &path);
+            let relative = git_path(&path);
             if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
             match crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) {
                 Ok(text) => Some((relative, requirement_blocks(&text))),
                 Err(error) => {
-                    if tracked.contains(relative.as_str()) {
-                        note(&mut unreadable, &path, error);
+                    if error.kind() != std::io::ErrorKind::NotFound && tracked.contains(relative.as_str()) {
+                        unreadable.push(format!("{relative}: {error}"));
                     }
                     None
                 }
@@ -860,7 +886,9 @@ fn lost_requirements_check(
     args.extend(pathspecs.iter().map(String::as_str));
     let tracked_listing = git_raw_utf8(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
-    let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
+    let tracked: BTreeSet<&str> = nul_separated(&tracked_listing)
+        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded_both))
+        .collect();
     let WorkingRequirements {
         files: working,
         unreadable,

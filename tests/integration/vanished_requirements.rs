@@ -646,6 +646,48 @@ fn an_unreadable_requirements_directory_is_named_instead_of_a_loss() {
     assert!(!again.contains("lost canonical requirements"), "{again}");
 }
 
+#[cfg(unix)]
+#[test]
+fn an_unreadable_directory_with_no_tracked_requirements_does_not_hide_a_loss() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    let historical_path = "specs/auth/scratch/more.req.md";
+    let requirements = "# Requirements\n\n### REQ-auth-003\n\nKeep a recovery record.\n";
+    project.write(historical_path, requirements);
+    project.write("specs/auth/scratch/notes.txt", "Working notes.\n");
+    project.git(&["add", "--", "specs/auth/scratch"]);
+    project.git(&["commit", "-q", "-m", "track scratch requirements and notes"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    project.run(&["change", "check", &id, "--commit"]);
+    project.git(&["rm", "--", historical_path]);
+    project.git(&["commit", "-q", "-m", "lose REQ-auth-003"]);
+    project.write("specs/auth/scratch/untracked.req.md", requirements);
+
+    let scratch = project.root.join("specs/auth/scratch");
+    fs::set_permissions(&scratch, fs::Permissions::from_mode(0o000)).unwrap();
+    if fs::read_dir(&scratch).is_ok() {
+        fs::set_permissions(&scratch, fs::Permissions::from_mode(0o755)).unwrap();
+        return;
+    }
+    let output = project.invoke(&["change", "ship-status", &id]);
+    fs::set_permissions(&scratch, fs::Permissions::from_mode(0o755)).unwrap();
+
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(text.contains("REQ-auth-003"), "{text}");
+    assert!(
+        text.contains("that no approved `## REMOVED` delta names"),
+        "{text}"
+    );
+    assert!(
+        !text.contains("cannot tell whether this branch lost canonical requirements"),
+        "{text}"
+    );
+}
+
 /// #1112, with `specs_dir`: a branch that moves its specs directory onto one that already held a
 /// `requirements.md` is not refused for that file's old ids.
 #[test]

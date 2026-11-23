@@ -124,3 +124,5 @@ spec: change.spec.md
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
 - [x] Skip fenced headings when locating or ending a canonical delta block (#1050, REQ-change-152).
 - [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
+- [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).

@@ -380,3 +380,18 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.
 - `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
 - `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.
+
+## Lost-requirement refusals (REQ-change-169)
+
+- The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.
+- A linked requirement removed on the default branch names the merge recovery. A dangling or cyclic reference link names the unreadable canonical file even when the Git diff does not include that path.
+- `registry_companions_use_normalized_paths_in_the_worktree_and_reference` moves a requirement between tracked companions declared with backslash separators, then checks that deleting it reports the original canonical path.
+- `a_merge_hint_quotes_the_default_ref_in_both_diagnostics` inspects the printed merge command for a default ref containing a literal apostrophe, for both default-only and mixed losses.
+- `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.
+- `requirements_are_read_in_a_project_subdirectory_with_leading_whitespace` preserves the repository prefix in historical reads and the restore command.
+- `a_reference_requirement_after_an_indented_fence_marker_is_reported_lost` verifies the merge-base blob and its restore command. `default_tip_keeps_a_requirement_after_an_indented_fence_marker` checks that the default-tip reader still sees the requirement and prints the correct recovery.
+- `an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it` checks one refused attempt, an unchanged acceptance receipt, a read-only audit, and successful archival after restore.
+- `a_sibling_removal_must_survive_the_selected_changes_commit` exercises an approved removal in its own workspace and as another change’s authority. It covers an untracked package, a partially staged package, and an approval whose working copy differs from its index entry. The staged definition survives a fresh clone while the private notes remain local.
+- `accept_records_a_lost_requirement_and_can_retry_after_restore` covers the legacy CLI. `ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it` checks the read-only status and dry-run, open-task priority, and exactly one attempt from a real ship. Both check that a broken attempts ledger leaves the loss diagnostic and the storage error visible.
+
+- `an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibling` verifies that finalize can use its own pending archive. A sibling refuses until the removal records and delta are staged. A real byte or mode change still refuses, while restoring the indexed bytes and mode succeeds without a Git stat refresh. A fresh clone then accepts the same removal. `an_archived_legacy_sibling_needs_its_selected_artifacts_in_the_index` covers a workflow-v1 approval whose selected artifact is present on disk but absent from the index.

@@ -293,6 +293,81 @@ fn ship_status_names_the_restore_for_an_unreadable_archived_verification() {
     assert!(!reopen(&root).0, "reopen cannot load the evidence");
 }
 
+/// A normal clone of the default branch after a squash need not have the archived change's
+/// original implementation commit. The surviving archive authenticates terminal history, but
+/// moving it out of the archive for reopen cannot recover the missing implementation history.
+#[test]
+fn ship_status_explains_reopen_is_unavailable_after_a_squash_clone() {
+    let (temp, root) = archived_project();
+    let archive = fs::read_dir(root.join(".specsync/archive/changes"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.to_string_lossy().ends_with(ID))
+        .expect("the archive package");
+    let finalization: Value =
+        serde_json::from_slice(&fs::read(archive.join("finalization.json")).unwrap()).unwrap();
+    let implementation = finalization["implementation_commit"].as_str().unwrap();
+    let base = git(&root, &["rev-list", "--max-parents=0", "HEAD"]);
+    git(&root, &["reset", "--soft", &base]);
+    git(
+        &root,
+        &["commit", "-q", "-m", "squash the published archive"],
+    );
+    commit_file(&root, "NOTES.md", "unrelated\n", "an unrelated follow-up");
+    commit_file(
+        &root,
+        "src/auth.rs",
+        "// Authentication module, changed in later work.\n",
+        "later work changes an input the archive delivered",
+    );
+    let clone = temp.path().join("fresh-clone");
+    git(
+        temp.path(),
+        &[
+            "clone",
+            "-q",
+            "--no-local",
+            root.to_str().unwrap(),
+            clone.to_str().unwrap(),
+        ],
+    );
+    let in_clone = Command::new("git")
+        .args(["cat-file", "-e", &format!("{implementation}^{{commit}}")])
+        .current_dir(&clone)
+        .output()
+        .unwrap();
+    assert!(
+        !in_clone.status.success(),
+        "the fresh clone must omit the implementation"
+    );
+    assert_eq!(state(&clone), "archived");
+
+    let (reopened, refused) = reopen(&clone);
+    assert!(!reopened, "{refused}");
+    assert!(
+        refused.contains("finalization implementation commit is unavailable"),
+        "{refused}"
+    );
+    assert_eq!(
+        state(&clone),
+        "archived",
+        "the refused reopen restores the archive"
+    );
+
+    let report = ship_status(&clone);
+    for action in [
+        report["stages"][0]["action"].as_str().unwrap_or_default(),
+        report["ship_next"].as_str().unwrap_or_default(),
+    ] {
+        assert!(!action.contains("specsync change reopen"), "{report}");
+        assert!(
+            action.contains("finalization implementation commit is unavailable"),
+            "{report}"
+        );
+    }
+    assert!(!next_line(&clone).contains("specsync change reopen"));
+}
+
 /// The UTC date of now, `YYYY-MM-DD`, as SpecSync names an archive directory.
 fn utc_today() -> String {
     let seconds = SystemTime::now()

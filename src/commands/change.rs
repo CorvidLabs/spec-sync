@@ -2392,6 +2392,9 @@ fn own_evidence_step(
         change::OwnAcceptedEvidence::Current => None,
         change::OwnAcceptedEvidence::Corrupt => Some(lifecycle_next.to_string()),
         change::OwnAcceptedEvidence::Stale => Some(product_stage_action(record)),
+        change::OwnAcceptedEvidence::ReopenUnavailable(reason) => Some(format!(
+            "reopen is unavailable: {reason}; use a checkout that retains the original implementation history"
+        )),
         change::OwnAcceptedEvidence::Unreadable(_) => Some(format!(
             "`{verification_display}` cannot be read; restore it from Git history, then run `specsync change ship-status {}`",
             record.id

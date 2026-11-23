@@ -3826,6 +3826,8 @@ pub(crate) enum OwnAcceptedEvidence {
     Current,
     /// An input of the change's own changed and nothing covers it: `change reopen` accepts.
     Stale,
+    /// The current delivery evidence cannot be reopened in this checkout.
+    ReopenUnavailable(String),
     /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
     Unreadable(String),
     /// The terminal evidence reads `corrupt-history`: the restore the lifecycle next action names
@@ -3838,9 +3840,10 @@ pub(crate) fn own_accepted_evidence(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<OwnAcceptedEvidence, String> {
-    if let Err(error) = load_verification(root, record) {
-        return Ok(OwnAcceptedEvidence::Unreadable(error));
-    }
+    let verification = match load_verification(root, record) {
+        Ok(verification) => verification,
+        Err(error) => return Ok(OwnAcceptedEvidence::Unreadable(error)),
+    };
     // A roster error makes the verdict unavailable. The terminal summary also uses this cached
     // result, but would otherwise turn the error into a corrupt-history verdict for an archive.
     let records = list_all_changes_checked(root)?;
@@ -3850,19 +3853,35 @@ pub(crate) fn own_accepted_evidence(
     }
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    Ok(
-        match validate_accepted_inputs_recursive(
-            root,
-            record,
-            &records,
-            &mut visiting,
-            &mut memo,
-            None,
-        ) {
-            Ok(_) => OwnAcceptedEvidence::Current,
-            Err(_) => OwnAcceptedEvidence::Stale,
-        },
-    )
+    if validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
+        .is_ok()
+    {
+        return Ok(OwnAcceptedEvidence::Current);
+    }
+
+    // An exact surviving archive tree can authenticate a squash-merged record in place.
+    // Reopen moves the workspace out of the archive before validating its current closing
+    // evidence. That check needs the actual implementation and cannot use the archive fallback.
+    if record.workflow_version >= 2
+        && verification.passed
+        && load_approvals(root, record).is_ok_and(|ledger| {
+            latest_terminal_approval(&ledger)
+                .is_some_and(|approval| approval.digest == closing_digest(record, &verification))
+        })
+    {
+        let history = load_finalization(root, record)
+            .and_then(|finalization| finalization_implementation_is_available(root, &finalization));
+        match history {
+            Ok(true) => {}
+            Ok(false) => {
+                return Ok(OwnAcceptedEvidence::ReopenUnavailable(
+                    FINALIZATION_IMPLEMENTATION_MISSING.into(),
+                ));
+            }
+            Err(error) => return Ok(OwnAcceptedEvidence::ReopenUnavailable(error)),
+        }
+    }
+    Ok(OwnAcceptedEvidence::Stale)
 }
 
 /// Whether an archived change's scoped review is settled by its finalization: finalize required a

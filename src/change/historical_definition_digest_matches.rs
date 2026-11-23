@@ -1754,6 +1754,47 @@ fn finalization_digest(finalization: &FinalizationRecord) -> String {
     digest.finish()
 }
 
+const FINALIZATION_IMPLEMENTATION_MISSING: &str =
+    "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it";
+
+/// Check the recorded implementation independently of the surviving archive-tree fallback.
+fn finalization_implementation_is_available(
+    root: &Path,
+    finalization: &FinalizationRecord,
+) -> Result<bool, String> {
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    if resolved != finalization.implementation_commit {
+        return Err("finalization implementation commit is not canonical".into());
+    }
+    let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+    let tree = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &tree_expression,
+        ],
+    )
+    .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+    if tree != finalization.implementation_tree {
+        return Err("finalization implementation tree does not match its commit".into());
+    }
+    Ok(true)
+}
+
 fn validate_finalization_evidence(
     root: &Path,
     record: &ChangeRecord,
@@ -1780,45 +1821,13 @@ fn validate_finalization_evidence_with_review_binding(
     {
         return Err("same-PR finalization does not bind the accepted verification evidence".into());
     }
-    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
-    let resolved = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &implementation_expression,
-        ],
-    );
-    let implementation_commit_available = if let Some(resolved) = resolved {
-        if resolved != finalization.implementation_commit {
-            return Err("finalization implementation commit is not canonical".into());
-        }
-        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
-        let tree = git_output(
-            root,
-            &[
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                &tree_expression,
-            ],
-        )
-        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
-        if tree != finalization.implementation_tree {
-            return Err("finalization implementation tree does not match its commit".into());
-        }
-        true
-    } else if record.state == ChangeState::Archived
-        && archived_finalization_tree_is_recorded(root, record)?
+    let implementation_commit_available = finalization_implementation_is_available(root, &finalization)?;
+    if !implementation_commit_available
+        && (record.state != ChangeState::Archived
+            || !archived_finalization_tree_is_recorded(root, record)?)
     {
-        false
-    } else {
-        return Err(
-            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
-                .into(),
-        );
-    };
+        return Err(FINALIZATION_IMPLEMENTATION_MISSING.into());
+    }
     let review = load_scoped_review(root, record)?;
     if review.schema_version != 2
         || review.change_id != record.id

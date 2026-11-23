@@ -1,4 +1,58 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795447622,
+      "digest": "a8ab48ae2dfedbd8e8554925e971e95a6a5812d4bf8ee67fd059466f6aeb8a83",
+      "note": "Approve the exact #1105 draft e2ec233b covering the shared requirement-loss guard on SDD-managed branches, through change audit and check --strict.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "audit-canonical-requirements-lost-after-the-last-change-is-archived",
+        "title": "Audit canonical requirements lost after the last change is archived",
+        "description": "Audit canonical requirements lost after the last change is archived",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "specs/cmd_check/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/vanished_requirements.rs",
+          "src/commands/check.rs",
+          "tests/integration/vanished_requirements.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "With no active changes on an SDD-enabled Git branch, both change audit and check --strict report each unexplained canonical requirement loss, its original file and a concrete restore command. Managed CI may run only strict check. Both commands pass on a separate no-loss control. A Git project that never enabled SDD keeps its usual strict drift checks. Approved branch removals and requirements moved under the same ID pass. A missing comparison ref is disclosed and incomplete comparison history gives fetch guidance."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Reuse REQ-change-169 for selection, removal accounting and bounded reads. Preserve archive-first CI ordering and the existing required Lifecycle gate. Explicit strict check shares the historical comparison on managed Git branches without importing the rest of lifecycle audit. Keep plain check and projects that never enabled SDD on their existing drift path.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "9392e0ea72454d85f879a911ef8ca25f73a6c310c05c63341c9a468bc48f6a55",
+        "cmd_check": "3fbb7816fbc0fe6f85b26c31231a0041d7d53bf90fd6052ff6d070319f436fe9"
+      },
+      "approved_delta_bases": {
+        "cmd_check: REQUIREMENT REQ-cmd-check-004": "83251a7c5ae1511c75457d8eaefb1b2db4de29a7b821f146cfaa45c8ad9de42b",
+        "cmd_check: SPEC SECTION Invariants": "a33b9a3571aa50f32b58bb075f9b7aaa4086d198f58023e5c65982c6a52089a0",
+        "cmd_check: SPEC SECTION Purpose": "d0dca777357ce2506fa2e0cd538c0e3b08db66a1b49c2eecfacbe6fc4f08f408"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve all",
+        "where": "Codex SpecSync working thread, 2026-11-23 America/Denver, responding to the three presented scopes including #1105 draft e2ec233b; relayed by the lead coordinator",
+        "recorded_by": "Codex"
+      }
+    }
+  ],
   "reopenings": []
 }

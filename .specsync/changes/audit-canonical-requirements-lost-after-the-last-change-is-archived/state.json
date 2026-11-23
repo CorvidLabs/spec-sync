@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "audit-canonical-requirements-lost-after-the-last-change-is-archived",
   "slug": "audit-canonical-requirements-lost-after-the-last-change-is-archived",
   "title": "Audit canonical requirements lost after the last change is archived",
   "description": "Audit canonical requirements lost after the last change is archived",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "5314fb6ae13f7b9cc656cc2aef0fb875a59b2026",
   "created_at": 1795413594,
-  "updated_at": 1795445061,
+  "updated_at": 1795447622,
   "affected_specs": [
     "change",
     "cmd_check"

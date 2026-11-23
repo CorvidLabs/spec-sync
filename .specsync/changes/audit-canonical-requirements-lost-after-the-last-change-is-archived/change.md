@@ -1,6 +1,6 @@
 ---
 id: audit-canonical-requirements-lost-after-the-last-change-is-archived
-state: draft
+state: approved
 type: bug_fix
 base_commit: 5314fb6ae13f7b9cc656cc2aef0fb875a59b2026
 ---

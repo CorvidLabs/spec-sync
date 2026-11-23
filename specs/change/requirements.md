@@ -2276,6 +2276,17 @@ Acceptance Criteria
 - An archived change whose package holds such an item is not reported.
 - An active change whose delta holds no such item audits as before, and so does a project with no active change.
 
+### REQ-change-check-summary-state-001
+
+When a scoped check records a completed verification, SpecSync SHALL publish its latest evidence, attempt ledger, and Verifying state in both state.json and change.md in one recoverable transaction.
+
+Acceptance Criteria
+
+- A passing verification and a completed spec-to-code failure both leave state.json, the change.md frontmatter, and change status at verifying.
+- Rechecking an active change repairs an older implementing summary and preserves surrounding Markdown notes.
+- A pre-verification refusal keeps the current lifecycle state and refusal-only evidence behavior. A publication error restores the prior state and evidence files.
+- check --commit commits the synchronized summary and passing evidence that still allows scoped review.
+
 ### REQ-change-175
 
 The lost-requirements check of REQ-change-169 SHALL read at the reference commit only the requirements files that were canonical there: under the specs directory the reference's configuration named, or beside a spec its registry held. A requirements file the branch makes canonical, by changing `specs_dir` or registering a spec, SHALL count where a requirement is looked for in the working tree, but its contents at the reference SHALL NOT be read as canonical requirements (#1112).

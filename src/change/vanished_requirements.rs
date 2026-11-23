@@ -69,13 +69,23 @@ fn nul_separated(listing: &str) -> impl Iterator<Item = &str> {
     listing.split('\0').filter(|name| !name.is_empty())
 }
 
-/// Read a bounded Git `-z` listing with its path whitespace intact.
-fn git_nul_listing(root: &Path, args: &[&str]) -> Option<String> {
+/// Read bounded Git output without altering its path or blob bytes.
+fn git_raw_utf8(root: &Path, args: &[&str]) -> Option<String> {
     let output = run_git_bounded(root, args, None, MAX_GIT_COMMAND_OUTPUT_BYTES).ok()?;
     if !output.status.success() {
         return None;
     }
     String::from_utf8(output.stdout).ok()
+}
+
+/// Git terminates its prefix with a newline. A space can be part of the directory name.
+fn requirement_repo_prefix(root: &Path) -> Result<String, String> {
+    let mut prefix = git_raw_utf8(root, &["rev-parse", "--show-prefix"])
+        .ok_or_else(|| "unable to determine project path within Git repository".to_string())?;
+    if prefix.ends_with('\n') {
+        prefix.pop();
+    }
+    Ok(prefix)
 }
 
 /// Where canonical requirements files live ("under the specs directory or beside a registered
@@ -217,12 +227,12 @@ fn add_reference_requirement_scope(
         .collect();
     let mut args = vec!["ls-tree", "-z", "--name-only", "--end-of-options", reference, "--"];
     args.extend(candidates.iter().map(String::as_str));
-    let listed = git_nul_listing(root, &args)
+    let listed = git_raw_utf8(root, &args)
         .ok_or_else(|| format!("cannot read the tree of {short}"))?;
     let present: BTreeSet<&str> = nul_separated(&listed).collect();
     let read = |path: &str| {
         let object = format!("{reference}:{prefix}{path}");
-        git_output_allow_empty(root, &["show", object.as_str()])
+        git_raw_utf8(root, &["show", object.as_str()])
             .ok_or_else(|| format!("cannot read {path} at {short}"))
     };
     let mut excluded: BTreeSet<String> = ALWAYS_EXCLUDED_DIRECTORIES.map(String::from).into();
@@ -589,7 +599,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         add_approved_removals(root, change, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
-    let added = git_nul_listing(
+    let added = git_raw_utf8(
         root,
         &[
             "diff",
@@ -606,7 +616,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
     .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
     // `change finalize` moves a change into the archive before its tip is committed, and Git's diff
     // does not list a file it does not track yet (corvid-agent on #1108).
-    let untracked = git_nul_listing(
+    let untracked = git_raw_utf8(
         root,
         &["ls-files", "-z", "--others", "--exclude-standard", "--", archive.as_str()],
     )
@@ -659,12 +669,12 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
 /// `change finalize` names it (`<date>-<id>`, or `<id>`) whose `state.json` there names `id`.
 fn archived_at(root: &Path, commit: &str, id: &str) -> Result<bool, String> {
     let archive = format!(":(literal){ARCHIVE_PATH}/");
-    let listed = git_nul_listing(
+    let listed = git_raw_utf8(
         root,
         &["ls-tree", "-z", "--name-only", "--end-of-options", commit, "--", archive.as_str()],
     )
     .ok_or_else(|| "cannot read the changes this branch archived".to_string())?;
-    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
+    let prefix = requirement_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     let suffix = format!("-{id}");
     for package in nul_separated(&listed) {
         let name = package.rsplit('/').next().unwrap_or(package);
@@ -672,7 +682,7 @@ fn archived_at(root: &Path, commit: &str, id: &str) -> Result<bool, String> {
             continue;
         }
         let object = format!("{commit}:{prefix}{package}/state.json");
-        let named = git_output_allow_empty(root, &["show", object.as_str()])
+        let named = git_raw_utf8(root, &["show", object.as_str()])
             .and_then(|text| serde_json::from_str::<ChangeRecord>(&text).ok())
             .is_some_and(|record| record.id == id);
         if named {
@@ -777,7 +787,7 @@ fn lost_requirements_check(
         ));
     };
     let short = &reference[..reference.len().min(12)];
-    let prefix = git_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
+    let prefix = requirement_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
     // What was canonical at the reference, on its own: only those files are read there
     // (REQ-change-175, #1112). An id is looked for in what is canonical now or was then (Codex on
     // #1108).
@@ -803,7 +813,7 @@ fn lost_requirements_check(
         "--",
     ];
     args.extend(reference_pathspecs.iter().map(String::as_str));
-    let changed = git_nul_listing(root, &args)
+    let changed = git_raw_utf8(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
     // The files that differ, as the reference judged them: its blocks are what can be lost.
     let changed: Vec<&str> = nul_separated(&changed)
@@ -818,7 +828,7 @@ fn lost_requirements_check(
     let mut at_reference: Vec<(String, String, String)> = Vec::new();
     for path in &changed {
         let literal = format!(":(literal){path}");
-        let listed = git_nul_listing(
+        let listed = git_raw_utf8(
             root,
             &["ls-tree", "-z", "--name-only", "--end-of-options", reference.as_str(), "--", literal.as_str()],
         )
@@ -827,7 +837,7 @@ fn lost_requirements_check(
             continue;
         }
         let object = format!("{reference}:{prefix}{path}");
-        let text = git_output_allow_empty(root, &["show", object.as_str()])
+        let text = git_raw_utf8(root, &["show", object.as_str()])
             .ok_or_else(|| format!("cannot read {path} at {short}"))?;
         for (id, body) in requirement_blocks(&text) {
             at_reference.push((id, path.to_string(), body));
@@ -849,7 +859,7 @@ fn lost_requirements_check(
     // #1108, fourth round; Leif's 'continue with 95% confidence').
     let mut args = vec!["ls-files", "-z", "--cached", "--"];
     args.extend(pathspecs.iter().map(String::as_str));
-    let tracked_listing = git_nul_listing(root, &args)
+    let tracked_listing = git_raw_utf8(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
     let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
     let present: BTreeSet<&str> = working
@@ -982,7 +992,7 @@ fn default_branch_requirement_ids(
     scope: &RequirementScope,
 ) -> Option<(String, BTreeSet<String>)> {
     let default = lost_requirements_default_ref(root)?;
-    let prefix = git_repo_prefix(root).ok()?;
+    let prefix = requirement_repo_prefix(root).ok()?;
     // The default branch's ids are read as it is configured: an id in a directory the branch newly
     // excludes is still the default branch's, so the way out never names a merge that changes
     // nothing (the tester's excl2 on #1108).
@@ -996,7 +1006,7 @@ fn default_branch_requirement_ids(
         .collect();
     let mut args = vec!["ls-tree", "-r", "-z", "--name-only", "--end-of-options", default.as_str(), "--"];
     args.extend(pathspecs.iter().map(String::as_str));
-    let mut listed = git_nul_listing(root, &args)?;
+    let mut listed = git_raw_utf8(root, &args)?;
     // `ls-tree` takes no glob, so a companion's own files come from its directory's listing.
     for companion in scope.own_companions() {
         let directory = format!(":(literal){companion}/");
@@ -1005,14 +1015,14 @@ fn default_branch_requirement_ids(
             args.extend(["--", directory.as_str()]);
         }
         listed.push('\0');
-        listed.push_str(&git_nul_listing(root, &args)?);
+        listed.push_str(&git_raw_utf8(root, &args)?);
     }
     let mut held = BTreeSet::new();
     for path in nul_separated(&listed)
         .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
     {
         let object = format!("{default}:{prefix}{path}");
-        let text = git_output_allow_empty(root, &["show", object.as_str()])?;
+        let text = git_raw_utf8(root, &["show", object.as_str()])?;
         held.extend(requirement_blocks(&text).into_iter().map(|(id, _)| id));
     }
     Some((default, held))

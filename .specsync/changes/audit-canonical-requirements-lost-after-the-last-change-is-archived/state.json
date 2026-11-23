@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "audit-canonical-requirements-lost-after-the-last-change-is-archived",
+  "slug": "audit-canonical-requirements-lost-after-the-last-change-is-archived",
+  "title": "Audit canonical requirements lost after the last change is archived",
+  "description": "Audit canonical requirements lost after the last change is archived",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "5314fb6ae13f7b9cc656cc2aef0fb875a59b2026",
+  "created_at": 1795413594,
+  "updated_at": 1795413682,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/vanished_requirements.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "tests/integration/vanished_requirements.rs",
+    "specs/change/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "With zero active changes, audit reports each vanished canonical requirement, its original file and a concrete restore command. An approved removal archived on this branch accounts for its own ID. An older archive cannot excuse a new deletion. A full-history CI checkout rejects the loss. A missing default reference is disclosed and an unreadable merge base gives actionable fetch guidance."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Reuse REQ-change-169 for reference selection, loss accounting and bounded reads. Preserve the archive-first CI ordering and the existing required Lifecycle gate. This proposal covers a read-only audit on a managed branch after archival.",
+    "public_contract": "yes"
+  }
+}

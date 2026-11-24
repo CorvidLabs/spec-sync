@@ -94,6 +94,13 @@
         "where": "coordinator chat (Claude Code, hc t370): original approval 2026-11-13T04:03Z, file-list rule 2026-11-13T04:35Z; both relayed first-hand by claude-code-t370 to claude-code-t38p",
         "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795481572,
+      "digest": "caa5146c847378bbba7246dd9bc36c2e2617c4cb24db195fb8049d93963cbd9e",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

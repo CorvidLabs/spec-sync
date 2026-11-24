@@ -156,5 +156,8 @@ Text `Next:` and `change ship-status` are command-layer projections of the domai
 @plane z=17 label="Shallow baseline guidance takes precedence (#1072)"
 A partial clone can lack objects and commit history at once. When the shallow boundary prevents baseline validation, name the unshallow fetch first so the next command can see the required commits.
 
+@plane z=16 label="Show recoverable lost-requirements blockers (#1113)"
+Ship status reports the branch's lost-requirements blocker when the change can still be checked, finalized or shipped. Archived and retired records have already reached a terminal state. The domain helper applies the same state condition for single-record and roster status.
+
 @plane z=18 label="Report an invalid archive receipt in both formats"
 An archived coverage receipt can be absent, usable, or invalid. Render the domain diagnostic in both status formats and in archive audit. Leave the existing coverage rows and the archive authentication verdict independent of the warning.

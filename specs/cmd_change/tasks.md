@@ -39,4 +39,6 @@ spec: cmd_change.spec.md
 - [x] Read project files only through the bounded project read of `util` (REQ-cmd-change-038). Evidence: `tests/integration/project_reads.rs`.
 - [x] Show shallow-history recovery on lifecycle and correction-ledger refusals (REQ-cmd-change-044, #1072).
 
+- [x] Surface lost-requirements blockers only for changes that can still proceed through the lifecycle (REQ-cmd-change-045, #1113).
+
 - [x] Show a separate advisory warning for invalid archive coverage in text and JSON (REQ-cmd-change-archived-coverage-diagnostics-001).

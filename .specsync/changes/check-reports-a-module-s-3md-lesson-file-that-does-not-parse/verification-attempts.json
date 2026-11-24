@@ -216,6 +216,24 @@
       "requirement_ids": [
         "REQ-cmd-check-023"
       ]
+    },
+    {
+      "timestamp": 1795551031,
+      "commit": "0fa364b778b570f88f5a430342ef978dbfb21b25",
+      "contract_digest": "6fe8d8ebd9cf22bc77aab46d25036c7b1d6bf72f61156d10c6aa8eece73499b2",
+      "execution_digest": "9160ce6071c0ca8176a80ad542f08c5e8c33c1f61f9adf382dc04bab4305578b",
+      "workspace_digest": "89db05c72394a2f076279fa8a697b4b6bed9c29985a3f5205f16da82daa819d0",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023"
+      ]
     }
   ]
 }

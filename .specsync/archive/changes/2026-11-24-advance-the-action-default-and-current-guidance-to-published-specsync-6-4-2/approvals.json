@@ -107,6 +107,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that listed two open decisions. The second described this change as drafted: the main Action's default binary and description move to 6.4.2 with the validator constant that pins it; README, SECURITY, MIGRATION, the adoption guide, the site index and the Action docs name 6.4.2 as current; the github spec's Purpose section moves through one delta, the changelog gains one entry and the release handoff records the publication; it mirrors #1142, and the floating v6 tag is not part of it.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795560216,
+      "digest": "152b92e40ec90a0385bf6fe67a35726dba40cd18e23777a3748fd80cc3e4df2a",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

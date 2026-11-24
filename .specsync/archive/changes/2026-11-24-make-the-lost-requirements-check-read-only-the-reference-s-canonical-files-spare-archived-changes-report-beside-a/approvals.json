@@ -52,6 +52,13 @@
         "where": "Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/1112-1113-1116-1117-definition.md: the recommended choices taken, no new refusal, all four requirements ADDED) by t4c on 2026-11-20 at about 14:50Z, sent directly from hc t4c while ss-lead t58 was stopped",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795483145,
+      "digest": "3e652a1eebcddbc69b7d24a1f9d51f1537bdf358156cf55e57d9862a12df8e94",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

@@ -143,6 +143,9 @@ mod project_reads;
 #[path = "integration/project_writes.rs"]
 mod project_writes;
 
+#[path = "integration/committed_approvals.rs"]
+mod committed_approvals;
+
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
 #[path = "integration/repository_inputs.rs"]
@@ -153,3 +156,6 @@ mod hardening_641;
 
 #[path = "integration/ship_status_reopen_and_resume.rs"]
 mod ship_status_reopen_and_resume;
+
+#[path = "integration/rebase_stale_delta.rs"]
+mod rebase_stale_delta;

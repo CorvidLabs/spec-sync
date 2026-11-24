@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "a5b8752e0e73da54800312c00cc2d0e5295c86ce",
+      "contract_digest": "63870c7547c563c495a4910d35a16ac58ca7aa8d7a0f73f1f21c209cf39325a1",
+      "execution_digest": "1e62e9a3c8e47fdd0c3b669a741cba68190740e169364472ff556a0f44db2b52",
+      "workspace_digest": "54e8ac90f6f268ffed4ff2caa9311bcad9e35c78a34c3b1d55ebfcf684634114",
+      "timestamp": 1795477924,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "SpecSync 6.4.2 release conversation, 2026-11-23 UTC, relayed verbatim by the lead agent (/root) to the archival agent for qualified PR #1152 at a5b8752e0e73da54800312c00cc2d0e5295c86ce.",
+        "recorded_by": "codex-delta-block"
+      }
+    }
+  ]
+}

@@ -1,0 +1,382 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795052240,
+      "digest": "966999b83b04c04fd05ad75428a027c00c24343fada9ff1b97f22a92a45c6639",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval\": \"Leif's decision (2026-11-18): approved.\" (Written on spec-sync issue #1085 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue). Relayed and recorded by claude-code-t4t at 2026-11-19T01:37:19Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "46f39707538f8163e2b149b09f1ac5458eeccc2ba428f77457de6620e102de74",
+        "cmd_change": "036c7a062f2f45a1543c5f087e7a7ce400d972f347c0d55bf4f0faf3e861d6f7"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "577c11f68c5a85602a6b2f609c69e562d0400e4126cc7c03d3cb7a645153fbbd"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Leif's decision (2026-11-18): approved.",
+        "where": "Written on spec-sync issue #1085 on 2026-11-18; relayed to this agent by hc t4c on 2026-11-18 as his scope approval of the issue",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795060919,
+      "digest": "966999b83b04c04fd05ad75428a027c00c24343fada9ff1b97f22a92a45c6639",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, REQ-cmd-change-038 wording)\": \"Approve\" (Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-161 and REQ-cmd-change-038 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58). Relayed and recorded by claude-code-t4t at 2026-11-19T04:01:54Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e76d2d2d42218bf5cc74cef5e08e4ebf349cfe19485c440486d6126a08109feb",
+        "cmd_change": "18754350b6ae22ac8d4f127ab0315cca0385634e817eb090082f5c167a7a7171"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "00e9b13237912a918f96c0af6725da9faf4fdad174a258331c8300d70132bb8d"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Leif in his planning session hc t4c, 2026-11-18, on the REQ-change-161 and REQ-cmd-change-038 wording in ss-lead's gates/1088-1089-wording.md; relayed through ss-lead hc t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795065884,
+      "digest": "966999b83b04c04fd05ad75428a027c00c24343fada9ff1b97f22a92a45c6639",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161 and REQ-cmd-change-038, round 3)\": \"Approve\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T05:24:36Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "bee6e5fa52d59e6b0ce282810060b0fd070a748444b6decafeae8763f28d0af8",
+        "cmd_change": "a15267ea1683b49bb97eb50a4e1eb37c543b097d1fb15e18422830134b5affb5"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "00e9b13237912a918f96c0af6725da9faf4fdad174a258331c8300d70132bb8d"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 05:18Z, on ss-lead's frozen gates/1088-1089-wording-round3.md; relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795097392,
+      "digest": "966999b83b04c04fd05ad75428a027c00c24343fada9ff1b97f22a92a45c6639",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval (REQ-change-161, round 4)\": \"Approve\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:08Z, on ss-lead's frozen gates/1089-wording-round4.md; relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T14:09:49Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the two edits do not overlap word by word, change check rewrites the delta to the merge, records a verifiable rebase in approvals.json, keeps the approval and materializes the merged text; when they overlap it refuses as today and asks for re-approval; change status shows each rebase"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-6.a (an approval is bound to what it approved, so the rebase must be a recorded, re-checkable merge, not a silent edit), CHANGE-6.c, the #843 stale MODIFIED refusal (REQ-change-122) and the #975 moved-base recovery from git",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "b59e991faf93daeee9de11b787670ef4cf8e28b3d5e0000c75b218b15026c746",
+        "cmd_change": "a15267ea1683b49bb97eb50a4e1eb37c543b097d1fb15e18422830134b5affb5"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "00e9b13237912a918f96c0af6725da9faf4fdad174a258331c8300d70132bb8d"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:08Z, on ss-lead's frozen gates/1089-wording-round4.md; relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795101239,
+      "digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the option-2 definition of rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval\": \"approve 1089\" (Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:59Z, on the frozen ss-lead/gates/1089-option2-definition.md (REQ-change-161 replaced whole, REQ-cmd-change-038 dropped, REQ-change-122's second sentence and fourth criterion); relayed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-19T15:13:56Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the edits do not overlap word by word, change check writes the word merge into the delta as a proposal and refuses until a person approves it with change approve, after which change check applies it; when the edits overlap, main deleted the requirement or edited its heading, the working tree holds other text, the requirement is too long, or Git cannot read main's text, it refuses as today naming the cause and the way on, and writes nothing; nothing is proposed in CI"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-122: a stale delta is never applied over text the change did not approve; CHANGE-6.a: only a person approves wording; REQ-change-142: fail closed when a default branch exists and Git cannot answer; Leif's rule 3: every refusal names its way out",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "3a27e6dc8f3494c45dc66ebace68d14d0b5deaf206e03795afb7e903df970986"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "577c11f68c5a85602a6b2f609c69e562d0400e4126cc7c03d3cb7a645153fbbd"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "approve 1089",
+        "where": "Claude Code chat with his planning session hc t4c, 2026-11-19 about 14:59Z, on the frozen ss-lead/gates/1089-option2-definition.md (REQ-change-161 replaced whole, REQ-cmd-change-038 dropped, REQ-change-122's second sentence and fourth criterion); relayed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795477954,
+      "digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+        "title": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "description": "Rebase a stale MODIFIED requirement delta automatically when main's edit does not overlap it, keeping the approval",
+        "kind": "feature",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When main edits a requirement a MODIFIED delta was approved against and the edits do not overlap word by word, change check writes the word merge into the delta as a proposal and refuses until a person approves it with change approve, after which change check applies it; when the edits overlap, main deleted the requirement or edited its heading, the working tree holds other text, the requirement is too long, or Git cannot read main's text, it refuses as today naming the cause and the way on, and writes nothing; nothing is proposed in CI"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-122: a stale delta is never applied over text the change did not approve; CHANGE-6.a: only a person approves wording; REQ-change-142: fail closed when a default branch exists and Git cannot answer; Leif's rule 3: every refusal names its way out",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "eb77fd362dc41f4f9243cbf58437c7b32cce93b6b75fe115b22eb421c16a1fa5"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-122": "4e56659da0433b7079995eb196ee61f710e902c285ce79d95b743895b260d1f2"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "SpecSync 6.4.2 release conversation on 2026-11-23, in response to the two permanent-ID renewal proposals linked in the remaining-PR review question.",
+        "recorded_by": "Codex"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795479618,
+      "digest": "82ba584ba54807c74c62c93913571d6f385b03186b4bdea4f5f44a144af0e755",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+      "actor": "0xLeif",
+      "reason": "#1089 becomes option 2, 'propose, don't approve': change check writes the word merge into the delta as a proposal and refuses until it is approved; the rebase records, recomputing readers and provenance checks are dropped; REQ-change-161 is replaced whole, REQ-cmd-change-038 is dropped and REQ-change-122's second sentence changes, as approved in ss-lead/gates/1089-option2-definition.md (run by the builder on Leif's relayed word, via t4c, 2026-11-19)",
+      "timestamp": 1795101066,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 4,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-161",
+          "content": "When `change check` finds a `## MODIFIED` requirement item of a workflow-v2 change whose canonical block moved after the item was approved (REQ-change-122), or whose block main has edited since the item's base, it SHALL try to rebase the item before refusing (#1085). Main's block SHALL be read from Git, never from the working tree: it is the requirement's block at the merge-base of HEAD and the default branch (`origin/HEAD`, else `origin/main` or `origin/master`), that commit SHALL be on the default branch's first-parent line, and main has edited the item only when that block differs from the item's base and from the delta's body, and that line held the base earlier. It SHALL take the base's text from that line and merge it, main's block and the delta's body word by word, aligning them only on words that occur once in each of the three. It SHALL rebase only when the working tree's block is main's block, the delta's body, or already their merge. An item it cannot rebase SHALL be refused as REQ-change-122 refuses, writing nothing: when the edits overlap (a stretch both sides changed that no such word splits, or a word both sides deleted at one place that one side adds at another, as when both move one word), when a text it needs cannot be read from Git or there is no default branch, when the module's delta is over 256 KiB or the change already holds 64 rebase records, or when the working tree's block is any other text, such as a sentence only the change's branch holds or an older text of main's. The same holds for an item whose working tree block already carries the change's own body: it is refused when main has edited it and it cannot be rebased, since keeping that body drops main's edit, and when a default branch exists and Git cannot read the merge-base, tree, text or history the check needs for it; with no default branch, and in CI, such an item is read as one main has not edited, as before. When one item of a change cannot be rebased, no item is rebased and nothing is written. A rebase SHALL rewrite the item's body in the delta to the merge, so the canonical requirement becomes the merge, append a rebase record to the change's `approvals.json` under `delta_rebases`, and keep the definition approval. A rebase record SHALL hold the base block, main's block, the commit main's block was read at and the delta before the rebase, so every reader recomputes the merge and its digests instead of trusting the record. While the change is delivered, every reader also checks that the commit is on the default branch's first-parent line, is in HEAD's history, holds the main block, and that the line held the base block earlier. The effective approval then binds the rebased delta and main's block as the item's base, so main's next edit to the requirement is found the same way and rebased over the last rebase's main block, or refused. A record that does not recompute, or fails those checks, is refused by `change check` and named by `change status`.\n\nAcceptance Criteria\n- Main edits a requirement after approval and the change rewords another part of it: once the branch has merged main, `change check` rebases the delta, the canonical requirement carries both edits, the approval stays valid with no `change approve`, and `approvals.json` holds one rebase record naming the merge-base commit.\n- A change materialized before main's edit that then merged main is rebased whether Git merged the requirement cleanly or the conflict was resolved to main's side or to the change's side.\n- A second main edit after a materialized rebase is rebased again over the last rebase's main block.\n- Main and the change edit the same words, one side adds back elsewhere a word both sides deleted at one place (base `a b c`, main `a c`, approved `b a c`), or both sides move one word to different places (base `a b c d`, main `b a c d`, approved `a c b d`): `change check` refuses as today, naming the requirement and `specsync change approve <id>`, and writes nothing, also when the branch kept its own text in the merge.\n- A word only one side deleted that the other side's new text uses elsewhere still merges (the change drops one `the`, main appends a sentence with `the`), and so does a word only one side moves.\n- Edits that a repeated word could align two ways (base `c a b d`, main `b b d`, approved `b d`) are refused as an overlap.\n- A sentence only the change's own branch holds, before the first check, after materialization or in a merge resolution, is refused as stale and never merged into the delta, and nothing is written.\n- A working tree holding an older text of the requirement than the approval-time text, or a side branch's text that its merge into the default branch did not keep, is refused, not merged.\n- With one stale requirement that merges and one that overlaps, `change check` refuses, and the deltas, the canonical requirements and `approvals.json` stay byte for byte.\n- A change merged into the default branch before it is finalized (#654), whose block there is its own body, is neither refused nor rebased by `change check --commit` or `change audit` on that branch, and no rebase is recorded.\n- A rebase record that does not recompute, or whose commit is not on the default branch's first-parent line, is not in HEAD's history or does not hold its main block, is refused by `change check`, and text `change status` names it.\n- A `## MODIFIED` spec section, a `## REMOVED` item, a workflow-v1 change, a CI run, a text Git cannot read, a repository with no default branch, a delta over 256 KiB and a change holding 64 rebase records each keep today's refusal.\n- With a default branch, an item whose working tree block already carries the change's own body and whose main text Git cannot read is refused, naming the requirement; with no default branch, and in CI, it materializes as before."
+        },
+        {
+          "module": "change",
+          "operation": "modified",
+          "target": "requirement",
+          "key": "REQ-change-122",
+          "content": "A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal, unless REQ-change-161 rebases the item first. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.\n\nAcceptance Criteria\n- A stale MODIFIED item whose block main rewrote after approval, with edits that overlap the change's own, is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.\n- `change audit` reports the same refusal for that change.\n- The refusal names the module, the requirement or section, and `specsync change approve <id>`.\n- A rebased and re-approved delta materializes, keeping the other change's text it now carries.\n- A block main changed that this change does not touch is not refused.\n- An approval without recorded bases keeps materializing as before.",
+          "previous_content": "A definition approval SHALL record, for every `## MODIFIED` and `## REMOVED` delta item, a digest of the canonical block it was approved against. When such an item is not already applied and its canonical block no longer matches that recorded base, `change check` SHALL refuse before writing any canonical file and `change audit` SHALL report the same refusal. The refusal SHALL name the module and block and SHALL name rewriting the delta body onto the current canonical text, `change approve` and `change check` as the remedy. An approval that recorded no bases is unknown, not violated, and keeps materializing as before.\n\n#### Acceptance Criteria\n\n- A stale MODIFIED item whose block main rewrote after approval is refused by `change check`, both before and after the first materialization, and the canonical file keeps main's bytes.\n- `change audit` reports the same refusal for that change.\n- The refusal names the module, the requirement or section, and `specsync change approve <id>`.\n- A rebased and re-approved delta materializes, keeping the other change's text it now carries.\n- A block main changed that this change does not touch is not refused.\n- An approval without recorded bases keeps materializing as before."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-038",
+          "content": "`change status` SHALL show each delta rebase recorded under the effective definition approval (REQ-change-161), naming the module, the requirement and when it was rebased, in text and in JSON, and SHALL show none while a record does not recompute; text status then prints the refusal `change check` gives, naming the record.\n\nAcceptance Criteria\n- After `change check` rebases a delta, text `change status` prints a line naming the module and requirement as rebased over main's edit, and `--json` lists the rebase under `summary.delta_rebases`.\n- A record that does not recompute is not listed, the approval reads invalid, and text status prints a `Rebase refused:` line naming the record."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
+}

@@ -3101,6 +3101,10 @@ fn validate_committed_archive_coverage(
         return Err("the receipt differs from the committed archive".into());
     }
 
+    if !history_is_fixed_by_head(root) {
+        return Err("complete, unmodified Git history is required to identify the archive generation".into());
+    }
+
     let directory = relative.strip_suffix("/coverage.json").ok_or("invalid receipt path")?;
     let approvals_path = format!("{directory}/approvals.json");
     let approvals = scoped_review_file_at_commit(root, &head, &approvals_path)?

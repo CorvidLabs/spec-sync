@@ -95,6 +95,13 @@
         "where": "The definition: a Claude Code chat answer to his planning session (hc t4c), 2026-11-19 about 14:14Z, item 4 of items 4 to 7, on exactly ss-lead/gates/batch1b-922-933-938-definition.md. The standing OK: a Claude Code question dialog in his planning session (hc t4c), 2026-11-20 about 04:17Z. hc t4c confirmed only that its three conditions hold for ss-lead/gates/batch1b-added-paths-draft.md (every choice the lead's recommended one, no new refusal, no change to approved wording), at about 14:09Z on 2026-11-20. That is not a decision of its own. All relayed through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795479710,
+      "digest": "76ae3c9b876a0dd973428178a0aaae81bd3803d8ac72c9fae1f47d69692ceef1",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

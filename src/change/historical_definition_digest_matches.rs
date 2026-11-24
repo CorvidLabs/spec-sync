@@ -344,8 +344,7 @@ fn validate_trusted_correction_history(
     }
     references.sort();
     references.dedup();
-    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
-        .is_some_and(|value| value == "true");
+    let shallow = clone_is_shallow(root);
     // A correction-free shallow tip is indistinguishable from a correction
     // that was accepted and rolled back below the shallow boundary. Require
     // history through the recorded base before trusting either case; only a
@@ -546,6 +545,7 @@ fn shallow_history_is_complete_for_change(
     } else {
         root.join(shallow_path)
     };
+    // not a project file read: the repository's own .git (a clone does not take this file from the remote)
     let boundaries = fs::read_to_string(&shallow_path).map_err(|error| {
         format!(
             "failed to read shallow Git boundaries {}: {error}",
@@ -961,7 +961,9 @@ pub fn correct_interview_metadata(
     }
 
     ensure_definition_approval_valid(root, &record)?;
-    ensure_closing_approval_valid(root, &record)?;
+    // A correction writes new evidence and still requires the complete validated roster.
+    let records = list_all_changes_checked(root)?;
+    ensure_closing_approval_valid_against(root, &record, &records).map_err(|error| error.reason)?;
     let prior_verification = load_verification(root, &record)?;
     let approvals = load_approvals(root, &record)?;
     let superseded_definition_approval =
@@ -1028,8 +1030,8 @@ pub fn correct_interview_metadata(
     let effective_definition = validate_correction_records(&record, &ledger.corrections)?;
     let dir = change_dir(root, &record.id);
     let mut prepared = vec![
-        (json_content_keeping_unknown_members(&dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
-        (json_content_keeping_unknown_members(&dir.join("state.json"), relay_gated_record(&dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
+        (json_content_keeping_unknown_members(root, &dir.join(CORRECTIONS_FILE), &ledger).map(|content| (dir.join(CORRECTIONS_FILE), content))?),
+        (json_content_keeping_unknown_members(root, &dir.join("state.json"), relay_gated_record(root, &dir, &record).as_ref()).map(|content| (dir.join("state.json"), content))?),
         (dir.join("change.md"), change_markdown_content(&record)),
     ];
     for artifact in &correction.added_artifacts {
@@ -1158,7 +1160,7 @@ fn load_verification_attempts(
     if !history_path.exists() {
         return Ok(Vec::new());
     }
-    let content = fs::read_to_string(&history_path)
+    let content = crate::util::read_project_string(root, &history_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read verification attempt history: {error}"))?;
     let history: VerificationAttemptLedger = serde_json::from_str(&content)
         .map_err(|error| format!("invalid verification attempt history: {error}"))?;
@@ -1228,7 +1230,7 @@ fn scoped_review_attempts_path(root: &Path, record: &ChangeRecord) -> PathBuf {
 fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReviewRecord, String> {
     let workspace = find_change_dir(root, &record.id)?;
     let path = workspace.join(SCOPED_REVIEW_FILE);
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|_| "independent scoped review evidence is missing".to_string())?;
     let review: ScopedReviewRecord = serde_json::from_str(&content).map_err(|error| {
         with_relayed_read_recovery(
@@ -1240,7 +1242,7 @@ fn load_scoped_review(root: &Path, record: &ChangeRecord) -> Result<ScopedReview
     })?;
     let attempts_path = workspace.join(SCOPED_REVIEW_ATTEMPTS_FILE);
     let attempts: ScopedReviewAttemptLedger = serde_json::from_str(
-        &fs::read_to_string(&attempts_path)
+        &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
             .map_err(|_| "append-only scoped review history is missing".to_string())?,
     )
     .map_err(|error| {
@@ -1283,7 +1285,7 @@ fn load_scoped_review_attempt_ledger(
     if !path.exists() {
         return Ok(None);
     }
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read scoped review history: {error}"))?;
     // The same relay checks and recovery `load_scoped_review` applies: send-back and the review
     // ordering read the attempts through here (#995 review).
@@ -1729,7 +1731,7 @@ fn collapsed_scoped_review_archive_is_terminal(
 
 fn load_finalization(root: &Path, record: &ChangeRecord) -> Result<FinalizationRecord, String> {
     let path = find_change_dir(root, &record.id)?.join("finalization.json");
-    let content = fs::read_to_string(&path)
+    let content = crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|_| "same-PR finalization evidence is missing".to_string())?;
     serde_json::from_str(&content)
         .map_err(|error| format!("invalid same-PR finalization evidence: {error}"))
@@ -1751,6 +1753,47 @@ fn finalization_digest(finalization: &FinalizationRecord) -> String {
     digest.frame(b"closing", finalization.closing_digest.as_bytes());
     digest.frame(b"review", finalization.review_digest.as_bytes());
     digest.finish()
+}
+
+const FINALIZATION_IMPLEMENTATION_MISSING: &str =
+    "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it";
+
+/// Check the recorded implementation independently of the surviving archive-tree fallback.
+fn finalization_implementation_is_available(
+    root: &Path,
+    finalization: &FinalizationRecord,
+) -> Result<bool, String> {
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    if resolved != finalization.implementation_commit {
+        return Err("finalization implementation commit is not canonical".into());
+    }
+    let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+    let tree = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &tree_expression,
+        ],
+    )
+    .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+    if tree != finalization.implementation_tree {
+        return Err("finalization implementation tree does not match its commit".into());
+    }
+    Ok(true)
 }
 
 fn validate_finalization_evidence(
@@ -1779,45 +1822,13 @@ fn validate_finalization_evidence_with_review_binding(
     {
         return Err("same-PR finalization does not bind the accepted verification evidence".into());
     }
-    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
-    let resolved = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &implementation_expression,
-        ],
-    );
-    let implementation_commit_available = if let Some(resolved) = resolved {
-        if resolved != finalization.implementation_commit {
-            return Err("finalization implementation commit is not canonical".into());
-        }
-        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
-        let tree = git_output(
-            root,
-            &[
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                &tree_expression,
-            ],
-        )
-        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
-        if tree != finalization.implementation_tree {
-            return Err("finalization implementation tree does not match its commit".into());
-        }
-        true
-    } else if record.state == ChangeState::Archived
-        && archived_finalization_tree_is_recorded(root, record)?
+    let implementation_commit_available = finalization_implementation_is_available(root, &finalization)?;
+    if !implementation_commit_available
+        && (record.state != ChangeState::Archived
+            || !archived_finalization_tree_is_recorded(root, record)?)
     {
-        false
-    } else {
-        return Err(
-            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
-                .into(),
-        );
-    };
+        return Err(FINALIZATION_IMPLEMENTATION_MISSING.into());
+    }
     let review = load_scoped_review(root, record)?;
     if review.schema_version != 2
         || review.change_id != record.id
@@ -2154,6 +2165,8 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
         return Ok(cached);
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let object = format!("{commit}:{path}");
     // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
     // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
@@ -2163,7 +2176,10 @@ fn scoped_review_file_at_commit(
     // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
     if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {
         return Err(format!(
-            "scoped-review Git object `{object}` is listed but could not be read"
+            "scoped-review Git object `{object}` is listed but could not be read{}",
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ));
     }
     let result = output.status.success().then_some(output.stdout);
@@ -2184,11 +2200,16 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = memoized_immutable_text(root, args) {
         return cached;
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
-            "scoped-review Git query failed: git {}",
-            args.join(" ")
+            "scoped-review Git query failed: git {}{}",
+            args.join(" "),
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ))
     } else {
         String::from_utf8(output.stdout)
@@ -2641,7 +2662,7 @@ pub fn record_scoped_review_with_relay(
         .transpose()?;
     let mut attempts = if attempts_path.exists() {
         serde_json::from_str::<ScopedReviewAttemptLedger>(
-            &fs::read_to_string(&attempts_path)
+            &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
                 .map_err(|error| format!("failed to read scoped review history: {error}"))?,
         )
         .map_err(|error| format!("invalid scoped review attempt history: {error}"))?
@@ -2691,12 +2712,12 @@ pub fn record_scoped_review_with_relay(
     let relayed_on_workflow_v1 = review.relayed_by.is_some() && record.workflow_version < 2;
     if review.relayed_by.is_some() && raise_for_relayed_decision(&mut record) {
         let state_path = change_dir(root, &record.id).join("state.json");
-        let state = json_content_keeping_unknown_members(&state_path, &record)?;
+        let state = json_content_keeping_unknown_members(root, &state_path, &record)?;
         prepared.push((state_path, state));
     }
     prepared.push((scoped_review_path(root, &record), json_content(&review)?));
     prepared.push(
-        json_content_keeping_unknown_members(&attempts_path, &attempts)
+        json_content_keeping_unknown_members(root, &attempts_path, &attempts)
             .map(|content| (attempts_path, content))?,
     );
     write_prepared_files(root, &prepared)?;
@@ -2731,6 +2752,9 @@ fn accept_change_with_gate(
     ensure_definition_approval_valid(root, &record)?;
     ensure_no_orphaned_applied_text(root, &record)?;
     let mut verification = load_verification(root, &record)?;
+    // Name a missing requirement before the workspace digest can report the same edit as
+    // generic staleness (REQ-change-169).
+    ensure_no_lost_requirements_recording_refusal(root, &record)?;
     let current_commit = git_output(root, &["rev-parse", "HEAD"]);
     validate_verification_for_commit_binding(root, &record, &verification, require_scoped_review)
         .map_err(|error| format!("cannot accept stale verification: {error}"))?;
@@ -2755,9 +2779,15 @@ fn accept_change_with_gate(
             );
         }
     }
+    // REQ-change-166 (#428): finalize archives only approvals that Git history holds. Asked after
+    // the review, the more basic refusal, and before anything below writes.
+    if gate == "finalization" {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
+    refuse_change_log_delta_items(root, &record)?;
     // Acceptance is the second place deltas reach the canonical spec (`prepare_delta_application`
     // below, when `check` never materialized them), so it gets the same refusal.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
@@ -2793,10 +2823,10 @@ fn accept_change_with_gate(
         // archive-only tips or interrupted finalizations. Gate "finalization" is terminal.
         ledger.approvals.push(ApprovalRecord {
             gate: "finalization".into(),
-            actor: "specsync:finalization".into(),
+            actor: FINALIZATION_APPROVAL_ACTOR.into(),
             timestamp: now(),
             digest: closing_digest.clone(),
-            note: Some("Same-PR finalization closing digest".into()),
+            note: Some(FINALIZATION_APPROVAL_NOTE.into()),
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
@@ -2805,7 +2835,7 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        let approvals = json_content_keeping_unknown_members(root, &approvals_path, &ledger)?;
         prepared.push((approvals_path, approvals));
     } else {
         let actor = resolve_actor(root, actor)?;
@@ -2818,9 +2848,7 @@ fn accept_change_with_gate(
                 actor: actor.clone(),
                 timestamp: now(),
                 digest: stable_definition_digest,
-                note: Some(
-                    "Normalized compatible definition evidence during explicit acceptance".into(),
-                ),
+                note: Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE.into()),
                 definition_pair: None,
                 approved_scope: None,
                 scope_migration: None,
@@ -2852,7 +2880,7 @@ fn accept_change_with_gate(
             relayed_by: None,
         });
         let approvals_path = change_dir(root, &record.id).join("approvals.json");
-        let approvals = json_content_keeping_unknown_members(&approvals_path, &ledger)?;
+        let approvals = json_content_keeping_unknown_members(root, &approvals_path, &ledger)?;
         prepared.push((approvals_path, approvals));
     }
     prepared.push((
@@ -2865,7 +2893,7 @@ fn accept_change_with_gate(
         let attempts_path = change_dir(root, &record.id).join("verification-attempts.json");
         let mut attempts = if attempts_path.exists() {
             let history: VerificationAttemptLedger = serde_json::from_str(
-                &fs::read_to_string(&attempts_path)
+                &crate::util::read_project_string(root, &attempts_path, crate::util::MAX_STATE_FILE_BYTES)
                     .map_err(|error| format!("failed to read verification attempts: {error}"))?,
             )
             .map_err(|error| format!("invalid verification attempt history: {error}"))?;
@@ -2898,7 +2926,7 @@ fn accept_change_with_gate(
             );
         }
         attempts.attempts.push(verification.clone());
-        let attempts = json_content_keeping_unknown_members(&attempts_path, &attempts)?;
+        let attempts = json_content_keeping_unknown_members(root, &attempts_path, &attempts)?;
         prepared.push((attempts_path, attempts));
     }
     if gate == "finalization" {
@@ -2938,9 +2966,9 @@ fn accept_change_with_gate(
     record.canonical_applied = true;
     record.updated_at = now();
     let state_path = change_dir(root, &record.id).join("state.json");
-    let state = json_content_keeping_unknown_members(
+    let state = json_content_keeping_unknown_members(root, 
         &state_path,
-        relay_gated_record(&change_dir(root, &record.id), &record).as_ref(),
+        relay_gated_record(root, &change_dir(root, &record.id), &record).as_ref(),
     )?;
     prepared.push((state_path, state));
     prepared.push((
@@ -2951,11 +2979,49 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+/// Whether `change finalize` would resume this accepted change: the checks it makes before it
+/// resumes an interrupted finalization, without writing (#933). Open tasks are asked apart, as
+/// ship-status and `change ship` already do.
+pub(crate) fn finalization_would_resume(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    require_state(record, &[ChangeState::Accepted], "resume the finalization")?;
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    if record.workflow_version < 2 {
+        return Err(format!("{} uses the legacy workflow", record.id));
+    }
+    if !record.canonical_applied {
+        return Err("canonical deltas are not materialized".into());
+    }
+    let verification = load_verification(root, record)?;
+    validate_finalization_evidence(root, record, &verification)
+        .map(|_| ())
+        .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))
+}
+
+#[cfg(test)]
+thread_local! {
+    static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: `finalize_change`, stopped after acceptance and before the archive move, as an
+/// interrupted finalization leaves the change (#933).
+#[cfg(test)]
+pub(crate) fn finalize_change_stopping_after_acceptance(
+    root: &Path,
+    id: &str,
+) -> Result<PathBuf, String> {
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(true));
+    let result = finalize_change(root, id);
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(false));
+    result
+}
+
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
     // state that determines whether finalization can resume.
-    drop(acquire_project_lock(root)?);
+    let preflight_lock = acquire_project_lock(root)?;
     let record = load_change(root, id)?;
     ensure_change_clear_of_verification_ignored(root, &record)?;
     require_state(
@@ -2966,6 +3032,11 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // Named before the trusted-transition preflight, which would refuse with "found 0".
     if let Some(upstream) = upstream_archive_of(root, &record) {
         return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    let ledger = change_dir(root, &record.id).join("approvals.json");
+    if change_dir(root, &record.id).is_dir() && !ledger.exists() {
+        approvals_ledger_held_by_history(root, &record)?;
     }
     if record.workflow_version < 2 {
         return Err(format!(
@@ -2986,13 +3057,31 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     if record.state == ChangeState::Verifying || change_dir(root, &record.id).is_dir() {
         ensure_tasks_complete(root, &record, &format!("specsync change finalize {}", record.id))?;
     }
+    // Beside it, for the same reason: a finalization that stopped after acceptance and is retried
+    // while its workspace is still active asks again whether the branch lost a canonical
+    // requirement, since it can lose one in between (Codex on #1108; REQ-change-169). A first
+    // finalization asks it in `accept_change_with_gate`.
+    if record.state == ChangeState::Accepted && change_dir(root, &record.id).is_dir() {
+        ensure_no_lost_requirements_recording_refusal(root, &record)?;
+    }
+    // Acceptance and archival each take this non-reentrant lock themselves.
+    drop(preflight_lock);
     if record.state == ChangeState::Verifying {
         // REQ-change-157: ship and finalize refuse a verification commit that
         // lacks the change's work, before acceptance writes anything.
         let verification = load_verification(root, &record)?;
         ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+        #[cfg(test)]
+        if STOP_FINALIZE_AFTER_ACCEPTANCE.with(std::cell::Cell::get) {
+            return Err(
+                "test: the finalization stopped after acceptance, before the archive move".into(),
+            );
+        }
     } else {
+        // REQ-change-166 (#428): a resumed finalization archives only approvals that Git history
+        // holds; the uncommitted `finalization` approval is the accepting step's own record.
+        approvals_ledger_held_by_history(root, &record)?;
         let verification = load_verification(root, &record)?;
         validate_finalization_evidence(root, &record, &verification)
             .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))?;
@@ -3006,9 +3095,863 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(archive)
 }
 
+/// The record an archive keeps of the in-flight changes that covered its changed inputs (#657).
+const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
+
+#[derive(Deserialize)]
+struct ArchiveCoverageReceipt {
+    schema_version: u32,
+    change_id: String,
+    covered_by: Vec<ArchiveCoverageEntry>,
+}
+
+#[derive(Deserialize)]
+struct ArchiveCoverageEntry {
+    path: String,
+    change: String,
+}
+
+fn read_archive_coverage(
+    root: &Path,
+    path: &Path,
+    id: &str,
+) -> Result<Option<(String, ArchiveCoverageReceipt)>, String> {
+    reject_symlink_components_for(root, path, "archive coverage receipt")?;
+    let Some(bytes) = crate::util::read_project_file(root, path, MAX_CHANGE_ARTIFACT_BYTES)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+    let receipt: ArchiveCoverageReceipt =
+        serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    if receipt.schema_version != 1 {
+        return Err(format!("unsupported schema version {}", receipt.schema_version));
+    }
+    if receipt.change_id != id {
+        return Err("the receipt identifies a different change".into());
+    }
+    if receipt.covered_by.is_empty() {
+        return Err("the receipt contains no coverage entries".into());
+    }
+    let mut entries = BTreeSet::new();
+    for entry in &receipt.covered_by {
+        if entry.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&entry.path).as_deref() != Ok(entry.path.as_str())
+            || validate_change_id(&entry.change).is_err()
+            || entry.change == id
+            || !entries.insert((&entry.path, &entry.change))
+        {
+            return Err("the receipt contains an invalid or repeated coverage entry".into());
+        }
+    }
+    Ok(Some((text, receipt)))
+}
+
+/// A receipt can describe a generation only when the same bytes were committed with it.
+/// A later receipt edit, package relocation, or restoration of a superseded receipt cannot
+/// provide new coverage. Archives still authenticate their own terminal evidence separately.
+fn validate_committed_archive_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    let relative = git_repo_relative_path(root, &portable_project_path(root, path))?;
+    let literal = format!(":(top,literal){relative}");
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .ok_or("the committed archive could not be read")?;
+    if !git_entry_at_commit(root, &head, &relative)?.is_some_and(|(mode, bytes)| {
+        matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+    }) {
+        return Err("the receipt differs from the committed archive".into());
+    }
+    let status = run_git_bounded(
+        root,
+        &["status", "--porcelain=v1", "--untracked-files=all", "--", &literal],
+        None,
+        MAX_GIT_DIAGNOSTIC_BYTES,
+    )?;
+    if !status.status.success() || !status.stdout.is_empty() {
+        return Err("the receipt differs from the committed archive".into());
+    }
+
+    if !history_is_fixed_by_head(root) {
+        return Err("complete, unmodified Git history is required to identify the archive generation".into());
+    }
+
+    let directory = relative.strip_suffix("/coverage.json").ok_or("invalid receipt path")?;
+    let approvals_path = format!("{directory}/approvals.json");
+    let approvals = scoped_review_file_at_commit(root, &head, &approvals_path)?
+        .ok_or("the archive's committed approval ledger is missing")?;
+    let generation = relay_blind_approval_ledger_bytes(&approvals)
+        .ok_or("the archive's committed approval ledger is invalid")?;
+    let mut matched = false;
+    for introduction in admissible_archive_introductions(root, record, &approvals)? {
+        if ensure_git_ancestor(root, &introduction.commit, &head, "archive coverage introduction").is_err()
+            || introduction.approvals.as_deref().and_then(relay_blind_approval_ledger_bytes).as_ref()
+                != Some(&generation)
+        {
+            continue;
+        }
+        let original = format!("{}/{PROVISIONAL_COVERAGE_FILE}", introduction.directory);
+        if !git_entry_at_commit(root, &introduction.commit, &original)?.is_some_and(|(mode, bytes)| {
+            matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+        }) {
+            return Err("the receipt differs from the one committed with this archive generation".into());
+        }
+        matched = true;
+    }
+    if !matched {
+        return Err("no committed archive introduction authenticates the receipt".into());
+    }
+    Ok(())
+}
+
+fn archive_coverage_warning(root: &Path, path: &Path, id: &str, error: &str) -> String {
+    let relative = portable_project_path(root, path);
+    let literal = shell_word(&format!(":(literal){relative}"));
+    format!(
+        "archive `{id}` has invalid coverage at `{relative}` ({error}); restore it from a known-good commit with `git restore --source <known-good-commit> -- {literal}`"
+    )
+}
+
+/// What an archived change's `coverage.json` recorded, with each covering change's present state
+/// (REQ-change-167). A covering change that reaches acceptance needs the explicit succession
+/// evidence for the recorded input. A present invalid receipt produces a diagnostic independently
+/// of the archive's authenticated evidence.
+pub fn archived_provisional_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
+    archived_provisional_coverage_with_roster(root, record, None)
+}
+
+fn archived_provisional_coverage_with_roster(
+    root: &Path,
+    record: &ChangeRecord,
+    roster: Option<&BTreeMap<String, ChangeRecord>>,
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
+    if record.state != ChangeState::Archived {
+        return Ok(Vec::new());
+    }
+    let Ok(directory) = find_change_dir(root, &record.id) else {
+        return Ok(Vec::new());
+    };
+    let path = directory.join(PROVISIONAL_COVERAGE_FILE);
+    let Some((content, coverage)) = read_archive_coverage(root, &path, &record.id)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?
+    else {
+        return Ok(Vec::new());
+    };
+    validate_committed_archive_coverage(root, record, &path, &content)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?;
+    // Load the signed manifest and change roster at most once per archive, and only when
+    // a recorded covering change can still qualify.
+    let signed = std::cell::OnceCell::new();
+    let local_roster = std::cell::OnceCell::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    let mut is_standing = |candidate: &ChangeRecord, path: &str| {
+        let terminal = matches!(candidate.state, ChangeState::Accepted | ChangeState::Archived);
+        if terminal
+            && !candidate.supersedes.iter().any(|edge| {
+                edge.predecessor_id == record.id
+                    && edge.obligations.iter().any(|item| item.path == path)
+            })
+        {
+            return false;
+        }
+        let Some(manifest) = signed.get_or_init(|| resolved_acceptance_manifest(root, record).ok()) else {
+            return false;
+        };
+        let Ok(index) = manifest.entries.binary_search_by(|entry| entry.path.as_str().cmp(path)) else {
+            return false;
+        };
+        let expected = &manifest.entries[index];
+        let mut remaining: Vec<_> = expected.owners.iter().collect();
+        if !terminal {
+            remaining.retain(|owner| {
+                !in_flight_change_covers(root, &mut memo, candidate, record, path, owner)
+            });
+            if remaining.len() == expected.owners.len() {
+                return false;
+            }
+            // A named in-flight change can cover every owner on its own. No other
+            // workspace has to load successfully to establish its current approval.
+            if remaining.is_empty() {
+                return true;
+            }
+        }
+        let Some(records) = roster.or_else(|| {
+            local_roster.get_or_init(|| list_all_changes_structural(root).ok()).as_ref()
+        }) else {
+            return false;
+        };
+        let mut rejected = BTreeMap::new();
+        let mut historical = false;
+        let mut proves = |owner: &str, covering: &ChangeRecord| {
+            if in_flight_change_covers(root, &mut memo, covering, record, path, owner) {
+                return true;
+            }
+            successor_covers_input(
+                root, record, records, [covering], &mut BTreeSet::new(), &mut memo, None,
+                expected, owner, &mut rejected, &mut historical,
+            )
+        };
+        // The recorded change must still cover part of the input. Other changes can cover
+        // the remaining signed owners, just as they do in the active predecessor walk.
+        let mut recorded_contributes = !terminal;
+        let complete = remaining.into_iter().all(|owner| {
+            if terminal && proves(owner, candidate) {
+                recorded_contributes = true;
+                return true;
+            }
+            records.values().any(|other| other.id != candidate.id && proves(owner, other))
+        });
+        recorded_contributes && complete
+    };
+    Ok(coverage.covered_by
+        .into_iter()
+        .map(|ArchiveCoverageEntry { path, change }| {
+            let covering = load_change(root, &change).ok();
+            let change_state = covering.as_ref().map(|record| record.state);
+            let warning_reason = match covering {
+                Some(candidate) => match candidate.state {
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without current approved coverage for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
+                    ChangeState::Accepted | ChangeState::Archived => {
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without complete verified explicit succession for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
+                    state => Some(format!("now {}, so no accepted change stands behind it", state.as_str())),
+                },
+                None => Some("no longer in the project, so no accepted change stands behind it".into()),
+            };
+            let warning = warning_reason.map(|reason| format!(
+                "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {reason}; run `specsync change reopen {} --actor <name> --reason <text>`",
+                record.id, record.id
+            ));
+            ProvisionalCoverageSummary {
+                path,
+                change,
+                change_state,
+                warning,
+            }
+        })
+        .collect())
+}
+
+/// The later accepted changes that declare `path` under a stale owner, or whose delivery changed it: each
+/// of them waits on `record` too, because archiving any change runs the preflight that finds
+/// `record` stale (REQ-change-168). A later change that edits the input without declaring it is the
+/// common case, since it covers nothing (the tester on #657 with #688).
+fn later_changes_blocked_by(
+    root: &Path,
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owners: &[String],
+) -> Vec<String> {
+    records
+        .values()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && candidate.state == ChangeState::Accepted
+                && happens_after(candidate, record)
+                && ((candidate.affected_specs.iter().any(|module| owners.contains(module))
+                    && candidate
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope)))
+                    || delivery_changed_path(root, candidate, record, path))
+        })
+        .map(|candidate| candidate.id.clone())
+        .collect()
+}
+
+/// Whether `candidate`'s delivery changed `path` after `record` was verified: a commit that
+/// `candidate`'s verification reaches, and that neither its base nor `record`'s verified commit
+/// reaches, touches the path.
+fn delivery_changed_path(
+    root: &Path,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+) -> bool {
+    let verified = |change: &ChangeRecord| {
+        load_verification(root, change)
+            .ok()
+            .and_then(|verification| verification.commit)
+            .filter(|commit| is_canonical_commit_id(commit))
+    };
+    let Some(delivered) = verified(candidate) else {
+        return false;
+    };
+    let Ok(relative) = git_repo_relative_path(root, path) else {
+        return false;
+    };
+    let mut args = vec!["rev-list".to_string(), "--max-count=1".to_string(), delivered];
+    if let Some(base) = candidate
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    {
+        args.push(format!("^{base}"));
+    }
+    if let Some(earlier) = verified(record) {
+        args.push(format!("^{earlier}"));
+    }
+    args.push("--".to_string());
+    args.push(format!(":(top,literal){relative}"));
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_output_allow_empty(root, &args).is_some_and(|commits| !commits.trim().is_empty())
+}
+
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
+}
+
+/// The note `change accept` gives the `definition` approval it writes when the effective
+/// definition approval no longer carries the stable definition digest. Besides its closing
+/// approval, it is the one record an accepting step writes (REQ-change-166).
+const ACCEPTANCE_NORMALIZING_DEFINITION_NOTE: &str =
+    "Normalized compatible definition evidence during explicit acceptance";
+
+/// The approvals-ledger lists whose committed records never change (REQ-change-166).
+const APPEND_ONLY_LEDGER_LISTS: [&str; 3] = ["approvals", "reopenings", "send_backs"];
+
+/// The actor and note of the `finalization` approval a finalizing acceptance writes. The
+/// approvals-ledger check exempts an uncommitted closing record only when it is that record
+/// (REQ-change-166, #1120 review).
+const FINALIZATION_APPROVAL_ACTOR: &str = "specsync:finalization";
+const FINALIZATION_APPROVAL_NOTE: &str = "Same-PR finalization closing digest";
+
+/// The reopening members `specsync migrate 5.0` adds to a reopening that lacked them. They may be
+/// added to a committed reopening, never changed (REQ-change-166).
+const MIGRATION_BACKFILLED_REOPENING_MEMBERS: [&str; 2] = [
+    "stale_acceptance_input_digest",
+    "current_acceptance_input_digest",
+];
+
+/// REQ-change-166 (#428): `change finalize`, `change ship` and `change archive` archive only an
+/// approvals ledger that Git history holds, and `change ship-status` reports this refusal as a
+/// blocker (REQ-cmd-change-committed-ledger-001). Read-only.
+///
+/// The ledger must be committed at `HEAD`, and the working copy must equal that version, except
+/// that an `accepted` change may append the closing records its accepting step wrote and has not
+/// committed. Every version committed along `HEAD`'s first-parent history must extend the one
+/// committed before it (`approvals_ledger_rewrite`). A commit at which the file does not exist, as
+/// an archive move leaves it, is skipped, so a change reopened out of its archive is compared with
+/// the ledger it had before the move, and one deleted and created again under the same id is
+/// refused unless its new ledger extends the old one. A change whose active workspace is gone,
+/// because a finalization moved it into the archive before stopping, has nothing left to ask.
+///
+/// Each refusal names the file and the way out that fits what differs: a commit when the working
+/// copy only adds records, a restore when it changes or drops one, and for a committed rewrite the
+/// two ways out, because a commit already in history cannot be made to extend the one before it.
+pub(crate) fn approvals_ledger_held_by_history(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    if !change_dir(root, &record.id).is_dir() {
+        return Ok(());
+    }
+    let working = change_dir(root, &record.id).join("approvals.json");
+    approvals_ledger_held_by_history_at(root, record, &working)
+}
+
+/// `approvals_ledger_held_by_history` for the ledger at `working`: the workspace's own, or, when an
+/// archive move is resumed, the moved package's, held to the history of the path the change's
+/// ledger was committed at. A package found in the archive is not exempt only because it is
+/// there (Codex on #1120).
+fn approvals_ledger_held_by_history_at(
+    root: &Path,
+    record: &ChangeRecord,
+    working_path: &Path,
+) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let relative = git_repo_relative_path(root, &display)?;
+    let working = match crate::util::read_project_bytes(root, working_path, crate::util::MAX_STATE_FILE_BYTES) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(missing_approvals_ledger_refusal(root, &display, &relative));
+        }
+        Err(error) => return Err(format!("failed to read `{display}`: {error}")),
+    };
+    let committed = |commit: &str| -> Result<Option<Vec<u8>>, String> {
+        let object = format!("{commit}:{relative}");
+        let output = run_git_bounded(
+            root,
+            &["show", object.as_str(), "--"],
+            None,
+            MAX_CHANGE_ARTIFACT_BYTES as usize,
+        )
+        .map_err(|error| format!("failed to read `{object}`: {error}; {REPAIR}"))?;
+        if output.status.success() {
+            return Ok(Some(output.stdout));
+        }
+        match commit_tree_lists_path(root, commit, &relative) {
+            Some(false) => Ok(None),
+            _ => Err(format!("failed to read `{object}`; {REPAIR}")),
+        }
+    };
+    const WHY: &str = APPROVALS_LEDGER_WHY;
+    // A blobless clone of a private repository (#1077) or a damaged one cannot read a version.
+    const REPAIR: &str =
+        "repair the repository or fetch the missing objects, then run the command again";
+    let commit_it = if record.state == ChangeState::Accepted {
+        format!("`git add -- {display}` and a commit")
+    } else {
+        check_commit_commits_the_ledger(&record.id)
+    };
+    // `change check --commit` does not commit an ignored file, so its way out would loop
+    // (tester2 on #428): an ignored ledger is told what does work.
+    let ignored = run_git_bounded(root, &["check-ignore", "-q", "--", display.as_str()], None, 1024)
+        .is_ok_and(|output| output.status.success());
+    let commit_it = if ignored {
+        format!(
+            "it is ignored by Git, so `specsync change check {} --commit` cannot commit it: a \
+             change's approvals ledger must not be ignored, so remove the rule that ignores it, or \
+             commit it with `git add -f -- {display}` and a commit",
+            record.id
+        )
+    } else {
+        commit_it
+    };
+    let Some(at_head) = committed("HEAD")? else {
+        return Err(format!(
+            "`{display}` is not committed at HEAD; {WHY}. Commit it with the change \
+             ({commit_it}), then run the command again"
+        ));
+    };
+    if at_head != working
+        && !(record.state == ChangeState::Accepted
+            && appends_only_closing_records(root, record, &at_head, &working))
+    {
+        let rewrite = approvals_ledger_rewrite(&at_head, &working);
+        return Err(working_ledger_restore(&display, &rewrite).unwrap_or_else(|| {
+            format!(
+                "`{display}` adds records the version committed at HEAD does not hold; {WHY}. \
+                 Commit it with the change ({commit_it}), then run the command again"
+            )
+        }));
+    }
+    let pathspec = format!(":(top,literal){relative}");
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let output = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--first-parent",
+            "--no-renames",
+            "--format=%H",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to read the history of `{display}`: {error}; {REPAIR}"))?;
+    if !output.status.success() {
+        return Err(format!("failed to read the history of `{display}`; {REPAIR}"));
+    }
+    let history = String::from_utf8_lossy(&output.stdout);
+    let mut commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "the history of `{display}` exceeds the deterministic \
+             {MAX_TRUSTED_HISTORY_COMMITS}-commit bound"
+        ));
+    }
+    commits.reverse();
+    let short = |commit: &str| commit[..12.min(commit.len())].to_string();
+    let two_ways_out = |commit: &str, removed: Option<&str>| {
+        // Taking out only the commit that created the file again would leave it deleted, so a
+        // removal and its re-creation are named together (tester2 on #428).
+        let commits = match removed {
+            Some(removed) => format!("{} and {}", short(removed), short(commit)),
+            None => short(commit),
+        };
+        format!(
+            "a commit already in history cannot be made to extend the one before it, so take \
+             {commits} out of this branch's history, or make the change again under a new id"
+        )
+    };
+    let mut earlier: Option<(&str, Vec<u8>)> = None;
+    let mut removed_in: Option<&str> = None;
+    for commit in commits {
+        let Some(bytes) = committed(commit)? else {
+            if earlier.is_some() && removed_in.is_none() {
+                removed_in = Some(commit);
+            }
+            continue;
+        };
+        // Each committed version must read as an approvals ledger, the first one too: a version
+        // whose lists are not lists is no baseline to extend (Codex on #1120). Only the shape of
+        // the three lists is asked, so a version an older SpecSync wrote, such as a reopening
+        // without the digests `specsync migrate 5.0` adds, still reads (tester2 on #1120).
+        let rewrite = if !ledger_lists_are_lists(&bytes) {
+            Err(())
+        } else {
+            match &earlier {
+                Some((_, earlier_bytes)) => approvals_ledger_rewrite(earlier_bytes, &bytes),
+                None => relay_blind_approval_ledger_bytes(&bytes)
+                    .map(|_| None)
+                    .ok_or(()),
+            }
+        };
+        match rewrite {
+            Ok(None) => {}
+            Ok(Some(why)) => {
+                let (earlier_commit, _) = earlier.as_ref().expect("a rewrite needs a version");
+                // The commit before the removal is the last one that held the earlier ledger.
+                let removal = match removed_in {
+                    Some(removed) => {
+                        let parent = format!("{removed}^1");
+                        let held = git_output(root, &["rev-parse", "--verify", parent.as_str()])
+                            .map(|commit| format!("last held in {}, ", short(&commit)))
+                            .unwrap_or_default();
+                        format!(
+                            " (the file was {held}removed in {} and created again)",
+                            short(removed)
+                        )
+                    }
+                    None => String::new(),
+                };
+                return Err(format!(
+                    "`{display}` as committed in {} {why} of the version committed in {}{removal}; \
+                     each committed version of the approvals ledger must extend the one before \
+                     it, and {}",
+                    short(commit),
+                    short(earlier_commit),
+                    two_ways_out(commit, removed_in)
+                ));
+            }
+            Err(()) => {
+                return Err(format!(
+                    "`{display}` as committed in {} does not read as an approvals ledger; {WHY}, \
+                     and {}",
+                    short(commit),
+                    two_ways_out(commit, None)
+                ));
+            }
+        }
+        earlier = Some((commit, bytes));
+        removed_in = None;
+    }
+    Ok(())
+}
+
+const APPROVALS_LEDGER_WHY: &str = "a change is archived only with approvals that Git history holds";
+
+/// The restore a working ledger needs when it changes or drops a record committed at `HEAD`, or
+/// does not read as a ledger; `None` when it only adds records (REQ-change-166).
+fn working_ledger_restore(display: &str, rewrite: &Result<Option<String>, ()>) -> Option<String> {
+    let what = match rewrite {
+        Ok(None) => return None,
+        Ok(Some(why)) => format!("{why} of the version committed at HEAD"),
+        Err(()) => "does not read as an approvals ledger".to_string(),
+    };
+    Some(format!(
+        "`{display}` {what}; {APPROVALS_LEDGER_WHY}. Restore it with `git checkout HEAD -- \
+         {display}`, then run the command again"
+    ))
+}
+
+/// `change check --commit` does not commit a ledger whose working copy changes or drops a record
+/// committed at `HEAD`: it refuses before writing anything, naming the restore finalize names
+/// (#1120). A ledger that only adds records, or is not committed yet, is the commit's to make.
+pub(crate) fn ensure_working_ledger_keeps_committed_records(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let Ok(working) = crate::util::read_project_bytes(
+        root,
+        &change_dir(root, &record.id).join("approvals.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
+        return Ok(());
+    };
+    let relative = git_repo_relative_path(root, &display)?;
+    let object = format!("HEAD:{relative}");
+    let Ok(output) = run_git_bounded(
+        root,
+        &["show", object.as_str(), "--"],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    ) else {
+        return Ok(());
+    };
+    if !output.status.success() {
+        return Ok(());
+    }
+    match working_ledger_restore(&display, &approvals_ledger_rewrite(&output.stdout, &working)) {
+        Some(refusal) => Err(refusal),
+        None => Ok(()),
+    }
+}
+
+/// The way out of a ledger refusal that `change check --commit` itself takes.
+fn check_commit_commits_the_ledger(id: &str) -> String {
+    format!("`specsync change check {id} --commit` commits it")
+}
+
+/// Whether the way out of an `approvals_ledger_held_by_history` refusal is `change check
+/// --commit`, so ship-status may keep that command as its next step. Any other way out, a restore
+/// above all, comes first: `check --commit` would commit an edited ledger (#1120).
+pub(crate) fn ledger_refusal_is_committed_by_check(refusal: &str, id: &str) -> bool {
+    refusal.contains(&check_commit_commits_the_ledger(id))
+}
+
+/// Whether `bytes` is a JSON object whose `approvals`, `reopenings` and `send_backs` are each a
+/// list when present (REQ-change-166).
+fn ledger_lists_are_lists(bytes: &[u8]) -> bool {
+    let Ok(serde_json::Value::Object(ledger)) = serde_json::from_slice::<serde_json::Value>(bytes)
+    else {
+        return false;
+    };
+    APPEND_ONLY_LEDGER_LISTS
+        .iter()
+        .all(|list| ledger.get(*list).is_none_or(serde_json::Value::is_array))
+}
+
+/// The refusal for a change whose working `approvals.json` is missing: the file, and the commit to
+/// restore it from, the one that last held it (REQ-change-166, tester2 on #428).
+fn missing_approvals_ledger_refusal(root: &Path, display: &str, relative: &str) -> String {
+    let pathspec = format!(":(top,literal){relative}");
+    // First-parent history, as the check reads it, so a merge that kept a side branch's deletion
+    // names the version the first parent held (Codex on #1120).
+    let last_touch = git_output(
+        root,
+        &["log", "-1", "--first-parent", "--format=%H", "HEAD", "--", pathspec.as_str()],
+    );
+    let held = last_touch.and_then(|commit| match commit_tree_lists_path(root, &commit, relative) {
+        Some(true) => Some(commit),
+        // The last commit that touched it removed it, so its parent last held it.
+        _ => git_output(root, &["rev-parse", "--verify", &format!("{commit}^1")]),
+    });
+    match held {
+        Some(commit) => {
+            let at_head = git_output(root, &["rev-parse", "HEAD"]).is_some_and(|head| head == commit);
+            let from = if at_head {
+                "HEAD".to_string()
+            } else {
+                commit[..12.min(commit.len())].to_string()
+            };
+            format!(
+                "`{display}` is missing; a change is archived only with approvals that Git history \
+                 holds. Restore it from the commit that last held it with `git checkout {from} -- \
+                 {display}`, then run the command again"
+            )
+        }
+        None => format!(
+            "`{display}` is missing and no commit holds it; a change is archived only with \
+             approvals that Git history holds, so make the change again under a new id"
+        ),
+    }
+}
+
+/// Why `newer` does not extend `older`, as "drops `approvals[0]`" or "changes `reopenings[1]`";
+/// `None` when it does; `Err` when either does not read as a ledger (REQ-change-166).
+///
+/// Every record of `approvals`, `reopenings` and `send_backs` in `older` must still be at its
+/// position in `newer`, unchanged. Both are first read through `relay_blind_approval_ledger_bytes`,
+/// the projection the #660 check compares an archived ledger with, so the `relayed_by` of every
+/// approval, and of every reopening's `superseded_approval`, is not compared: `change
+/// repair-relays` restores or removes it. A reopening may gain the two digest members
+/// `specsync migrate 5.0` backfills. Other members of the ledger are not compared.
+fn approvals_ledger_rewrite(older: &[u8], newer: &[u8]) -> Result<Option<String>, ()> {
+    let (Some(older), Some(newer)) = (
+        relay_blind_approval_ledger_bytes(older),
+        relay_blind_approval_ledger_bytes(newer),
+    ) else {
+        return Err(());
+    };
+    for list in APPEND_ONLY_LEDGER_LISTS {
+        let key = format!("\"{list}\"");
+        let (Some(before), Some(after)) = (
+            ledger_entries(&older, key.as_bytes()),
+            ledger_entries(&newer, key.as_bytes()),
+        ) else {
+            return Err(());
+        };
+        for (index, record) in before.iter().enumerate() {
+            match after.get(index) {
+                None => return Ok(Some(format!("drops `{list}[{index}]`"))),
+                Some(kept)
+                    if kept != record
+                        && !(list == "reopenings"
+                            && reopening_only_gains_backfilled_digests(record, kept)) =>
+                {
+                    return Ok(Some(format!("changes `{list}[{index}]`")));
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Whether `newer` is the reopening `older` plus the digest members `specsync migrate 5.0`
+/// backfills where `older` lacked them (REQ-change-166). A member `older` holds must not change.
+fn reopening_only_gains_backfilled_digests(older: &[u8], newer: &[u8]) -> bool {
+    let (Ok(serde_json::Value::Object(older)), Ok(serde_json::Value::Object(mut newer))) = (
+        serde_json::from_slice::<serde_json::Value>(older),
+        serde_json::from_slice::<serde_json::Value>(newer),
+    ) else {
+        return false;
+    };
+    for member in MIGRATION_BACKFILLED_REOPENING_MEMBERS {
+        if !older.contains_key(member) {
+            newer.remove(member);
+        }
+    }
+    older == newer
+}
+
+/// Whether `working` is the ledger committed at `HEAD` plus only the closing records the accepting
+/// step wrote, appended after the committed approvals with nothing else changed: one
+/// `finalization` approval, or an `acceptance` approval with, before it, the normalizing
+/// `definition` approval `change accept` may write (REQ-change-166). Each record must be the one
+/// that step writes, not only one with its gate (Codex and corvid-agent on #1120).
+fn appends_only_closing_records(
+    root: &Path,
+    record: &ChangeRecord,
+    head: &[u8],
+    working: &[u8],
+) -> bool {
+    closing_tail(head, working).is_some_and(|tail| {
+        closing_tail_gates_fit(&tail) && closing_tail_was_written_by_acceptance(root, record, &tail)
+    })
+}
+
+/// `closing_tail` with the gates and notes an accepting step writes; what the rule allows by
+/// shape alone, before the records are compared with what was written.
+#[cfg(test)]
+fn closing_tail_fits(head: &[u8], working: &[u8]) -> bool {
+    closing_tail(head, working).is_some_and(|tail| closing_tail_gates_fit(&tail))
+}
+
+/// The approvals `working` appends after the ones committed at `HEAD`, when that is all it
+/// changes: every committed approval unchanged at its position and every other member equal. The
+/// lists are compared as written, relays included. An absent list and an empty one are the same
+/// only for the ledger's own lists; any other member, a newer SpecSync's included, is compared
+/// exactly (Codex on #1120).
+fn closing_tail(head: &[u8], working: &[u8]) -> Option<Vec<serde_json::Value>> {
+    use serde_json::Value;
+    let normalized = |bytes: &[u8]| -> Option<serde_json::Map<String, Value>> {
+        let Ok(Value::Object(mut ledger)) = serde_json::from_slice::<Value>(bytes) else {
+            return None;
+        };
+        ledger.retain(|key, value| {
+            !(APPEND_ONLY_LEDGER_LISTS.contains(&key.as_str())
+                && matches!(value, Value::Array(items) if items.is_empty()))
+        });
+        Some(ledger)
+    };
+    let (mut head, mut working) = (normalized(head)?, normalized(working)?);
+    let approvals = |ledger: &mut serde_json::Map<String, Value>| match ledger.remove("approvals")
+    {
+        None => Some(Vec::new()),
+        Some(Value::Array(items)) => Some(items),
+        Some(_) => None,
+    };
+    let (committed, mut written) = (approvals(&mut head)?, approvals(&mut working)?);
+    if written.len() <= committed.len() {
+        return None;
+    }
+    let tail = written.split_off(committed.len());
+    (written == committed && working == head).then_some(tail)
+}
+
+fn closing_gate(approval: &serde_json::Value) -> Option<&str> {
+    approval.get("gate").and_then(serde_json::Value::as_str)
+}
+
+fn closing_member<'a>(approval: &'a serde_json::Value, member: &str) -> Option<&'a str> {
+    approval.get(member).and_then(serde_json::Value::as_str)
+}
+
+/// Whether a closing tail has the gates and notes an accepting step writes: one `finalization` or
+/// `acceptance` approval, or the normalizing `definition` approval and then `acceptance`.
+fn closing_tail_gates_fit(tail: &[serde_json::Value]) -> bool {
+    match tail {
+        [closing] => matches!(closing_gate(closing), Some("finalization" | "acceptance")),
+        [normalizing, closing] => {
+            closing_gate(normalizing) == Some("definition")
+                && closing_member(normalizing, "note") == Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)
+                && closing_gate(closing) == Some("acceptance")
+        }
+        _ => false,
+    }
+}
+
+/// Whether each record of a closing tail is the one the accepting step wrote: the closing digest
+/// it binds to the change's verification, a finalization's fixed actor and note, the stable
+/// definition digest and the closer's actor on a normalizing definition approval, and no member
+/// the step does not write (Codex and corvid-agent on #1120). A closer's actor and note are free.
+fn closing_tail_was_written_by_acceptance(
+    root: &Path,
+    record: &ChangeRecord,
+    tail: &[serde_json::Value],
+) -> bool {
+    use serde_json::Value;
+    let Ok(verification) = load_verification(root, record) else {
+        return false;
+    };
+    let closing = closing_digest(record, &verification);
+    let only = |approval: &Value, members: &[&str]| {
+        approval.as_object().is_some_and(|object| {
+            object.get("timestamp").is_some_and(Value::is_u64)
+                && object
+                    .iter()
+                    .all(|(key, value)| members.contains(&key.as_str()) || value.is_null())
+        })
+    };
+    const CLOSING_MEMBERS: [&str; 5] = ["gate", "actor", "timestamp", "digest", "note"];
+    let closes = |approval: &Value| {
+        closing_member(approval, "digest") == Some(closing.as_str())
+            && only(approval, &CLOSING_MEMBERS)
+    };
+    match tail {
+        [last] if closing_gate(last) == Some("finalization") => {
+            closes(last)
+                && closing_member(last, "actor") == Some(FINALIZATION_APPROVAL_ACTOR)
+                && closing_member(last, "note") == Some(FINALIZATION_APPROVAL_NOTE)
+        }
+        [last] => closes(last),
+        [normalizing, last] => {
+            let Ok(stable) = definition_digest(root, record) else {
+                return false;
+            };
+            closing_member(normalizing, "digest") == Some(stable.as_str())
+                && closing_member(normalizing, "actor") == closing_member(last, "actor")
+                && only(
+                    normalizing,
+                    &[
+                        "gate",
+                        "actor",
+                        "timestamp",
+                        "digest",
+                        "note",
+                        "approved_delta_digests",
+                        "approved_delta_bases",
+                    ],
+                )
+                && closes(last)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -3134,7 +4077,7 @@ fn module_layers_path(root: &Path, module: &str) -> String {
 fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>)> {
     let layers = module_layers_path(root, module);
     if root.join(&layers).is_file()
-        && let Ok(text) = fs::read_to_string(root.join(&layers))
+        && let Ok(text) = crate::util::read_project_string(root, &root.join(&layers), crate::util::MAX_SPEC_FILE_BYTES)
         && let Ok(document) = threemd::parse(&text)
     {
         let mut lines = Vec::new();
@@ -3144,7 +4087,7 @@ fn module_lesson_lines(root: &Path, module: &str) -> Option<(String, Vec<String>
         return Some((layers, lines));
     }
     let relative = module_context_path(root, module);
-    let text = fs::read_to_string(root.join(&relative)).ok()?;
+    let text = crate::util::read_project_string(root, &root.join(&relative), crate::util::MAX_SPEC_FILE_BYTES).ok()?;
     Some((relative, context_substantive_lines(module, &text)))
 }
 
@@ -3275,7 +4218,7 @@ fn principles_excerpt_lines(text: &str) -> Vec<String> {
 
 fn read_principles(root: &Path, path: &str) -> Option<String> {
     let absolute = safe_project_path(root, path).ok()?;
-    fs::read_to_string(absolute).ok()
+    crate::util::read_project_string(root, &absolute, crate::util::MAX_SPEC_FILE_BYTES).ok()
 }
 
 fn bounded_excerpt(lines: &[String]) -> (String, bool) {
@@ -3458,7 +4401,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     // be lost: it is archived with the change and read by nobody afterwards.
     for artifact in ["context", "design", "testing"] {
         let path = archive.join(format!("{artifact}.md"));
-        let Ok(text) = fs::read_to_string(&path) else {
+        let Ok(text) = crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let body = strip_frontmatter(&text).trim().to_string();
@@ -3484,7 +4427,7 @@ fn write_lesson_bundle(root: &Path, record: &ChangeRecord, archive: &Path) -> Re
     // Durable like every other artifact this lifecycle writes: a crash mid-write would leave a
     // TRUNCATED bundle, and truncated lessons read exactly like lessons nobody wrote — the same
     // failure this whole change exists to prevent.
-    atomic_write_durable(&archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
+    atomic_write_durable(root, &archive.join(LESSON_BUNDLE_FILE), out.as_bytes())
         .map_err(|error| format!("failed to write lesson bundle: {error}"))
 }
 
@@ -3499,6 +4442,12 @@ fn archive_change_with_options(
     let located = find_change_dir(root, id)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    if change_dir(root, &record.id).is_dir()
+        && !change_dir(root, &record.id).join("approvals.json").exists()
+    {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     validate_acceptance_owner_correction_records(&record)?;
     let source = change_dir(root, &record.id);
     let archive_root = root.join(ARCHIVE_PATH);
@@ -3514,7 +4463,9 @@ fn archive_change_with_options(
             destination.display()
         ));
     }
-    ensure_archiving_closing_approval_valid(root, &record)?;
+    // Which in-flight changes cover this change's changed inputs for now; its archive records
+    // them (#657).
+    let provisional_coverage = ensure_archiving_closing_approval_valid(root, &record)?;
     if !allow_delivery_diff
         && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -3531,17 +4482,63 @@ fn archive_change_with_options(
             );
         }
     }
+    // REQ-change-166 (#428): archive only approvals that Git history holds, before anything is
+    // written. A post-move resume has no active workspace left, so the moved package's ledger is
+    // held to the history of the path it was committed at (Codex on #1120).
+    if resume_post_move {
+        approvals_ledger_held_by_history_at(root, &record, &destination.join("approvals.json"))?;
+    } else {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     let current_location = if resume_post_move {
         destination.as_path()
     } else {
         source.as_path()
     };
-    let original_state_bytes = fs::read(current_location.join("state.json"))
+    let computed_coverage = if provisional_coverage.is_empty() {
+        None
+    } else {
+        Some(json_content(&serde_json::json!({
+            "schema_version": 1,
+            "change_id": record.id,
+            "covered_by": provisional_coverage
+                .iter()
+                .map(|(path, change)| serde_json::json!({ "path": path, "change": change }))
+                .collect::<Vec<_>>(),
+        }))?)
+    };
+    let read_coverage = |directory: &Path| -> Result<Option<Vec<u8>>, String> {
+        let path = directory.join(PROVISIONAL_COVERAGE_FILE);
+        validate_prepared_transaction_target(root, &path)?;
+        match crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    };
+    let coverage_conflict = |directory: &Path| {
+        format!(
+            "unexpected archive coverage at {}; move it aside and retry archival",
+            directory.join(PROVISIONAL_COVERAGE_FILE).display()
+        )
+    };
+    let original_coverage = read_coverage(current_location)
+        .map_err(|error| format!("{}: {error}", coverage_conflict(current_location)))?;
+    // A moved package may carry coverage generated by an earlier attempt. Recompute it
+    // here and retain it only when its bytes agree with the current closing validation.
+    if original_coverage.is_some()
+        && (!resume_post_move
+            || original_coverage.as_deref() != computed_coverage.as_deref().map(str::as_bytes))
+    {
+        return Err(coverage_conflict(current_location));
+    }
+    let coverage_to_publish = computed_coverage.filter(|_| original_coverage.is_none());
+    let original_state_bytes = crate::util::read_project_bytes(root, &current_location.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
-    let original_markdown_bytes = fs::read(current_location.join("change.md"))
+    let original_markdown_bytes = crate::util::read_project_bytes(root, &current_location.join("change.md"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted change before archive: {error}"))?;
     if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| error.to_string())?;
+        crate::util::create_project_dir(root, parent).map_err(|error| error.to_string())?;
     }
     // The package is being closed out of the change's own active workspace by this process, so
     // the closing evidence under `current_location` may speak for a generation history has not
@@ -3556,7 +4553,7 @@ fn archive_change_with_options(
         authenticated_accepted_transition_for(root, &record, pending_close.as_ref())
             .map(|(_, bytes, _)| bytes)
             .unwrap_or_else(|_| original_state_bytes.clone());
-    atomic_write_durable(&accepted_snapshot, &accepted_state_bytes)
+    atomic_write_durable(root, &accepted_snapshot, &accepted_state_bytes)
         .map_err(|error| format!("failed to stage authenticated accepted state: {error}"))?;
     // Structural roster (REQ-change-124). The change being archived had its own history checked
     // by `load_change` and is validated in full below; other archives are read from their own
@@ -3569,7 +4566,7 @@ fn archive_change_with_options(
         Some(pending) => validate_archived_integrity_closing(root, &archived_projection, pending),
         None => validate_archived_integrity(root, &archived_projection),
     } {
-        let _ = remove_file_durable(&accepted_snapshot);
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "archive target historical-integrity preflight failed: {error}"
         ));
@@ -3595,16 +4592,18 @@ fn archive_change_with_options(
             pending_close.as_ref(),
         ) {
             drop(memo);
-            let _ = remove_file_durable(&accepted_snapshot);
+            let _ = remove_file_durable(root, &accepted_snapshot);
+            // REQ-change-168: the stale change cannot be archived either, so the two wait on
+            // each other until it is reopened or a covering change is accepted.
             return Err(format!(
-                "archive post-move preflight would invalidate `{}`: {error}",
-                candidate.id
+                "archive post-move preflight would invalidate `{}`: {error}. `{}` cannot be archived either until it is reopened or a covering change is accepted, so the two wait on each other",
+                candidate.id, candidate.id
             ));
         }
     }
     drop(memo);
-    if !resume_post_move && let Err(error) = rename_durable(&source, &destination) {
-        let _ = remove_file_durable(&accepted_snapshot);
+    if !resume_post_move && let Err(error) = rename_durable(root, &source, &destination) {
+        let _ = remove_file_durable(root, &accepted_snapshot);
         return Err(format!(
             "failed to archive {} to {}: {error}",
             source.display(),
@@ -3614,37 +4613,58 @@ fn archive_change_with_options(
     let mut archived = record.clone();
     archived.state = ChangeState::Archived;
     archived.updated_at = now();
+    let mut coverage_write_attempted = false;
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        // The package has moved, so the archived state rewrites the state.json it carried.
-        json_content_keeping_unknown_members(
-            &destination.join("state.json"),
-            relay_gated_record(&destination, &archived).as_ref(),
-        )
-        .and_then(|state| {
-            write_prepared_files(
+        (|| {
+            if read_coverage(&destination)
+                .map_err(|error| format!("{}: {error}", coverage_conflict(&destination)))?
+                != original_coverage
+            {
+                return Err(coverage_conflict(&destination));
+            }
+            // The package has moved, so the archived state rewrites the state.json it carried.
+            let state = json_content_keeping_unknown_members(
                 root,
-                &[
-                    (destination.join("state.json"), state),
-                    (
-                        destination.join("change.md"),
-                        change_markdown_content(&archived),
-                    ),
-                ],
-            )
-        })
+                &destination.join("state.json"),
+                relay_gated_record(root, &destination, &archived).as_ref(),
+            )?;
+            let mut prepared = vec![
+                (destination.join("state.json"), state),
+                (
+                    destination.join("change.md"),
+                    change_markdown_content(&archived),
+                ),
+            ];
+            if let Some(content) = &coverage_to_publish {
+                prepared.push((destination.join(PROVISIONAL_COVERAGE_FILE), content.clone()));
+                coverage_write_attempted = true;
+            }
+            write_prepared_files(root, &prepared)
+        })()
+    };
+    let restore_package_files = || {
+        atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)?;
+        atomic_write_durable(
+            root,
+            &destination.join("change.md"),
+            &original_markdown_bytes,
+        )?;
+        // Historical validation runs after the publication journal has been cleared.
+        if let Some(expected) = coverage_to_publish.as_deref().filter(|_| coverage_write_attempted)
+            && let Some(bytes) = read_coverage(&destination)?
+        {
+            if bytes != expected.as_bytes() {
+                return Err(coverage_conflict(&destination));
+            }
+            remove_file_durable(root, &destination.join(PROVISIONAL_COVERAGE_FILE))?;
+        }
+        Ok(())
     };
     if let Err(error) = finalize {
         if resume_post_move {
-            let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
-                    .and_then(|()| {
-                        atomic_write_durable(
-                            &destination.join("change.md"),
-                            &original_markdown_bytes,
-                        )
-                    });
+            let restore = restore_package_files();
             return match restore {
                 Ok(()) => Err(format!(
                     "failed to finalize archive; post-move destination remains retryable: {error}"
@@ -3654,12 +4674,9 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
-            .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
-            })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+        let restore = restore_package_files()
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "failed to finalize archive; source restored: {error}"
@@ -3677,14 +4694,7 @@ fn archive_change_with_options(
         None => validate_archived_integrity(root, &archived),
     } {
         if resume_post_move {
-            let restore =
-                atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
-                    .and_then(|()| {
-                        atomic_write_durable(
-                            &destination.join("change.md"),
-                            &original_markdown_bytes,
-                        )
-                    });
+            let restore = restore_package_files();
             return match restore {
                 Ok(()) => Err(format!(
                     "archived evidence failed validation; post-move destination remains retryable: {error}"
@@ -3694,12 +4704,9 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(&destination.join("state.json"), &original_state_bytes)
-            .and_then(|()| {
-                atomic_write_durable(&destination.join("change.md"), &original_markdown_bytes)
-            })
-            .and_then(|()| remove_file_durable(&destination.join("accepted-state.json")))
-            .and_then(|()| rename_durable(&destination, &source));
+        let restore = restore_package_files()
+            .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
+            .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
             Ok(()) => Err(format!(
                 "archived evidence failed post-move validation; source restored: {error}"
@@ -3730,11 +4737,13 @@ fn prune_empty_package_directories(package: &Path) {
     // Deepest first, so a parent emptied by its children is removed in the same pass.
     directories.sort_by_key(|path| std::cmp::Reverse(path.components().count()));
     for directory in directories {
+        // checked project write: removes empty directories inside the package just moved by a rename whose paths were refused as links; rmdir never follows a link
         let _ = fs::remove_dir(&directory);
     }
 }
 
 fn collect_package_directories(directory: &Path, found: &mut Vec<PathBuf>) {
+    // not a project file read: lists the archived package SpecSync just moved, entering only real folders (file_type never follows a link)
     let Ok(entries) = fs::read_dir(directory) else {
         return;
     };
@@ -4026,24 +5035,56 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
 /// away; when the damage is committed, the commit that archived the package holds them; when the
 /// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
 /// literals, the change ID and the package path only — never a digest — and every interpolated
-/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
-/// the step is meant to be copied into a shell (#901 review).
+/// word is quoted as one shell word, because a change ID or archive directory may carry `;`, `$`
+/// or spaces and the step is meant to be copied into a shell (#901 review). Each package path is a
+/// literal Git pathspec (#929), each status command puts `--` before the ID so an ID that begins
+/// with `-` is not read as a flag (#930), and a control byte in a directory name is printed as an
+/// escape that bash still reads as that byte (#931, CHANGE-7.b).
 fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
-    let status = format!("specsync change status {}", shell_quote(id));
+    let id = printable_shell_word(id);
+    let status = format!("specsync change status -- {id}");
+    let literal = |path: &str| printable_shell_word(&literal_pathspec(path));
     match corrupt {
         CorruptArchive::DiffersFromHead { package } => format!(
             "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
-            shell_quote(package)
+            literal(package)
         ),
         CorruptArchive::DamageCommitted { package } => format!(
             "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
-            shell_quote(package),
-            shell_quote(&format!("{package}/state.json"))
+            literal(package),
+            literal(&format!("{package}/state.json"))
         ),
         CorruptArchive::OutsidePackage => format!(
-            "run `{status} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+            "run `specsync change status --json -- {id}`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
+}
+
+/// `text` as one shell word for a printed step: what `shell_quote` gives when it holds no control
+/// character. Otherwise it is written in `$'...'` quoting, with `\\`, `\'` and a `\xHH` escape for
+/// each byte of each control character, so the printed step holds no control byte and cannot add
+/// lines or terminal commands to the output, while bash still reads the exact name (#931,
+/// CHANGE-7.b).
+fn printable_shell_word(text: &str) -> String {
+    if !text.chars().any(char::is_control) {
+        return shell_quote(text);
+    }
+    let mut word = String::from("$'");
+    for character in text.chars() {
+        match character {
+            '\\' => word.push_str("\\\\"),
+            '\'' => word.push_str("\\'"),
+            control if control.is_control() => {
+                let mut bytes = [0_u8; 4];
+                for byte in control.encode_utf8(&mut bytes).as_bytes() {
+                    word.push_str(&format!("\\x{byte:02x}"));
+                }
+            }
+            other => word.push(other),
+        }
+    }
+    word.push('\'');
+    word
 }
 
 /// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
@@ -4092,23 +5133,21 @@ fn corrupt_archive_signal(
     let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
         return Some(CorruptArchive::OutsidePackage);
     };
-    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
-    // package's tracked content differs from that commit, staged or not.
-    let differs_from = |commit: &str| {
-        crate::git_utils::status_without_inherited_output(
-            Command::new("git")
-                .args(["diff", "--quiet", commit, "--", &package])
-                .current_dir(root),
-        )
-        .is_ok_and(|status| status.code() == Some(1))
-    };
+    let differs_from = |commit: &str| archive_package_differs_from(root, commit, &package);
     if differs_from("HEAD") {
         return Some(CorruptArchive::DiffersFromHead { package });
     }
     let state = format!("{package}/state.json");
     let archiving_commit = crate::git_utils::output_after_child_exits(
         Command::new("git")
-            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .args([
+                "log",
+                "-1",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                &literal_pathspec(&state),
+            ])
             .current_dir(root),
     )
     .ok()
@@ -4121,6 +5160,23 @@ fn corrupt_archive_signal(
         Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
         _ => Some(CorruptArchive::OutsidePackage),
     }
+}
+
+/// Whether the tracked content of `package` (relative to `root`) differs from `commit`, staged
+/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then. The
+/// package is one literal path, so `*`, `?` and `[` in it match only that package (#929).
+fn archive_package_differs_from(root: &Path, commit: &str, package: &str) -> bool {
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["diff", "--quiet", commit, "--", &literal_pathspec(package)])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.code() == Some(1))
+}
+
+/// `path` as one literal Git pathspec, relative to the directory Git runs in (#929).
+fn literal_pathspec(path: &str) -> String {
+    format!(":(literal){path}")
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,
@@ -4215,7 +5271,7 @@ fn summarize_change_with_effective(
                 .filter_map(|artifact| {
                     let relative = format!("{CHANGES_PATH}/{}/{}", record.id, artifact.file_name());
                     let path = root.join(&relative);
-                    match fs::read_to_string(path) {
+                    match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
                         Ok(content) if !artifact_is_incomplete(artifact, &content) => None,
                         _ => Some(relative),
                     }
@@ -4447,6 +5503,11 @@ fn summarize_change_with_effective(
         },
         )
     };
+    let (provisional_coverage, provisional_coverage_warning) =
+        match archived_provisional_coverage(root, record) {
+            Ok(entries) => (entries, None),
+            Err(warning) => (Vec::new(), Some(warning)),
+        };
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),
@@ -4467,6 +5528,8 @@ fn summarize_change_with_effective(
             .unwrap_or_default(),
         next_action,
         terminal_evidence,
+        provisional_coverage,
+        provisional_coverage_warning,
         handoff,
     }
 }
@@ -4513,6 +5576,23 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         .map_err(|error| format!("invalid trusted SDD policy `{object}`: {error}"))
 }
 
+/// Whether SDD governs this branch for the project-level comparison `check --strict` shares with
+/// `change audit` (REQ-cmd-check-004, REQ-change-archived-requirement-loss-001): the policy is
+/// enabled in the working tree, or at the trusted comparison base `change audit` reads it from.
+/// A branch does not leave the comparison by disabling or deleting its own policy (Codex on
+/// #1149).
+///
+/// A base policy that cannot be read answers `false`. The comparison needs the same default ref,
+/// so nothing it could have compared is skipped, and a project that never enabled SDD keeps its
+/// result in a checkout without that ref. `change audit` reports the unreadable base itself.
+pub(crate) fn sdd_enabled_here_or_at_comparison_base(root: &Path) -> bool {
+    if load_policy(root).is_some_and(|policy| policy.enabled) {
+        return true;
+    }
+    crate::git_utils::is_git_repo(root)
+        && policy_at_comparison_base(root).is_ok_and(|policy| policy.is_some_and(|policy| policy.enabled))
+}
+
 /// Full lifecycle integrity including archived terminal evidence.
 ///
 /// Product defaults (`change check`, `change audit`, `specsync check`) use
@@ -4552,6 +5632,20 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
             if !report.errors.contains(&error) {
                 report.enabled = true;
                 report.errors.push(error);
+            }
+        }
+        // REQ-change-167: an archive covered for now whose covering change was sent back or
+        // closed is a warning, never an error.
+        if let Ok(records) = list_all_changes_structural(root) {
+            for record in records.values().filter(|record| record.state == ChangeState::Archived) {
+                match archived_provisional_coverage_with_roster(root, record, Some(&records)) {
+                    Ok(entries) => {
+                        for warning in entries.into_iter().filter_map(|entry| entry.warning) {
+                            report.warnings.push(format!("{}: {warning}", record.id));
+                        }
+                    }
+                    Err(warning) => report.warnings.push(warning),
+                }
             }
         }
     }
@@ -4604,8 +5698,8 @@ fn archived_workflow_history_errors(root: &Path) -> Vec<String> {
         Ok(records) => records,
         Err(error) => return vec![error],
     };
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
-        let entries: Vec<std::io::Result<fs::DirEntry>> = entries.collect();
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
+        let entries: Vec<std::io::Result<crate::util::ProjectDirEntry>> = entries.collect();
         prefetch_archived_workflow_histories(root, &entries);
     }
     records
@@ -4858,6 +5952,13 @@ fn check_project_with_command_output(
             ..SddCheckReport::default()
         };
     }
+    if records.is_empty() {
+        match project_lost_requirements(root, "specsync change audit") {
+            Ok(Some(note)) => report.warnings.push(note),
+            Ok(None) => {}
+            Err(error) => report.errors.push(error),
+        }
+    }
     // Issue #825: an invalid `verification_ignored_paths` list is an invalid policy, and an entry
     // overlapping an active change's declared paths refuses that change (REQ-change-115).
     match validated_verification_ignored_paths(root) {
@@ -4893,12 +5994,20 @@ fn check_project_with_command_output(
             if let Err(error) = &delta_files {
                 report.errors.push(format!("{}: {error}", record.id));
             }
-            // The refusal `change check` gives for a delta body edited after approval
-            // (REQ-change-111), asked in its order: only once the scope and the delta files hold.
+            // The refusal `change check` gives a delta item that targets the frozen `## Change
+            // Log` (REQ-change-159), asked where check asks it: once the scope and the delta files
+            // hold, and before the bodies and bases (REQ-change-170, #1090).
             if approval.is_ok()
+                && delta_files.is_ok()
+                && let Err(error) = refuse_change_log_delta_items(root, record)
+            {
+                report.errors.push(format!("{}: {error}", record.id));
+            } else if approval.is_ok()
                 && delta_files.is_ok()
                 && let Err(error) = ensure_approved_delta_bodies_unchanged(root, record)
             {
+                // The refusal `change check` gives for a delta body edited after approval
+                // (REQ-change-111), asked in its order.
                 report.errors.push(format!("{}: {error}", record.id));
             } else if approval.is_ok()
                 && delta_files.is_ok()
@@ -4908,6 +6017,21 @@ fn check_project_with_command_output(
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
             }
+            // The refusal `change check` gives a branch that lost a canonical requirement
+            // (#1081, REQ-change-169), asked whatever this change's own checks say: an approval
+            // or delta that cannot be read accounts for no removal (REQ-change-176, #1116).
+            if let Err(error) = ensure_no_lost_requirements(root, record) {
+                report.errors.push(format!("{}: {error}", record.id));
+            }
+        }
+        // A draft, and an accepted change whose workspace is still active, are active changes too
+        // ("for each active change"): an accepted one's retried finalization refuses the same
+        // loss, and a draft's own delta accounts for no removal (Codex on #1108, both rounds).
+        if matches!(record.state, ChangeState::Draft | ChangeState::Accepted)
+            && change_dir(root, &record.id).is_dir()
+            && let Err(error) = ensure_no_lost_requirements(root, record)
+        {
+            report.errors.push(format!("{}: {error}", record.id));
         }
         if let Err(error) = ensure_no_delta_conflicts(root, record) {
             report.errors.push(format!("{}: {error}", record.id));
@@ -4918,6 +6042,22 @@ fn check_project_with_command_output(
         ) && let Err(error) = ensure_dependencies_satisfied(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
+        }
+        // A changed input an in-flight later change declares is covered until that change is
+        // accepted: a warning naming it, not an error (#657).
+        if record.state == ChangeState::Accepted
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::ProvisionallyCovered
+        {
+            let warning = format!(
+                "{}: {}",
+                record.id,
+                evidence.evidence.reason.as_deref().unwrap_or("covered for now")
+            );
+            report.warnings.push(warning);
         }
         if record.state == ChangeState::Accepted
             && let Some(evidence) = report
@@ -5101,6 +6241,12 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     ));
     actions.push("preserve existing companion files without making them mandatory".into());
     if dry_run {
+        // Preview uses the same read-only checks and bounded reads as adoption (#432).
+        // Discard each prepared file as it is produced.
+        if let Some(source) = detected.as_deref() {
+            validate_foreign_import(root, source)?;
+            prepare_foreign_import(root, source, |_, _| {})?;
+        }
         return Ok(actions);
     }
     let _lock = acquire_project_lock(root)?;
@@ -5109,7 +6255,7 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
         validate_foreign_import(root, source)?;
     }
     let baseline_candidate = prepare_workflow_v2_adoption_candidate(root)?;
-    let existing_bootstrap = fs::read_to_string(root.join(".specsync/adoption-report.json"))
+    let existing_bootstrap = crate::util::read_project_string(root, &root.join(".specsync/adoption-report.json"), crate::util::MAX_STATE_FILE_BYTES)
         .ok()
         .and_then(|content| serde_json::from_str::<serde_json::Value>(&content).ok())
         .and_then(|value| value.get("bootstrap_policy").cloned());
@@ -5153,7 +6299,7 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
         prepared.push((root.join(POLICY_PATH), policy_content));
     }
     if let Some(source) = detected.as_deref() {
-        prepared.extend(prepare_foreign_import(root, source)?);
+        prepare_foreign_import(root, source, |path, content| prepared.push((path, content)))?;
     }
     prepared.push((
         root.join(".specsync/adoption-report.json"),
@@ -5224,7 +6370,7 @@ pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
     };
     let mut paths = Vec::new();
     for candidate in BOOTSTRAP_RECORD_CANDIDATES {
-        let Ok(content) = fs::read(root.join(candidate)) else {
+        let Ok(content) = crate::util::read_project_bytes(root, &root.join(candidate), crate::util::MAX_PROJECT_INPUT_BYTES) else {
             continue;
         };
         paths.push(serde_json::json!({
@@ -5235,7 +6381,8 @@ pub fn record_bootstrap_paths(root: &Path) -> Result<(), String> {
     if paths.is_empty() {
         return Ok(());
     }
-    write_json(
+    write_record_json(
+        root,
         &root.join(BOOTSTRAP_RECORD_PATH),
         &serde_json::json!({
             "version": 1,
@@ -5329,7 +6476,7 @@ fn bootstrap_record_entry(
 }
 
 fn read_json_value(root: &Path, relative: &str) -> Option<serde_json::Value> {
-    let content = fs::read_to_string(root.join(relative)).ok()?;
+    let content = crate::util::read_project_string(root, &root.join(relative), crate::util::MAX_STATE_FILE_BYTES).ok()?;
     serde_json::from_str(&content).ok()
 }
 
@@ -5402,7 +6549,8 @@ mod lesson_bundle_dash_tests {
             requirement_ids: Vec::new(),
             refusal: None,
         };
-        write_json(
+        write_record_json(
+            root,
             &change_dir(root, &record.id).join("verification.json"),
             &verification,
         )

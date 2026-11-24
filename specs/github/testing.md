@@ -83,7 +83,7 @@ spec: github.spec.md
 | Lifecycle gate or preflight fails on a pull request | `test`, `audit`, `coverage` and `spec-check` are skipped, and `SpecSync implementation ready` and `Required CI gate` fail (#796) | `test_issue_796_lifecycle_gate_failure_turns_the_required_gate_red` and the per-path injection test in `test-required-ci-gate.py` |
 | A new CI job gates on `lifecycle-gate` or is selected before the gate | It must be in `implementation-gate.needs` with a `GATES` row matching its `if:` | `test_workflow_holds_to_the_gate_contract` and the guard mutation tests in `test-required-ci-gate.py` |
 
-| Action default after publication | Main wrapper defaults to published `6.3.0`; immutable `@v6.3.0` keeps `6.2.0` and requires explicit version for the new binary; archive-gate examples pin `@v6.3.0` | Run the real offline validator and full release-validator suite, then require actual supported-platform Action checks of the wrapper SHA before advancing floating `v6` |
+| Action default after publication | Main wrapper defaults to published `6.4.1`; immutable `@v6.4.1` keeps `6.4.0` and requires explicit version for the new binary; archive-gate examples pin `@v6.4.1` | Run the real offline validator and full release-validator suite, then require actual supported-platform Action checks of the wrapper SHA before advancing floating `v6` |
 
 ## Reviewer Checklist
 
@@ -122,3 +122,5 @@ Failing-first commit `355f1d69` reproduces the red run
 parse; the complete site suite passes 48 tests with Bun 1.3.14, with zero Astro diagnostics
 and a successful 43-page build. Live external links remain dated audit observations, not
 network-dependent CI gates. Re-run the site lane after any additional documentation change.
+
+ArchiveGateHistoryTests in .github/scripts/test-required-ci-gate.py checks both workflows. A negative control removes fetch-depth from the preceding checkout and requires the configuration check to fail.

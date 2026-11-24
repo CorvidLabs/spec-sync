@@ -42,3 +42,6 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Teach generated skills and the check command archive-first CI (local verify → review → ship → push the archive tip); keep checked-in installed copies identical
 
 - [x] Correct generated archive-first skill guidance: native ship/finalize creates the archive commit; advance template version 8, regenerate managed artifacts and retain failing-first evidence (REQ-agents-009, DOCS-2/DOCS-4).
+- [x] Inspect, write and remove artifacts and the manifest through `util`'s project file functions (REQ-agents-011). Evidence: `tests/integration/project_links.rs` `agents_install_*`.
+- [x] Read project files only through the bounded project read of `util` (REQ-agents-012). Evidence: `tests/integration/project_reads.rs`.
+- [x] Remove an emptied namespace directory only through the confined removal (REQ-agents-013). Evidence: `removing_an_empty_directory_never_follows_a_link_out`.

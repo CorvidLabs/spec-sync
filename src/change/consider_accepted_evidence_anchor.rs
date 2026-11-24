@@ -5,7 +5,7 @@ fn semantic_acceptance_item_exists_for_module(
     module: &str,
 ) -> Result<bool, String> {
     let content =
-        read_bounded_change_text(&delta_path_checked(root, record, module)?, "semantic delta")?;
+        read_bounded_change_text(root, &delta_path_checked(root, record, module)?, "semantic delta")?;
     Ok(parse_delta(&content)?.iter().any(|item| {
         matches!(
             item.target,
@@ -53,6 +53,7 @@ fn acceptance_entry_digest_at_commit(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -66,6 +67,7 @@ fn acceptance_entry_digest_at_commit(
     )
     .map_err(|error| format!("failed to inspect succession base tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to inspect succession base tree: {}",
@@ -74,6 +76,7 @@ fn acceptance_entry_digest_at_commit(
     }
     let result = acceptance_entry_digest_in_tree(&tree, predecessor_id, path);
     let removed = crate::git_utils::output_after_child_exits(
+        // git writes no project file: removes the scratch worktree this function added in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -83,6 +86,7 @@ fn acceptance_entry_digest_at_commit(
             ])
             .current_dir(root),
     );
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     if !removed.is_ok_and(|output| output.status.success()) {
         return Err("failed to remove succession base workspace".into());
@@ -373,6 +377,265 @@ fn rooted_git_command(root: &Path) -> Command {
     command
 }
 
+/// What SpecSync's isolated Git needs to read a repository Git may refuse for its owner
+/// (REQ-change-171, #909).
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum SafeDirectoryState {
+    /// The repository is the user's own: nothing is passed.
+    NotNeeded,
+    /// The user's own Git trusts it: the private global file naming its top level.
+    Trusted(PathBuf),
+    /// The user's own Git refuses it too.
+    Untrusted,
+    /// The user's Git trusts it, but the private file could not be made, for this reason.
+    Unavailable(String),
+}
+
+static SAFE_DIRECTORY_STATES: std::sync::Mutex<BTreeMap<PathBuf, SafeDirectoryState>> =
+    std::sync::Mutex::new(BTreeMap::new());
+static SAFE_DIRECTORY_DIRS: std::sync::Mutex<Vec<tempfile::TempDir>> = std::sync::Mutex::new(Vec::new());
+
+/// The repository's work tree that holds `.git`, at or above `root`.
+fn repository_work_tree(root: &Path) -> Option<&Path> {
+    root.ancestors()
+        .find(|ancestor| fs::symlink_metadata(ancestor.join(".git")).is_ok())
+}
+
+/// The Git directories the repository at `work_tree` uses: its `.git` directory, or, for a linked
+/// worktree's gitfile, the directory it names and the common directory that one's `commondir`
+/// names (Codex on #1122). It spawns nothing.
+fn repository_git_dirs(work_tree: &Path) -> Vec<PathBuf> {
+    let marker = work_tree.join(".git");
+    let Ok(metadata) = fs::symlink_metadata(&marker) else {
+        return Vec::new();
+    };
+    if metadata.is_dir() {
+        return vec![marker];
+    }
+    if !metadata.is_file() {
+        return Vec::new();
+    }
+    // These are Git metadata pointers for the selected checkout. A linked worktree's pointer
+    // may live outside that worktree. Bound the read and require a regular file.
+    let pointer = |path: &Path| {
+        const MAX_GIT_DIRECTORY_POINTER_BYTES: u64 = 64 * 1024;
+        crate::util::read_typed_file(path, MAX_GIT_DIRECTORY_POINTER_BYTES)
+            .ok()
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+    };
+    let Some(git_dir) = pointer(&marker)
+        .and_then(|text| text.lines().find_map(|line| line.strip_prefix("gitdir:").map(str::trim).map(PathBuf::from)))
+        .map(|named| if named.is_absolute() { named } else { work_tree.join(named) })
+    else {
+        return Vec::new();
+    };
+    let common = pointer(&git_dir.join("commondir"))
+        .map(|text| PathBuf::from(text.trim_end_matches(['\n', '\r'])))
+        .map(|named| if named.is_absolute() { named } else { git_dir.join(named) });
+    std::iter::once(git_dir).chain(common).collect()
+}
+
+/// Whether Git would see the repository as another user's: its work tree, its `.git`, or a Git
+/// directory a linked worktree resolves to is owned by another user, or Git's own test switch
+/// says so. It spawns nothing.
+fn repository_owned_by_another_user(root: &Path) -> bool {
+    // Git reads its test switch as a boolean: true, yes, on, or a non-zero number.
+    if std::env::var("GIT_TEST_ASSUME_DIFFERENT_OWNER").is_ok_and(|value| {
+        let value = value.trim().to_ascii_lowercase();
+        matches!(value.as_str(), "true" | "yes" | "on")
+            || value.parse::<i64>().is_ok_and(|number| number != 0)
+    }) {
+        return true;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        let user = unsafe { libc::geteuid() };
+        let Some(work_tree) = repository_work_tree(root) else {
+            return false;
+        };
+        let owner = |path: &Path| fs::symlink_metadata(path).map(|metadata| metadata.uid()).ok();
+        [work_tree.to_path_buf(), work_tree.join(".git")]
+            .into_iter()
+            .chain(repository_git_dirs(work_tree))
+            .filter_map(|path| owner(&path))
+            .any(|uid| uid != user)
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+/// The state for `root`, decided once per process: only a repository owned by another user asks
+/// the user's own Git, once, whether it trusts it.
+fn safe_directory_state(root: &Path) -> SafeDirectoryState {
+    let mut states = SAFE_DIRECTORY_STATES.lock().unwrap_or_else(|poison| poison.into_inner());
+    if let Some(state) = states.get(root) {
+        return state.clone();
+    }
+    let state = if !repository_owned_by_another_user(root) {
+        SafeDirectoryState::NotNeeded
+    } else {
+        match user_git_top_level(root) {
+            None => SafeDirectoryState::Untrusted,
+            Some(top) => match write_safe_directory_file(root, &top) {
+                Ok(file) => SafeDirectoryState::Trusted(file),
+                Err(reason) => SafeDirectoryState::Unavailable(reason),
+            },
+        }
+    };
+    states.insert(root.to_path_buf(), state.clone());
+    state
+}
+
+/// The work tree's top level as the user's own Git reports it, byte for byte with only Git's line
+/// terminator removed, run once with the user's environment and configuration and no prompt;
+/// `None` when it refuses the repository.
+///
+/// It runs as SpecSync's other Git calls are rooted, without the variables that point Git at
+/// another repository (`GIT_DIR`, `GIT_WORK_TREE`, …), and its answer counts only when the top
+/// level is this repository's (corvid-agent on #1122).
+fn user_git_top_level(root: &Path) -> Option<Vec<u8>> {
+    let output = rooted_git_command(root)
+        .args(["rev-parse", "--show-toplevel"])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    let mut top = output.stdout;
+    if top.last() == Some(&b'\n') {
+        top.pop();
+    }
+    if !output.status.success() || top.is_empty() {
+        return None;
+    }
+    #[cfg(unix)]
+    let reported = {
+        use std::os::unix::ffi::OsStrExt;
+        PathBuf::from(std::ffi::OsStr::from_bytes(&top))
+    };
+    #[cfg(not(unix))]
+    let reported = PathBuf::from(String::from_utf8_lossy(&top).into_owned());
+    let this = repository_work_tree(root).and_then(|tree| fs::canonicalize(tree).ok())?;
+    (fs::canonicalize(&reported).ok()? == this).then_some(top)
+}
+
+/// Removes every private safe-directory file this process made, when it exits.
+extern "C" fn remove_safe_directory_files() {
+    SAFE_DIRECTORY_DIRS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .clear();
+}
+
+/// The private global configuration file naming `top` in `safe.directory` and nothing else: a
+/// new owner-only directory under the system temporary directory holding one owner-only file,
+/// created new, never inside the project or its Git directory, removed when the process exits.
+fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String> {
+    let work_tree = repository_work_tree(root);
+    let protected: Vec<_> = work_tree
+        .into_iter()
+        .map(Path::to_path_buf)
+        .chain(std::iter::once(root.to_path_buf()))
+        .chain(work_tree.map(repository_git_dirs).unwrap_or_default())
+        .filter_map(|path| fs::canonicalize(path).ok())
+        .collect();
+    let inside = |directory: &Path| protected.iter().any(|path| directory.starts_with(path));
+    let inside_refusal = "the temporary directory lies inside the project or its Git directory";
+    let parent = fs::canonicalize(std::env::temp_dir())
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
+    if inside(&parent) {
+        return Err(inside_refusal.to_string());
+    }
+    let dir = tempfile::Builder::new()
+        .prefix("specsync-safe-directory-")
+        // not a project file write: the canonical temporary parent is outside the work tree and Git directories.
+        .tempdir_in(&parent)
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
+    let canonical_dir = fs::canonicalize(dir.path()).map_err(|error| error.to_string())?;
+    if inside(&canonical_dir) {
+        return Err(inside_refusal.to_string());
+    }
+    // Git's config quoting, on the path's own bytes.
+    let mut quoted = Vec::with_capacity(top.len());
+    for byte in top {
+        match byte {
+            b'\\' => quoted.extend_from_slice(b"\\\\"),
+            b'"' => quoted.extend_from_slice(b"\\\""),
+            b'\n' => quoted.extend_from_slice(b"\\n"),
+            _ => quoted.push(*byte),
+        }
+    }
+    let mut handle = tempfile::Builder::new()
+        .prefix("config-")
+        // not a project file write: exclusive file in the private system temporary directory
+        // just verified outside the work tree and Git directories.
+        .tempfile_in(dir.path())
+        .map_err(|error| error.to_string())?;
+    let mut content = b"[safe]\n\tdirectory = \"".to_vec();
+    content.extend_from_slice(&quoted);
+    content.extend_from_slice(b"\"\n");
+    std::io::Write::write_all(handle.as_file_mut(), &content).map_err(|error| error.to_string())?;
+    let (_, file) = handle.keep().map_err(|error| error.to_string())?;
+    let mut dirs = SAFE_DIRECTORY_DIRS.lock().unwrap_or_else(|poison| poison.into_inner());
+    if dirs.is_empty() {
+        #[cfg(unix)]
+        unsafe {
+            if libc::atexit(remove_safe_directory_files) != 0 {
+                return Err("could not register cleanup of the private Git configuration".to_string());
+            }
+        }
+    }
+    dirs.push(dir);
+    Ok(file)
+}
+
+/// REQ-change-171's refusal for a repository Git refuses for its owner, when the user's own Git
+/// refuses it too (or the private file could not be made); `None` for every other repository.
+fn untrusted_repository_refusal(root: &Path) -> Option<String> {
+    let reason = match safe_directory_state(root) {
+        SafeDirectoryState::Untrusted => String::new(),
+        SafeDirectoryState::Unavailable(reason) => {
+            format!(" SpecSync could not make the private file that passes that trust to its own Git: {reason}.")
+        }
+        _ => return None,
+    };
+    let path = repository_work_tree(root).unwrap_or(root);
+    let command = safe_directory_recovery_command(path);
+    Some(format!(
+        "Git refuses this repository because it is owned by another user (detected dubious ownership at {}). If you trust it, run `{command}`, then run the command again.{reason}",
+        path.display()
+    ))
+}
+
+fn safe_directory_recovery_command(path: &Path) -> String {
+    shell_command_with_path(path, |word| format!("git config --global --add safe.directory {word}"))
+}
+
+fn shell_command_with_path(path: &Path, command: impl FnOnce(&str) -> String) -> String {
+    if let Some(path) = path.to_str() {
+        return command(&shell_word(path));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        // POSIX printf writes exact bytes. The final x keeps command substitution from
+        // stripping trailing newlines from the path before the shell passes it to Git.
+        let octal: String = path
+            .as_os_str()
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("\\0{byte:03o}"))
+            .collect();
+        let command = command("\"${specsync_dir%x}\"");
+        format!("(specsync_dir=$(printf '%b' '{octal}x'); {command})")
+    }
+    #[cfg(not(unix))]
+    command(&shell_word(&path.to_string_lossy()))
+}
+
 fn configured_git_command(root: &Path) -> Command {
     let mut command = rooted_git_command(root);
     command.env_remove("GIT_CONFIG");
@@ -386,10 +649,16 @@ fn configured_git_command(root: &Path) -> Command {
     }
     command.env_remove("GIT_CONFIG_COUNT");
     command.env("GIT_CONFIG_NOSYSTEM", "1");
-    command.env(
-        "GIT_CONFIG_GLOBAL",
-        if cfg!(windows) { "NUL" } else { "/dev/null" },
-    );
+    // A repository owned by another user that the user's own Git trusts gets that trust, and
+    // nothing else, through a private global file (REQ-change-171); every other one keeps the
+    // global configuration switched off.
+    match safe_directory_state(root) {
+        SafeDirectoryState::Trusted(file) => command.env("GIT_CONFIG_GLOBAL", file),
+        _ => command.env(
+            "GIT_CONFIG_GLOBAL",
+            if cfg!(windows) { "NUL" } else { "/dev/null" },
+        ),
+    };
     if let Some(index) = std::env::var_os("GIT_INDEX_FILE") {
         let index = PathBuf::from(index);
         let effective = if index.is_absolute() {
@@ -546,9 +815,35 @@ fn run_git_bounded(
     input: Option<Vec<u8>>,
     stdout_cap: usize,
 ) -> Result<BoundedCommandOutput, String> {
+    // REQ-change-172: in a partial clone, a read of history objects downloads what is missing
+    // first, in one fetch, whichever read comes first (corvid-agent on #1122). The download runs
+    // its own Git directly, never through here.
+    if reads_history_objects(args) {
+        ensure_partial_clone_objects(root);
+    }
     memoized_configured_git(root, args, input, stdout_cap, |command, input| {
         run_git_command_bounded(command, args, input, stdout_cap)
     })
+}
+
+/// Whether `args` reads objects of the repository's history, which a partial clone may lack.
+fn reads_history_objects(args: &[&str]) -> bool {
+    let mut words = args.iter();
+    while let Some(word) = words.next() {
+        match *word {
+            "-c" => {
+                words.next();
+            }
+            option if option.starts_with('-') => {}
+            subcommand => {
+                return matches!(
+                    subcommand,
+                    "show" | "cat-file" | "log" | "diff" | "diff-tree" | "grep" | "blame"
+                );
+            }
+        }
+    }
+    false
 }
 
 /// Run one configured git query for `root`, answering repository facts from the command's open
@@ -1023,6 +1318,11 @@ fn git_repository_present_uncached(root: &Path) -> Result<bool, String> {
         return Ok(false);
     }
     let diagnostic = stderr.trim();
+    if diagnostic.contains("detected dubious ownership")
+        && let Some(refusal) = untrusted_repository_refusal(root)
+    {
+        return Err(refusal);
+    }
     Err(if diagnostic.is_empty() {
         "Git repository detection failed without a diagnostic".into()
     } else {
@@ -1219,6 +1519,7 @@ fn fingerprint_git_index_paths(paths: Vec<PathBuf>) -> Result<String, String> {
                 if total > MAX_GIT_INDEX_BYTES {
                     return Err("Git index dependencies exceed deterministic bounds".into());
                 }
+                // not a project file read: a Git index file in the Git directory, refused as a link and bounded above
                 let mut file = OpenOptions::new()
                     .read(true)
                     .open(&path)
@@ -1779,7 +2080,7 @@ fn capture_working_candidate(
         Ok(metadata) if metadata.is_file() => (
             AcceptanceInputKind::File,
             working_file_mode(&metadata),
-            fs::read(&path)
+            crate::util::read_project_bytes(root, &path, crate::util::MAX_PROJECT_INPUT_BYTES)
                 .map_err(|error| format!("failed to read {}: {error}", path.display()))?,
         ),
         Ok(_) => (AcceptanceInputKind::NonFile, 0, Vec::new()),
@@ -2212,6 +2513,7 @@ fn reconstruct_legacy_at_anchor(
     let temporary = create_effective_contract_workspace()?;
     let tree = temporary.join("tree");
     let added = crate::git_utils::output_after_child_exits(
+        // git writes no project file: a detached scratch worktree in a folder this function made in the system temporary directory
         Command::new("git")
             .args([
                 "worktree",
@@ -2225,6 +2527,7 @@ fn reconstruct_legacy_at_anchor(
     )
     .map_err(|error| format!("failed to reconstruct legacy acceptance tree: {error}"))?;
     if !added.status.success() {
+        // not a project file write: the scratch worktree this function made in the system temporary directory
         let _ = fs::remove_dir_all(&temporary);
         return Err(format!(
             "failed to reconstruct legacy acceptance tree: {}",
@@ -2283,6 +2586,7 @@ fn reconstruct_legacy_at_anchor(
         None
     } else {
         crate::git_utils::output_after_child_exits(
+            // git writes no project file: removes the scratch worktree this function added in the system temporary directory
             Command::new("git")
                 .args([
                     "worktree",
@@ -2297,11 +2601,13 @@ fn reconstruct_legacy_at_anchor(
     if !removed.is_some_and(|output| output.status.success()) {
         // Reclaim the registration if remove failed; ignore further hygiene errors.
         let _ = crate::git_utils::output_after_child_exits(
+            // git writes no project file: prunes the registration of the scratch worktree this function added
             Command::new("git")
                 .args(["worktree", "prune"])
                 .current_dir(root),
         );
     }
+    // not a project file write: the scratch worktree this function made in the system temporary directory
     let _ = fs::remove_dir_all(&temporary);
     result
 }
@@ -3150,7 +3456,7 @@ fn authenticated_accepted_transition_for(
             && closing_ledger_extends_all_introductions(root, record, &current_approvals)?);
     if eligible.is_empty()
         && closing_evidence_may_speak
-        && let Ok(state_bytes) = fs::read(workspace.join("accepted-state.json"))
+        && let Ok(state_bytes) = crate::util::read_project_bytes(root, &workspace.join("accepted-state.json"), crate::util::MAX_STATE_FILE_BYTES)
         && let Ok(accepted) = serde_json::from_slice::<ChangeRecord>(&state_bytes)
     {
         let mut projection = record.clone();
@@ -3765,47 +4071,337 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
 enum AcceptedInputValidity {
     Exact,
     SuccessorCovered,
+    /// Some changed input is covered only by an in-flight later change (#657).
+    ProvisionallyCovered,
     HistoricallyReconciled,
 }
 
+/// A stale delivery entry carries its signed path and the owners that failed validation.
+#[derive(Clone, Debug)]
+struct AcceptedInputError {
+    reason: String,
+    stale_input: Option<(String, Vec<String>)>,
+}
+
+impl AcceptedInputError {
+    fn stale(reason: String, path: &str, owners: &[String]) -> Self {
+        Self {
+            reason,
+            stale_input: Some((path.to_owned(), owners.to_vec())),
+        }
+    }
+}
+
+impl From<String> for AcceptedInputError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            stale_input: None,
+        }
+    }
+}
+
+impl std::fmt::Display for AcceptedInputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
+    }
+}
+
+/// The first approved, implementing or verifying change created after `record` that declares
+/// `owner` and a scope covering `path`. It covers that changed input of `record` until it is
+/// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
+/// so the obligation is deferred, not dropped (#657).
+fn in_flight_coverer(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> Option<String> {
+    records
+        .values()
+        .find(|candidate| in_flight_change_covers(root, memo, candidate, record, path, owner))
+        .map(|candidate| candidate.id.clone())
+}
+
+fn in_flight_change_covers(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+        && happens_after(candidate, record)
+        && candidate.affected_specs.iter().any(|module| module == owner)
+        && candidate
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(path, scope))
+        && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
+            ensure_definition_approval_valid(root, candidate).is_ok()
+        })
+}
+
+/// The sentence for an accepted change whose changed inputs in-flight changes cover for now.
+fn provisional_coverage_reason(record: &ChangeRecord, covered: &[(String, String)]) -> String {
+    let listed = covered
+        .iter()
+        .map(|(path, change)| format!("`{path}` by in-flight `{change}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change needs explicit succession to cover the input after acceptance",
+        record.id
+    )
+}
+
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
-    if record.state == ChangeState::Archived && read_scope_value(root, |_| Some(())).is_some() {
-        return archived_terminal_evidence_in_scope(root, record);
+    if record.state == ChangeState::Archived {
+        if read_scope_value(root, |_| Some(())).is_some() {
+            return archived_terminal_evidence_in_scope(root, record);
+        }
+        return archived_terminal_summary(root, record, &mut ArchivedIntegrityCache::default());
     }
     if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
         return terminal_summary_from_cache(record, cached);
     }
     if read_scope_value(root, |_| Some(())).is_some() {
-        let result = list_all_changes_checked(root).map(|records| {
-            let accepted: BTreeMap<String, ChangeRecord> = records
+        // #1104: a change whose records fail keeps its own failure; the others are judged on the
+        // changes that loaded, as REQ-change-119, REQ-change-012 and REQ-change-024 say.
+        let result = terminal_evidence_roster(root).map(|roster| {
+            let accepted: BTreeMap<String, ChangeRecord> = roster
+                .records
                 .iter()
                 .filter(|(_, other)| other.state != ChangeState::Archived)
                 .map(|(id, other)| (id.clone(), other.clone()))
                 .collect();
-            let (results, _) = terminal_evidence_results_with_records(root, &accepted, &records);
-            results
+            let (results, _) =
+                terminal_evidence_results_with_records(root, &accepted, &roster.records);
+            let mut summaries: BTreeMap<String, TerminalEvidenceSummary> = results
                 .into_iter()
-                .map(|result| (result.id, result.evidence))
-                .collect()
+                .map(|result| {
+                    let evidence =
+                        name_failed_candidates(&roster, accepted.get(&result.id), result.evidence);
+                    (result.id, evidence)
+                })
+                .collect();
+            // Only a record that is not archived is answered from this map: an archived record
+            // in a read scope is answered by `archived_terminal_evidence_in_scope`.
+            for (id, failed) in &roster.failed {
+                summaries.insert(id.clone(), own_failure_summary(false, failed));
+            }
+            summaries
         });
         update_read_scope(root, |scope| {
             scope.terminal_evidence = Some(result.clone());
         });
         return terminal_summary_from_cache(record, result);
     }
-    let result = list_all_changes_checked(root)
-        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
+        Some(failed) => own_failure_summary(false, failed),
+        None => name_failed_candidates(
+            &roster,
+            Some(record),
+            terminal_evidence_summary_with_records(root, record, &roster.records),
+        ),
+    });
     match result {
         Ok(summary) => summary,
         Err(reason) => TerminalEvidenceSummary {
-            validity: if record.state == ChangeState::Archived {
-                TerminalEvidenceValidity::CorruptHistory
-            } else {
-                TerminalEvidenceValidity::Stale
-            },
+            validity: TerminalEvidenceValidity::Stale,
             reason: Some(reason),
         },
     }
+}
+
+/// What `change reopen` would find in an accepted or archived change's own accepted evidence,
+/// asked read-only of the validator that judges accepted and archived inputs (#922).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OwnAcceptedEvidence {
+    /// Exact, successor-covered or historically reconciled: `change reopen` refuses.
+    Current,
+    /// An input of the change's own changed and nothing covers it: `change reopen` accepts.
+    Stale,
+    /// The current delivery evidence cannot be reopened in this checkout.
+    ReopenUnavailable(String),
+    /// Reopen rejects an accepted workspace before it reaches delivery input staleness.
+    ReopenBlocked(String),
+    /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
+    Unreadable(String),
+    /// The terminal evidence reads `corrupt-history`: the restore the lifecycle next action names
+    /// recovers it, not a reopen (REQ-change-093).
+    Corrupt,
+}
+
+/// The change's own accepted evidence, as `change reopen` judges it, without writing (#922).
+pub(crate) fn own_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<OwnAcceptedEvidence, String> {
+    if record.state == ChangeState::Accepted
+        && let Err(reason) = ensure_definition_approval_valid(root, record)
+    {
+        let reason = if reason.contains("definition approval is stale") {
+            format!(
+                "{reason}; run `specsync change approve {} --actor <name>` while the change is still accepted, then reopen",
+                shell_word(&record.id)
+            )
+        } else {
+            reason
+        };
+        return Ok(OwnAcceptedEvidence::ReopenBlocked(reason));
+    }
+    let verification = match load_verification(root, record) {
+        Ok(verification) => verification,
+        Err(error) => return Ok(OwnAcceptedEvidence::Unreadable(error)),
+    };
+    if record.state == ChangeState::Accepted {
+        match accepted_reopen_preflight(root, record, &verification) {
+            Ok(AcceptedReopenPreflight::CanReopen) => return Ok(OwnAcceptedEvidence::Stale),
+            Ok(AcceptedReopenPreflight::Current) => {
+                // Reopen refuses current inputs without consulting siblings. A resumed
+                // finalization still needs the archive mutation's structural roster.
+                list_all_changes_structural(root)?;
+                return Ok(OwnAcceptedEvidence::Current);
+            }
+            Ok(AcceptedReopenPreflight::CheckSuccessors) => {}
+            Err(reason) => return Ok(OwnAcceptedEvidence::ReopenBlocked(reason)),
+        }
+    }
+    let records = if record.state == ChangeState::Archived {
+        // Archive status isolates unrelated history failures. A roster failure with no
+        // assignable change still makes the verdict unavailable.
+        let roster = terminal_evidence_roster(root)?;
+        if terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+        {
+            return Ok(OwnAcceptedEvidence::Corrupt);
+        }
+        roster.records
+    } else {
+        list_all_changes_checked(root)?
+    };
+    let mut visiting = BTreeSet::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    if validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
+        .is_ok()
+    {
+        return Ok(OwnAcceptedEvidence::Current);
+    }
+
+    // An exact surviving archive tree can authenticate a squash-merged record in place.
+    // Reopen moves the workspace out of the archive before validating its current closing
+    // evidence. That check needs the actual implementation and cannot use the archive fallback.
+    if record.state == ChangeState::Archived
+        && record.workflow_version >= 2
+        && verification.passed
+        && load_approvals(root, record).is_ok_and(|ledger| {
+            latest_terminal_approval(&ledger)
+                .is_some_and(|approval| approval.digest == closing_digest(record, &verification))
+        })
+    {
+        let history = load_finalization(root, record)
+            .and_then(|finalization| finalization_implementation_is_available(root, &finalization));
+        match history {
+            Ok(true) => {}
+            Ok(false) => {
+                return Ok(OwnAcceptedEvidence::ReopenUnavailable(
+                    FINALIZATION_IMPLEMENTATION_MISSING.into(),
+                ));
+            }
+            Err(error) => return Ok(OwnAcceptedEvidence::ReopenUnavailable(error)),
+        }
+    }
+    Ok(OwnAcceptedEvidence::Stale)
+}
+
+enum AcceptedReopenPreflight {
+    CanReopen,
+    Current,
+    CheckSuccessors,
+}
+
+/// The record-local checks of reopen for an active accepted workspace. Only an
+/// anchored closing receipt with drifted inputs can need the successor roster.
+fn accepted_reopen_preflight(
+    root: &Path,
+    record: &ChangeRecord,
+    current: &VerificationRecord,
+) -> Result<AcceptedReopenPreflight, String> {
+    let ledger = load_approvals(root, record)?;
+    let closing = latest_terminal_approval(&ledger)
+        .ok_or("accepted change is missing closing approval (acceptance or finalization)")?;
+    let prior = verification_for_closing_approval(root, record, closing, current)?;
+    if !definition_digest_matches(root, record, &prior.contract_digest)? {
+        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence, or run `specsync change approve` to refresh a drifted definition while accepted".into());
+    }
+    validate_verification_execution_digest(root, record, &prior)?;
+    let expected = prior
+        .acceptance_input_digest
+        .as_deref()
+        .ok_or("accepted change is missing current delivery-input evidence")?;
+    let present = if let Some(manifest) = &prior.acceptance_manifest {
+        let live = acceptance_manifest_with_signed_owners(root, record, &[], manifest)?;
+        acceptance_manifest_digest(&live)?
+    } else {
+        acceptance_input_digest(root, record, &[])?
+    };
+
+    let tip_matches_closing = current.passed && closing.digest == closing_digest(record, current);
+    let anchored = if tip_matches_closing {
+        match authenticate_accepted_evidence_with_anchor(root, record, None) {
+            Ok((_, anchored)) => anchored,
+            Err(reason) if reason == "finalization scoped review does not bind the accepted verification" => {
+                recorded_review_workspace_mismatch_anchor(root, record, current)?;
+                return Ok(AcceptedReopenPreflight::CanReopen);
+            }
+            Err(reason) => return Err(reason),
+        }
+    } else {
+        accepted_evidence_is_anchored(root, record, &prior)
+    };
+    let legacy_unreconstructible = record.workflow_version < 2
+        && prior.acceptance_manifest.is_none()
+        && reconstruct_legacy_acceptance_manifest(root, record, expected).is_err();
+    if !anchored || legacy_unreconstructible {
+        return Ok(AcceptedReopenPreflight::CanReopen);
+    }
+    if present == expected {
+        return Ok(AcceptedReopenPreflight::Current);
+    }
+    if tip_matches_closing {
+        Ok(AcceptedReopenPreflight::CheckSuccessors)
+    } else {
+        Ok(AcceptedReopenPreflight::CanReopen)
+    }
+}
+
+/// Whether an archived change's scoped review is settled by its finalization: finalize required a
+/// current review to archive the change, and the archive still authenticates, so ship-status never
+/// asks for another review of an archived change, which `change review` refuses (#1038).
+///
+/// Only `finalize` settles a review. A workflow-v1 change is closed by `accept` and `archive`,
+/// which bind no scoped review, and `finalize` refuses it, so a `review.json` in its archive
+/// settles nothing. The archive must therefore be workflow v2 and still hold the finalization
+/// record that binds a passing review to the accepted verification, the check `finalize` itself
+/// makes before it resumes (review of #1093).
+pub(crate) fn archived_review_is_settled_by_finalize(root: &Path, record: &ChangeRecord) -> bool {
+    record.state == ChangeState::Archived
+        && record.workflow_version >= 2
+        && matches!(
+            terminal_evidence_summary(root, record).validity,
+            TerminalEvidenceValidity::AuthenticatedHistory
+                | TerminalEvidenceValidity::HistoricalTransitionUnproven
+        )
+        && load_verification(root, record)
+            .and_then(|verification| validate_finalization_evidence(root, record, &verification))
+            .is_ok()
 }
 
 /// Terminal evidence for one archived record inside a read scope.
@@ -3820,9 +4416,6 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     }) {
         return cached;
     }
-    if let Err(reason) = list_all_changes_checked(root) {
-        return terminal_summary_from_cache(record, Err(reason));
-    }
     let mut cache = CHANGE_READ_SCOPES
         .with(|scopes| {
             scopes
@@ -3832,20 +4425,101 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
                 .and_then(|scope| scope.archived_integrity_cache.take())
         })
         .unwrap_or_default();
-    let summary = terminal_evidence_summary_with_validation_state(
-        root,
-        record,
-        &BTreeMap::new(),
-        &mut BTreeSet::new(),
-        &mut AcceptedInputValidationMemo::default(),
-        &mut cache,
-    );
+    let summary = archived_terminal_summary(root, record, &mut cache);
     update_read_scope(root, |scope| {
         scope.archived_integrity_cache = Some(cache);
         scope
             .archived_terminal_evidence
             .insert(record.id.clone(), summary.clone());
     });
+    summary
+}
+
+/// A read-only archived summary isolates unrelated roster failures. Reuse the same roster for
+/// every archive in the read scope and for the legacy baseline authority, if one is needed.
+fn archived_terminal_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match cache
+        .summary_roster
+        .get_or_insert_with(|| terminal_evidence_roster(root))
+    {
+        Ok(roster) => {
+            if let Some(failed) = roster.failed.get(&record.id) {
+                return own_failure_summary(true, failed);
+            }
+        }
+        Err(reason) => {
+            return TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::CorruptHistory,
+                reason: Some(reason.clone()),
+            };
+        }
+    }
+    archived_integrity_summary(root, record, cache)
+}
+
+/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history`
+/// when the record asked about is archived and `stale` for any other, as the roster load gives
+/// every change it cannot read. The verdict follows the copy asked about, so a change open and
+/// archived at once reads `stale` asked as the open change and `corrupt-history` asked as the
+/// archive, whichever copy the roster found first (#1104 review).
+fn own_failure_summary(asked_archived: bool, failed: &FailedChange) -> TerminalEvidenceSummary {
+    TerminalEvidenceSummary {
+        validity: if asked_archived {
+            TerminalEvidenceValidity::CorruptHistory
+        } else {
+            TerminalEvidenceValidity::Stale
+        },
+        reason: Some(failed.reason.clone()),
+    }
+}
+
+/// #1104: a change that failed to load cannot cover anything, so an accepted change whose changed
+/// input it might have covered is stale either way; the reason then names it and its failure. A
+/// candidate is a failed change that could have covered one of the judged change's inputs: it
+/// passes the first test `successor_covers_input` puts to a successor (`may_succeed`) and declares
+/// a succession of the judged change. A failed change whose `state.json` does not read at all is a
+/// candidate too, because it cannot be shown not to be one. Only a successor search for a changed
+/// input names candidates; every other verdict is left as it is.
+fn name_failed_candidates(
+    roster: &TerminalRoster,
+    record: Option<&ChangeRecord>,
+    mut summary: TerminalEvidenceSummary,
+) -> TerminalEvidenceSummary {
+    let Some(record) = record else {
+        return summary;
+    };
+    let searched = summary.validity == TerminalEvidenceValidity::Stale
+        && record.state == ChangeState::Accepted
+        && summary
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains(CHANGED_AFTER_ACCEPTANCE));
+    if !searched || roster.failed.is_empty() {
+        return summary;
+    }
+    let candidates: Vec<String> = roster
+        .failed
+        .iter()
+        .filter(|(id, failed)| {
+            *id != &record.id
+                && failed.record.as_ref().is_none_or(|other| {
+                    may_succeed(other, record)
+                        && other
+                            .supersedes
+                            .iter()
+                            .any(|edge| edge.predecessor_id == record.id)
+                })
+        })
+        .map(|(id, failed)| format!("candidate successor `{id}` fails validation: {}", failed.reason))
+        .collect();
+    if !candidates.is_empty() {
+        let reason = summary.reason.take().unwrap_or_default();
+        summary.reason = Some(format!("{reason}; {}", candidates.join("; ")));
+    }
     summary
 }
 
@@ -3939,66 +4613,113 @@ fn terminal_evidence_summary_with_validation_state(
     archived_cache: &mut ArchivedIntegrityCache,
 ) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
-        return match validate_archived_integrity_with_cache(root, record, archived_cache) {
-            Ok(()) => {
-                if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                    historical_terminal_summary()
-                } else {
-                    TerminalEvidenceSummary { validity: TerminalEvidenceValidity::AuthenticatedHistory, reason: None }
-                }
-            },
-            Err(reason) => TerminalEvidenceSummary {
-                validity: TerminalEvidenceValidity::CorruptHistory,
-                reason: Some(reason),
-            },
-        };
+        return archived_integrity_summary(root, record, archived_cache);
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
-        Ok(AcceptedInputValidity::Exact) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
-            }
+        Ok(_) if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") => {
+            historical_terminal_summary()
+        }
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact, reason: None,
         },
-        Ok(AcceptedInputValidity::SuccessorCovered) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
-            }
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered, reason: None,
+        },
+        Ok(AcceptedInputValidity::ProvisionallyCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::ProvisionallyCovered,
+            reason: Some(provisional_coverage_reason(
+                record,
+                memo.provisional.get(&record.id).map_or(&[][..], Vec::as_slice),
+            )),
         },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
-        Err(reason) => TerminalEvidenceSummary {
+        Err(error) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
+            reason: Some(error.reason),
+        },
+    }
+}
+
+fn archived_integrity_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match validate_archived_integrity_with_cache(root, record, cache) {
+        Ok(()) => {
+            if record
+                .answers
+                .get(HISTORICAL_RECONCILIATION)
+                .is_some_and(|value| value == "unproven")
+            {
+                historical_terminal_summary()
+            } else {
+                TerminalEvidenceSummary {
+                    validity: TerminalEvidenceValidity::AuthenticatedHistory,
+                    reason: None,
+                }
+            }
+        }
+        Err(reason) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::CorruptHistory,
             reason: Some(reason),
         },
     }
 }
 
+/// The closing-approval check of an accepted change, judged on the roster terminal evidence uses
+/// (#1104 review): when every change loads it is `list_all_changes_checked`, and when one fails,
+/// that failure stays its own and the others are judged on the changes that load.
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+    let roster = terminal_evidence_roster(root)?;
+    if let Some(failed) = roster.failed.get(&record.id) {
+        return Err(failed.reason.clone());
+    }
+    ensure_closing_approval_valid_against(root, record, &roster.records)
+        .map(|_| ())
+        .map_err(|error| error.reason)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they
 /// archive, judged against the structural roster (REQ-change-124): every gate on `record` is the
 /// same, and only the other archives' own Git history is left to `change audit --strict`.
+///
+/// Returns each changed input an in-flight later change covers for now, as `(path, change)`, so
+/// the archive can record which change covered it (#657).
 fn ensure_archiving_closing_approval_valid(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
+) -> Result<Vec<(String, String)>, String> {
+    let records = list_all_changes_structural(root)?;
+    ensure_closing_approval_valid_against(root, record, &records).map_err(|error| {
+        let Some((path, owners)) = error.stale_input else {
+            return error.reason;
+        };
+        let later = later_changes_blocked_by(root, &records, record, &path, &owners);
+        if later.is_empty() {
+            return error.reason;
+        }
+        let named = later
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{}. Later change {named} shares `{path}` and cannot be archived either while `{}` is stale",
+            error.reason, record.id
+        )
+    })
 }
 
 fn ensure_closing_approval_valid_against(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, AcceptedInputError> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)
-        .map(|_| ())
+    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)?;
+    Ok(memo.provisional.remove(&record.id).unwrap_or_default())
 }
 
 /// `pending` is the closing token of `archive_change_with_options`, forwarded so the package that
@@ -4094,7 +4815,7 @@ fn validate_archived_accepted_snapshot(
     let path = workspace.join("accepted-state.json");
     let (_, historical_bytes, historical) =
         authenticated_accepted_transition_for(root, archived, pending)?;
-    let accepted = match fs::read(&path) {
+    let accepted = match crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
         Ok(content) => {
             if content != historical_bytes {
                 return Err(format!(
@@ -4148,6 +4869,8 @@ struct LegacyArchiveBaselineContext {
 #[derive(Debug, Default)]
 struct ArchivedIntegrityCache {
     legacy: Option<Result<LegacyArchiveBaselineContext, String>>,
+    // Archive audit and mutation use the strict loader because they never set this field.
+    summary_roster: Option<Result<TerminalRoster, String>>,
 }
 
 fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
@@ -4274,7 +4997,13 @@ fn authenticate_legacy_archive_baseline(
         .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
 
     if cache.legacy.is_none() {
-        cache.legacy = Some(load_legacy_archive_baseline_context(root));
+        let roster = cache
+            .summary_roster
+            .as_ref()
+            .map(Result::as_ref)
+            .transpose()
+            .map_err(Clone::clone)?;
+        cache.legacy = Some(load_legacy_archive_baseline_context(root, roster));
     }
     let context = cache
         .legacy
@@ -4323,14 +5052,31 @@ fn authenticate_legacy_archive_baseline(
 
 fn load_legacy_archive_baseline_context(
     root: &Path,
+    summary_roster: Option<&TerminalRoster>,
 ) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
-    let baseline_bytes = fs::read(&baseline_path)
+    let baseline_bytes = crate::util::read_project_bytes(root, &baseline_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
 
-    let records = list_all_changes_checked(root)?;
-    let authority = records.get(&baseline.authority_change_id).ok_or_else(|| {
+    let authority_id = &baseline.authority_change_id;
+    let strict_records;
+    let records = match summary_roster {
+        Some(roster) => {
+            if let Some(failed) = roster.failed.get(authority_id) {
+                return Err(format!(
+                    "legacy archive baseline authority `{authority_id}` failed validation: {}",
+                    failed.reason
+                ));
+            }
+            &roster.records
+        }
+        None => {
+            strict_records = list_all_changes_checked(root)?;
+            &strict_records
+        }
+    };
+    let authority = records.get(authority_id).ok_or_else(|| {
         format!(
             "legacy archive baseline authority `{}` is unavailable",
             baseline.authority_change_id
@@ -4721,6 +5467,7 @@ fn archive_workspace_snapshot(
     project_subtree: &str,
 ) -> Result<BTreeMap<String, (u32, Vec<u8>)>, String> {
     let mut workspace_paths = BTreeSet::new();
+    // not a project file read: walks the archived workspace with follow_links(false), so no link is followed out
     for entry in walkdir::WalkDir::new(workspace).follow_links(false) {
         let entry = entry.map_err(|error| format!("failed to inspect legacy archive: {error}"))?;
         if entry.path() != workspace && !entry.file_type().is_dir() {
@@ -4882,6 +5629,7 @@ impl DeliveryBlobStream {
         Ok(Self {
             child,
             stdin,
+            // not a project file read: the output of a child process this function started
             stdout: std::io::BufReader::new(stdout),
             finished: Some(finished),
             watchdog: Some(watchdog),
@@ -5019,6 +5767,7 @@ impl<'root> DeliveryPayloads<'root> {
             Some(stream) => stream,
             None => self.stream.insert(DeliveryBlobStream::open(self.root)?),
         };
+        // not a project file read: a Git object from the batch stream, by its object id
         stream.read(relative, object).map(Cow::Owned)
     }
 
@@ -5119,7 +5868,7 @@ fn validate_accepted_inputs_recursive(
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
-) -> Result<AcceptedInputValidity, String> {
+) -> Result<AcceptedInputValidity, AcceptedInputError> {
     if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
@@ -5127,13 +5876,13 @@ fn validate_accepted_inputs_recursive(
         return Err(format!(
             "successor `{}` is not accepted or archived",
             record.id
-        ));
+        ).into());
     }
     if !visiting.insert(record.id.clone()) {
         return Err(format!(
             "semantic succession cycle detected at `{}`",
             record.id
-        ));
+        ).into());
     }
     let result = (|| {
         let verification = memo.authenticate(root, record, pending)?;
@@ -5168,12 +5917,14 @@ fn validate_accepted_inputs_recursive(
             .collect();
         let mut successor_covered = false;
         let mut historically_reconciled = false;
+        let mut provisional: Vec<(String, String)> = Vec::new();
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
-                format!(
+                let reason = format!(
                     "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
-                )
+                );
+                AcceptedInputError::stale(reason, &expected.path, &expected.owners)
             })?;
             if expected.kind == current.kind
                 && expected.mode == current.mode
@@ -5202,7 +5953,11 @@ fn validate_accepted_inputs_recursive(
                 // the successors, and each is judged exactly as a signed owner's successor is.
                 let claimants = succession_claimants(records, record, expected);
                 if claimants.is_empty() {
-                    return Err(exact_only_input_remediation_reason(record, &expected.path));
+                    return Err(AcceptedInputError::stale(
+                        exact_only_input_remediation_reason(record, &expected.path),
+                        &expected.path,
+                        &expected.owners,
+                    ));
                 }
                 let mut rejected_successors = BTreeMap::new();
                 if !claimants.iter().any(|module| {
@@ -5210,6 +5965,7 @@ fn validate_accepted_inputs_recursive(
                         root,
                         record,
                         records,
+                        records.values(),
                         visiting,
                         memo,
                         pending,
@@ -5219,11 +5975,16 @@ fn validate_accepted_inputs_recursive(
                         &mut historically_reconciled,
                     )
                 }) {
-                    return Err(stale_input_remediation_reason(
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         &expected.owners.join("`, `"),
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
@@ -5235,6 +5996,7 @@ fn validate_accepted_inputs_recursive(
                     root,
                     record,
                     records,
+                    records.values(),
                     visiting,
                     memo,
                     pending,
@@ -5243,15 +6005,31 @@ fn validate_accepted_inputs_recursive(
                     &mut rejected_successors,
                     &mut historically_reconciled,
                 ) {
-                    return Err(stale_input_remediation_reason(
+                    if let Some(coverer) = in_flight_coverer(root, memo, records, record, &expected.path, owner)
+                    {
+                        provisional.push((expected.path.clone(), coverer));
+                        continue;
+                    }
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         owner,
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
             }
+        }
+        if !provisional.is_empty() {
+            provisional.sort_unstable();
+            provisional.dedup();
+            memo.provisional.insert(record.id.clone(), provisional);
+            return Ok(AcceptedInputValidity::ProvisionallyCovered);
         }
         Ok(if historically_reconciled {
             AcceptedInputValidity::HistoricallyReconciled
@@ -5359,12 +6137,25 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
     let Ok(archive_root) = git_repo_relative_path(root, ARCHIVE_PATH) else {
         return Some(cannot_tell());
     };
-    let Some(state_paths) = archived_state_paths_for(root, &reference, &archive_root, &record.id)
+    let Some(state_records) = archived_state_paths_for(root, &reference, &archive_root, &record.id)
     else {
         return Some(cannot_tell());
     };
+    // An archived record does not change when its package directory is renamed, so HEAD's history
+    // holding the same `state.json` blob under the archive root is HEAD containing this archive,
+    // whatever the remote default did to its path afterwards (#945). History, not HEAD's tree: a
+    // real `change reopen` moves the package back to `.specsync/changes/`, so the tree no longer
+    // holds the archive that HEAD's history added (the tester's run on f740d0a2).
     let mut unreadable = false;
-    for state_path in state_paths {
+    for (state_path, object) in state_records {
+        match archive_object_in_head_history(root, &archive_root, &object) {
+            Some(true) => continue,
+            Some(false) => {}
+            None => {
+                unreadable = true;
+                continue;
+            }
+        }
         match upstream_addition_outside_head(root, &reference, &state_path) {
             Some(Some(commit)) => {
                 return Some(UpstreamArchive::Archived {
@@ -5377,6 +6168,28 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
         }
     }
     unreadable.then(cannot_tell)
+}
+
+/// Whether a commit reachable from `HEAD` held this blob as an archived package's state.
+/// The package may have changed names. Copies in other files do not establish containment.
+/// `None` means Git could not determine the answer (REQ-change-142).
+fn archive_object_in_head_history(root: &Path, archive_root: &str, object: &str) -> Option<bool> {
+    let find_object = format!("--find-object={object}");
+    let pathspec = format!(":(top,glob){}/*/state.json", escape_glob_pathspec(archive_root));
+    let found = git_output_allow_empty(
+        root,
+        &[
+            "log",
+            "-1",
+            "--format=%H",
+            "--no-renames",
+            find_object.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    )?;
+    Some(!found.trim().is_empty())
 }
 
 /// The commit on `reference` that added `state_path`, when `HEAD` does not contain it:
@@ -5410,19 +6223,22 @@ fn upstream_addition_outside_head(
     Some(Some(commit))
 }
 
-/// The `state.json` paths under `archive_root` at `reference` whose record carries `id`.
+/// The `state.json` paths under `archive_root` at `reference` whose record carries `id`, each with
+/// its blob id.
 ///
 /// Packages are matched by the id inside `state.json`, as `find_change_dir` does, so a renamed or
 /// undated package counts (REQ-change-139). `None` means Git could not list or read them (a failed or
 /// truncated listing or batch, or a record it did not return), which the caller reports as
 /// cannot-tell (REQ-change-142). Two Git processes however many packages there are:
-/// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes.
+/// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes. Entries are read as
+/// bytes, so an unrelated package whose name is not UTF-8 is skipped rather than ending the lookup;
+/// one that does hold this change's record still cannot be told (#961).
 fn archived_state_paths_for(
     root: &Path,
     reference: &str,
     archive_root: &str,
     id: &str,
-) -> Option<Vec<String>> {
+) -> Option<Vec<(String, String)>> {
     let listing = run_git_bounded(
         root,
         &[
@@ -5441,27 +6257,7 @@ fn archived_state_paths_for(
     if !listing.status.success() {
         return None;
     }
-    let prefix = format!("{archive_root}/");
-    let mut candidates = Vec::new();
-    for entry in listing.stdout.split(|byte| *byte == 0) {
-        let entry = std::str::from_utf8(entry).ok()?;
-        let Some((meta, path)) = entry.split_once('\t') else {
-            continue;
-        };
-        let Some(package) = path
-            .strip_prefix(&prefix)
-            .and_then(|rest| rest.strip_suffix("/state.json"))
-        else {
-            continue;
-        };
-        if package.is_empty() || package.contains('/') {
-            continue;
-        }
-        let mut fields = meta.split(' ');
-        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
-            candidates.push((object.to_string(), path.to_string()));
-        }
-    }
+    let candidates = archived_state_entries(&listing.stdout, archive_root);
     if candidates.is_empty() {
         return Some(Vec::new());
     }
@@ -5482,17 +6278,52 @@ fn archived_state_paths_for(
     }
     let mut rest = batch.stdout.as_slice();
     let mut matches = Vec::new();
-    for (_, path) in &candidates {
+    for (object, path) in &candidates {
         let header_end = rest.iter().position(|byte| *byte == b'\n')?;
         let header = std::str::from_utf8(&rest[..header_end]).ok()?;
         let size: usize = header.rsplit(' ').next()?.parse().ok()?;
         let body = rest.get(header_end + 1..header_end + 1 + size)?;
         rest = rest.get(header_end + 1 + size + 1..).unwrap_or_default();
         if archived_record_id(body)? == id {
-            matches.push(path.clone());
+            // A package of this change whose path is not UTF-8 cannot be handed to the history
+            // queries that follow, so the lookup cannot tell (#961).
+            matches.push((path.clone()?, object.clone()));
         }
     }
     Some(matches)
+}
+
+/// The `(blob id, path)` of every `<archive_root>/<package>/state.json` blob in a `ls-tree -r -z`
+/// listing, read as bytes. The path is `None` when it is not UTF-8 (#961).
+fn archived_state_entries(listing: &[u8], archive_root: &str) -> Vec<(String, Option<String>)> {
+    let prefix = format!("{archive_root}/");
+    let mut entries = Vec::new();
+    for entry in listing.split(|byte| *byte == 0) {
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
+        let (meta, path) = (&entry[..tab], &entry[tab + 1..]);
+        let Some(package) = path
+            .strip_prefix(prefix.as_bytes())
+            .and_then(|rest| rest.strip_suffix(b"/state.json"))
+        else {
+            continue;
+        };
+        if package.is_empty() || package.contains(&b'/') {
+            continue;
+        }
+        let Ok(meta) = std::str::from_utf8(meta) else {
+            continue;
+        };
+        let mut fields = meta.split(' ');
+        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
+            entries.push((
+                object.to_string(),
+                std::str::from_utf8(path).ok().map(str::to_string),
+            ));
+        }
+    }
+    entries
 }
 
 /// The `id` an archived `state.json` carries: from the change record, or, for a record this

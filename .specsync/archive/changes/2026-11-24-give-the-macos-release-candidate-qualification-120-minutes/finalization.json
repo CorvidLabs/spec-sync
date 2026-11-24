@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "give-the-macos-release-candidate-qualification-120-minutes",
+  "implementation_commit": "ffca9ef0a6e5147522a7db883b1a56103d18d25e",
+  "implementation_tree": "84b368ced7e66f6d6d53062d3b5fe069a25782b7",
+  "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+  "workspace_digest": "5ba918ab6af5f2f3e9b52f218e576874ef5ce864f4e4b46705d08a7353ec20be",
+  "closing_digest": "5d8f1aeba6e565e4f06962f1ea2c3b08db201b6a2bc7dd6ab7e04d1a54e10183",
+  "review_digest": "896925bc789461c771ce47f2e3c2c606da6b468ec48a272e5f0c43d29e74e5ac",
+  "finalization_digest": "c2625c6bffde2d75891536f73911722fd57d0d4605bdcd3d244c51f181f1aa3c",
+  "timestamp": 1795545867
+}

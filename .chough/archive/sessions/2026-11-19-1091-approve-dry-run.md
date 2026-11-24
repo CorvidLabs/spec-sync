@@ -1,0 +1,467 @@
+---
+kind: session
+id: 2026-11-19-1091-approve-dry-run
+aliases: [1091-approve-dry-run]
+objective: specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
+intent_scope: CHANGE
+modules: [change, cmd_change, cli_args]
+stage: done
+stage_status: archived
+iteration: 1
+native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+criteria: [CHANGE-15, CHANGE-15.a, CHANGE-15.b, CHANGE-15.c, CHANGE-15.d]
+files:
+  - src/change/approval_checks.rs
+  - src/change/validate_loaded_change.rs
+  - src/change/sdd_version.rs
+  - src/commands/change.rs
+  - src/cli.rs
+  - tests/integration/approve_dry_run.rs
+  - src/change_tests/approval_dry_run.rs
+observations:
+  - 2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists
+  - 2026-11-19-1091-verify-lane-at-c4dba3f6
+  - 2026-11-19-1091-red-unreplayable-journal-at-b3573eaa
+  - 2026-11-19-1091-verify-lane-at-003a14e6
+  - 2026-11-19-1091-red-waiting-sentence-at-5de3c276
+  - 2026-11-19-1091-verify-lane-at-fd02224d
+  - 2026-11-19-1091-red-fix-field-at-6d6ac9ea
+  - 2026-11-19-1091-verify-lane-at-e2438304
+  - 2026-11-19-1091-verify-lane-at-5b4558e0
+  - 2026-11-19-1091-red-lock-create-at-e04f81bd
+  - 2026-11-19-1091-verify-lane-at-a768326c
+closed: 2026-11-19
+outcome: done
+---
+# specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
+
+## Goal
+
+specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091)
+
+## Where it stands
+
+- Captured CHANGE-15, CHANGE-15.a, CHANGE-15.b and CHANGE-15.c in hi/change.md with their provenance
+- Created the draft change with the approved title, specs, paths and interview answers; wrote the three deltas (REQ-change-163 with Leif's exception, REQ-cmd-change-040, REQ-cli-args-027), word for word against the approved text, and every selected artifact
+- Failing tests: 1f5c09de
+- Split building the approval record from writing it, for the plain and the portable approval (uncommitted, compiles)
+- Implemented the dry run (f61bbf0f) after the failing tests (1f5c09de); change check materialized REQ-change-163, REQ-cmd-change-040 and REQ-cli-args-027 with their history fragments; verify lane green at c4dba3f6
+- Tester's finding on 37496bdf fixed, red test first: the dry run gives change approve's own refusal for a journal recovery cannot replay; recovery split into its reading and restoring halves; re-checked; lane 10/10 at 003a14e6; site checks pass
+- ss-lead's finding on e24bdbf9 fixed, red test first: the 'waiting to be recovered' sentence has its line continuations back and is pinned word for word in the JSON message and the text output; re-checked; lane 10/10 at fd02224d
+- Ran the send-back on Leif's relayed word (gate above): specsync change send-back change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing --actor 0xLeif with the reason ending '(run by the builder on Leif's relayed word, via t4c, 2026-11-19)'; it exited 0 at 14:44:50Z and returned the change to draft with its approval cancelled
+- After the send-back and Leif's 14:32Z approval: the fix field built red first (6d6ac9ea red, 4d5d0440 fix) with Codex's two first-round P2s; docs; lane 10/10 at e2438304; change re-checked with the new REQ-change-163 and REQ-cmd-change-040 materialized word for word
+- Updated against main 2cc0897f: hand-resolved conflicts, plane z=56, #1088's refusal in the deltas step with its dry-run row; re-checked; lane 10/10 at 5b4558e0
+- Ran the send-back under Leif's standing OK (gate above): specsync change send-back change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing --actor 0xLeif, reason ending '(standing OK, relayed via t4c)'; it exited 0 and returned the change to draft
+- Codex round-2 P2 fixed red first (e04f81bd red, 036735e3 fix); REQ-change-163's lock-check sentence and criterion matched to the tested code under Leif's standing OK (send-back, exact text, relayed approval); re-checked; lane 10/10 at a768326c
+
+## Decisions and why
+
+- 0xLeif decided "Intent approval of #1091 (CHANGE-15 and its three sub-criteria)": "OK, with (a) fixed" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition; relayed by hc t4c through ss-lead (hc t58). CHANGE-15.a is the wording t4c put to him as that fix, which he chose with these words; he did not write it); recorded by claude-code-t59; a relayed claim, not authenticated
+- decided: REQ-change-163's first-problem sentence carries the exception 'except when an interrupted lifecycle write is waiting to be recovered' because that is the exception Leif approved with 'OK, with (a) fixed' and t4c confirmed the sentence (relayed through ss-lead hc t58, 2026-11-19)
+- 0xLeif decided "Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "Approve" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
+- decided: the second check is named lifecycle_lock, not pending_write as in the working JSON shape, because it reports both things the lock step can refuse on: a symlink in the lock path and an interrupted write (the builder's choice inside the approved shape, which Leif saw marked as working)
+- 0xLeif decided "Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word": "all as recommended, builder runs the send-back" (Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the send-back for PR #1100 to take the wording in ss-lead/gates/1091-fix-field-and-lock-check.md; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated
+- 0xLeif decided "Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "all as recommended, builder runs the send-back" (Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
+- decided: the 05:06Z approval of this change no longer stands: the send-back of 2026-11-19 14:44:50Z (run by the builder on Leif's relayed word) cancelled it; the deltas now carry the text of ss-lead/gates/1091-fix-field-and-lock-check.md word for word, the change has an eighth criterion, CHANGE-15.d is captured, and Leif's relayed approval of 14:32Z is the current one
+- 0xLeif decided "Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing for REQ-change-163's lock-check wording, under Leif's standing OK": "Leif's six rules, rule 6 (a) and (c)" (a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact wording of REQ-change-163 on 2026-11-19 after the build. These are not his words about this text); recorded by claude-code-t59; a relayed claim, not authenticated
+- 0xLeif decided "Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "Leif's six rules, rule 6 (a) and (c)" (a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text); recorded by claude-code-t59; a relayed claim, not authenticated; ran specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif
+- decided: the 14:32Z approval of this change no longer stands: the send-back of 2026-11-19 under Leif's standing OK (rule 6 (a) and (c)) cancelled it; REQ-change-163's lock-check sentence and its criterion now carry the text ss-lead gave, word for word, matching the tested lock check; the approval recorded under that standing OK is the current one
+- 0xLeif decided "Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing": "All as recommended" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on t4c's table of recommendations, in which #1100's review passing was the recommendation, on the frozen ss-lead/gates/1100-review-request.md at PR #1100 head 3fb40d8f; relayed by hc t4c through ss-lead (hc t58)); recorded by claude-code (hc t59); a relayed claim, not authenticated; ran specsync change review change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing as 0xLeif with verdict pass
+
+## What was verified
+
+- Red first: on main 3bebe8b0 with the approved #1091 change and only the new tests, all 8 tests of tests/integration/approve_dry_run.rs fail with 'unexpected argument --dry-run found', and cli::tests::change_approve_accepts_a_dry_run fails to parse the flag. The feature does not exist yet; this is the expected failure, not a bug. - 66535e3d8697 ^2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists
+- At c4dba3f6 (#1091 on main 3bebe8b0), fledge lanes run verify passed 10/10 steps in 10m37s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 635 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. It includes the 8 tests of tests/integration/approve_dry_run.rs (each faulty draft from the Chough tester's list gets one message from the dry run and from the real approve, with not one file changed; a clean draft; two problems in one run; a missing change; a sent-back change; the relay flags; an interrupted write), the 5 unit tests for the in-memory binding and raise and the skip rules, and the flag's parsing test. The lane's processes ran with a neutral global git config (#1092). - 13dcec7a1639 ^2026-11-19-1091-verify-lane-at-c4dba3f6
+- Red-first, for the tester's finding on 37496bdf: at b3573eaa (the test alone) approve_dry_run::the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay fails. With a change-transaction.json that does not parse, the dry run says an interrupted write is 'waiting to be recovered', where change approve refuses with 'invalid transaction journal at ...'. Fixed in e24bdbf9; not a new bug. - 5c15d4cd7662 ^2026-11-19-1091-red-unreplayable-journal-at-b3573eaa
+- At 003a14e6 (fix e24bdbf9, change re-checked), fledge lanes run verify passed 10/10 steps in 11m04s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. It includes the nine approve_dry_run tests; the new one covers a journal that does not parse, one whose integrity envelope does not hold and one that names a path outside the project, each compared word for word with the real approve. The site's tests (48), lint and build pass for the edited cli.md (site-1091b.log). The lane's processes ran with a neutral global git config (#1092) - fcedd27399a8 ^2026-11-19-1091-verify-lane-at-003a14e6
+- Red-first, for ss-lead's finding on e24bdbf9: at 5de3c276 (the test alone) approve_dry_run::the_dry_run_refuses_while_an_interrupted_write_is_waiting fails on the exact sentence. e24bdbf9 had rewritten the message as one source line without its line continuations, so it printed runs of spaces ('the next          lifecycle command'). My own regression from this session, fixed in 2d8abc60; not a new bug. - 77e2c8370e26 ^2026-11-19-1091-red-waiting-sentence-at-5de3c276
+- At fd02224d (fix 2d8abc60, change re-checked), fledge lanes run verify passed 10/10 steps in 16m01s on a machine also running other builds: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. The interrupted-write test now compares the whole 'waiting to be recovered' sentence, in the --json message and in the text output. The lane's processes ran with a neutral global git config (#1092) - d946b925645b ^2026-11-19-1091-verify-lane-at-fd02224d
+- Red-first after the send-back: at 6d6ac9ea (the tests alone) four dry-run tests fail. A definition refusal for an open question and an ownership refusal carry no fix; a .specsync/change.lock that is a directory passes the dry run though approve cannot open it (Codex P2); an ownership message's line breaks spill the text output over several lines (Codex P2). The fifth new test (no fix elsewhere) passes there, as it should. Fixed in 4d5d0440. - af872ebed7d6 ^2026-11-19-1091-red-fix-field-at-6d6ac9ea
+- At e2438304 (the fix field, the lock-path open and the one-line text output, with docs), fledge lanes run verify passed 10/10 steps in 12m19s, run alone: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 641 passed, including the fourteen approve_dry_run tests), release build, strict spec check (62 specs) and the CI script tests. The site's tests (48), lint and build pass (site-1091d.log). The lane's processes ran with a neutral global git config (#1092) - 07d525b385ec ^2026-11-19-1091-verify-lane-at-e2438304
+- After main 2cc0897f (#1093, #1088) was merged in (7edf9808; conflicts by hand in sdd_version.rs, commands/change.rs, cmd_change/requirements.md and change.3md, plane moved to z=56; #1088's Change Log delta refusal folded into the deltas step, with a dry-run row for it in ea481983) and the change re-checked, fledge lanes run verify passed 10/10 steps in 12m52s at 5b4558e0, run alone. The lane's processes ran with a neutral global git config (#1092) - 08708086a28d ^2026-11-19-1091-verify-lane-at-5b4558e0
+- Red-first for Codex's round-2 P2 on #1100 (reproduced by corvid-agent at 57c36d84): at e04f81bd (the test alone) a_lock_the_approval_cannot_create_is_refused_in_its_words fails: with no lock file and .specsync mode 0555 the dry run exits 0 (would_approve) while the real approve fails 'failed to open lifecycle lock …: Permission denied'. Fixed in 036735e3. - 7ad5edcdba39 ^2026-11-19-1091-red-lock-create-at-e04f81bd
+- At a768326c (the lock-create fix, REQ-change-163's lock-check wording under Leif's standing OK, the change re-checked), fledge lanes run verify passed 10/10 steps in 20m55s, run alone, including the fifteen approve_dry_run tests. Probed through the binary against the real approve: an unwritable .specsync, a read-only lock file and a file in place of .specsync each give one refusal word for word, no lock created. Site 48 pass, lint and build OK (site-1091f.log). The lane's processes ran with a neutral global git config as a command prefix (#1092) - 57e70094bd3a ^2026-11-19-1091-verify-lane-at-a768326c
+
+## Bugs
+
+None.
+
+## Open threads
+
+## Timeline
+
+- 2026-11-19T05:07:57Z · start · intent → intent · specsync change approve <id> --dry-run runs the approval's own checks, reports the first refusal from each and writes nothing, so Chough's change ready can call it instead of copying SpecSync's rules (#1091) ^t-07b2c9
+  - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
+  - by: claude-code (hc t59)
+- 2026-11-19T05:08:26Z · gate-opened · intent → intent · Intent approval of #1091 (CHANGE-15 and its three sub-criteria) ^t-b80379
+  - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
+  - holds: intent
+  - drives: none
+  - by: claude-code (hc t59)
+- 2026-11-19T05:08:26Z · gate-closed · intent → intent · Intent approval of #1091 (CHANGE-15 and its three sub-criteria) ^t-37a8d7
+  - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: OK, with (a) fixed
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition; relayed by hc t4c through ss-lead (hc t58). CHANGE-15.a is the wording t4c put to him as that fix, which he chose with these words; he did not write it
+    - recorded_by: claude-code-t59
+  - by: claude-code (hc t59)
+- 2026-11-19T05:08:31Z · advance · intent → design ·  ^t-124ef7
+  - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
+  - by: claude-code (hc t59)
+- 2026-11-19T05:08:31Z · skip · design → plan · CLI behaviour only: no visuals or interactions ^t-153302
+  - revision: 3bebe8b03094b2079630801584b56f94a1e460c5
+  - by: claude-code (hc t59)
+- 2026-11-19T05:26:59Z · gate-opened · plan → plan · Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-a6759a
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: a5ec540b461ce962a7d05bb521a807dd10e6dcd8
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-19T05:26:59Z · gate-closed · plan → plan · Scope approval of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-cf7720
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: a5ec540b461ce962a7d05bb521a807dd10e6dcd8
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 05:06Z, on the frozen copy of the #1091 definition: the requirements, the criteria and the four choices (which checks are skipped, no lock, the interrupted write, the actor as its own check). REQ-change-163's first-problem sentence carries the exception he approved, confirmed by hc t4c. Relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T05:27:30Z · advance · plan → build · native:approved ^t-afa7b9
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:approved
+  - revision: a5ec540b461ce962a7d05bb521a807dd10e6dcd8
+  - by: claude-code (hc t59)
+- 2026-11-19T06:37:37Z · direct-native-write · build → build · change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing's lifecycle records changed outside Chough: state.json changed, verification.json changed, verification-attempts.json changed; state stays verifying ^t-bc7123
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 22bbf2888974050b186d5d7f49c149a0513573d6
+  - direct_write:
+    - change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - files:
+      - state.json: changed
+      - verification.json: changed
+      - verification-attempts.json: changed
+    - before_state: verifying
+    - after_state: verifying
+  - by: claude-code (hc t59)
+- 2026-11-19T06:37:37Z · advance · build → test · native:verifying ^t-bb5d77
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 22bbf2888974050b186d5d7f49c149a0513573d6
+  - by: claude-code (hc t59)
+- 2026-11-19T06:37:41Z · advance · test → accept · native:verifying ^t-553970
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 22bbf2888974050b186d5d7f49c149a0513573d6
+  - by: claude-code (hc t59)
+- 2026-11-19T06:37:41Z · gate-opened · accept → accept · Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-0b4fd2
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 22bbf2888974050b186d5d7f49c149a0513573d6
+  - holds: accept
+  - drives: review
+  - by: claude-code (hc t59)
+- 2026-11-19T07:15:32Z · back · accept → build · tester2's finding on #1091 at 37496bdf: with a transaction journal that cannot be read, the dry run must give the refusal change approve gives ^t-29fb07
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 37496bdf7423ebcbdc85c80096e4f14f8101801d
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 2 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T07:32:13Z · advance · build → test · native:verifying ^t-390994
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+  - by: claude-code (hc t59)
+- 2026-11-19T07:32:14Z · advance · test → accept · native:verifying ^t-cec9ae
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+  - by: claude-code (hc t59)
+- 2026-11-19T07:33:33Z · back · accept → build · ss-lead's finding on e24bdbf9: the 'waiting to be recovered' message lost its line continuations and prints runs of spaces; pin the exact sentence in a test, red first ^t-cd8357
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 1a7b7785c8182914aa01a0255c2f23f5e18e85fb
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 4 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T07:52:47Z · advance · build → test · native:verifying ^t-86454f
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+  - by: claude-code (hc t59)
+- 2026-11-19T07:52:50Z · advance · test → accept · native:verifying ^t-294759
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+  - by: claude-code (hc t59)
+- 2026-11-19T14:44:38Z · gate-opened · accept → accept · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word ^t-cdfecd
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - holds: accept
+  - drives: none
+  - by: claude-code (hc t59)
+- 2026-11-19T14:44:39Z · gate-closed · accept → accept · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing, run by the builder on Leif's word ^t-89e089
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the send-back for PR #1100 to take the wording in ss-lead/gates/1091-fix-field-and-lock-check.md; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+  - by: claude-code (hc t59)
+- 2026-11-19T14:45:12Z · direct-native-write · accept → accept · change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-899a0c
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - direct_write:
+    - change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-19T14:45:12Z · back · accept → plan · The send-back returned the change to draft; the delta and one criterion take the text Leif approved at 14:32Z, and his approval is recorded at plan ^t-11278e
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 6 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:02Z · gate-opened · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-ad8b87
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:02Z · gate-closed · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-805b31
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: all as recommended, builder runs the send-back
+    - where: Claude Code chat message to his planning session (hc t4c), 2026-11-19 about 14:32Z, on the frozen ss-lead/gates/1091-fix-field-and-lock-check.md: Part 1 (REQ-cmd-change-040's added sentence, its three criteria and the change criterion) and Part 2 (REQ-change-163's list and skip rule, with the lock-check criterion), and CHANGE-15.d as the builder drafted it; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code-t59
+    - native: specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T14:46:14Z · advance · plan → build · native:approved ^t-b37da5
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:approved
+  - revision: 658b7eff0af7f36fefd3d4b0ee3333c8a9467a28
+  - by: claude-code (hc t59)
+- 2026-11-19T15:33:07Z · advance · build → test · native:verifying ^t-5b8b2d
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 272abff42a0cf61efe11e38c5978037d20838b86
+  - by: claude-code (hc t59)
+- 2026-11-19T15:33:08Z · advance · test → accept · native:verifying ^t-d00afa
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 272abff42a0cf61efe11e38c5978037d20838b86
+  - by: claude-code (hc t59)
+- 2026-11-19T15:43:51Z · back · accept → build · Updated against main 2cc0897f (#1093 and #1088 merged): conflicts resolved by hand, plane moved to z=56, #1088's refusal folded into the deltas step; re-check and lane ^t-b72ca3
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: ea48198363f1ab57ca42da1be20427e7295a26d4
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 8 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T15:57:23Z · advance · build → test · native:verifying ^t-880311
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 5b4558e0e9e0bb0f1f90136ccf6caefc6cff8c47
+  - by: claude-code (hc t59)
+- 2026-11-19T15:57:25Z · advance · test → accept · native:verifying ^t-09987a
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 5b4558e0e9e0bb0f1f90136ccf6caefc6cff8c47
+  - by: claude-code (hc t59)
+- 2026-11-19T16:29:18Z · back · accept → build · Codex round-2 P2 on #1100 at a76452b1, reproduced by corvid-agent at 57c36d84: a missing lock in an unwritable .specsync passes the dry run while approve refuses; fix red first, and REQ-change-163's lock-check sentence matched to the tested code under Leif's standing OK ^t-b97377
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: 57c36d84878eca0fae0637ef49ac01a1e33f0717
+  - refresh: build: implementation against the current definition, test: rerun affected cases; earlier observations may be stale, accept: native verification and the human implementation review, checkpoint references: 0 case(s) and 9 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T16:34:52Z · gate-opened · build → build · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing for REQ-change-163's lock-check wording, under Leif's standing OK ^t-5463ce
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - holds: build
+  - drives: none
+  - by: claude-code (hc t59)
+- 2026-11-19T16:34:53Z · gate-closed · build → build · Send-back of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing for REQ-change-163's lock-check wording, under Leif's standing OK ^t-395c65
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Leif's six rules, rule 6 (a) and (c)
+    - where: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact wording of REQ-change-163 on 2026-11-19 after the build. These are not his words about this text
+    - recorded_by: claude-code-t59
+  - by: claude-code (hc t59)
+- 2026-11-19T16:34:56Z · direct-native-write · build → build · change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing's lifecycle records changed outside Chough: state.json changed, approvals.json changed; state verifying → draft ^t-5d64c8
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - direct_write:
+    - change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - files:
+      - state.json: changed
+      - approvals.json: changed
+    - before_state: verifying
+    - after_state: draft
+  - by: claude-code (hc t59)
+- 2026-11-19T16:34:56Z · back · build → plan · Send-back for REQ-change-163's lock-check wording; the new text goes in and the approval is recorded at plan ^t-4875a2
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - refresh: plan: native definition; scope or contract changes need native reapproval, build: implementation against the current definition, checkpoint references: 0 case(s) and 9 observation(s) to re-check with `chough status`
+  - by: claude-code (hc t59)
+- 2026-11-19T16:35:20Z · gate-opened · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-0b8a5c
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - holds: plan
+  - drives: approve
+  - by: claude-code (hc t59)
+- 2026-11-19T16:35:20Z · gate-closed · plan → plan · Approve the scope of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-186be1
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Leif's six rules, rule 6 (a) and (c)
+    - where: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of REQ-change-163 (the lock-check sentence and its criterion) on 2026-11-19. These are not his words about this text
+    - recorded_by: claude-code-t59
+    - native: specsync change approve change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T16:35:23Z · advance · plan → build · native:approved ^t-519bf5
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:approved
+  - revision: 036735e397392c21d79e4eff712d70b5ae01d076
+  - by: claude-code (hc t59)
+- 2026-11-19T16:57:28Z · advance · build → test · native:verifying ^t-c02308
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: a768326cb740bf0b18695a809e780a09ad148436
+  - by: claude-code (hc t59)
+- 2026-11-19T16:57:30Z · advance · test → accept · native:verifying ^t-56cbd2
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:verifying
+  - revision: a768326cb740bf0b18695a809e780a09ad148436
+  - by: claude-code (hc t59)
+- 2026-11-19T19:50:20Z · gate-closed · accept → accept · Implementation review of change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing ^t-b6de8d
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - revision: 58145c5a54e9ea1618c89be4ccc64b84b3e6109e
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: All as recommended
+    - where: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on t4c's table of recommendations, in which #1100's review passing was the recommendation, on the frozen ss-lead/gates/1100-review-request.md at PR #1100 head 3fb40d8f; relayed by hc t4c through ss-lead (hc t58)
+    - recorded_by: claude-code (hc t59)
+    - native: specsync change review change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+    - actor: 0xLeif
+  - by: claude-code (hc t59)
+- 2026-11-19T19:50:23Z · advance · accept → done · native:archived ^t-590c53
+  - native_change: change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing
+  - gate: native:archived
+  - revision: 58145c5a54e9ea1618c89be4ccc64b84b3e6109e
+  - by: claude-code (hc t59)
+
+Closed 2026-11-19: done.
+
+## Receipts
+
+```yaml
+receipts:
+  - id: 2026-11-19-1091-red-first-tests-fail-before-the-dry-run-exists
+    claim: "Red first: on main 3bebe8b0 with the approved #1091 change and only the new tests, all 8 tests of tests/integration/approve_dry_run.rs fail with 'unexpected argument --dry-run found', and cli::tests::change_approve_accepts_a_dry_run fails to parse the flag. The feature does not exist yet; this is the expected failure, not a bug."
+    result: failed
+    revision: 1f5c09de27b3b4022f86588b84844e9e1b7a1238
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: ed60283a75524a4d3d6f0fd432d70664a1f7ae5dc17dea11535fdbe42abb4f2a
+    fingerprint: sha256:66535e3d86976a17593dcd96879777e84add9a707f33c173b0decf326aa2cdcb
+    observed: 2026-11-19T05:58:19Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-c4dba3f6
+    claim: "At c4dba3f6 (#1091 on main 3bebe8b0), fledge lanes run verify passed 10/10 steps in 10m37s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 635 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. It includes the 8 tests of tests/integration/approve_dry_run.rs (each faulty draft from the Chough tester's list gets one message from the dry run and from the real approve, with not one file changed; a clean draft; two problems in one run; a missing change; a sent-back change; the relay flags; an interrupted write), the 5 unit tests for the in-memory binding and raise and the skip rules, and the flag's parsing test. The lane's processes ran with a neutral global git config (#1092)."
+    result: passed
+    revision: 22bbf2888974050b186d5d7f49c149a0513573d6
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: b69dde44c65a8f48f3f03a134f096808f258013bc8a9fe5d3d41771e073c47df
+    fingerprint: sha256:13dcec7a1639d49415f1ec769cb9ae33df536808a6aec332672e4b64a80a0f1d
+    observed: 2026-11-19T06:37:37Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-red-unreplayable-journal-at-b3573eaa
+    claim: "Red-first, for the tester's finding on 37496bdf: at b3573eaa (the test alone) approve_dry_run::the_dry_run_gives_the_approvals_own_refusal_for_a_journal_it_cannot_replay fails. With a change-transaction.json that does not parse, the dry run says an interrupted write is 'waiting to be recovered', where change approve refuses with 'invalid transaction journal at ...'. Fixed in e24bdbf9; not a new bug."
+    result: failed
+    revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 6034874e4a9003f19918a5f8789a31b9f191e2b06aa322afdcfdd65239a680f7
+    fingerprint: sha256:5c15d4cd76623e137e9d8c874391ac9e076c78423fd4dd22f41f3b09df7cd69f
+    observed: 2026-11-19T07:32:11Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-003a14e6
+    claim: "At 003a14e6 (fix e24bdbf9, change re-checked), fledge lanes run verify passed 10/10 steps in 11m04s: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. It includes the nine approve_dry_run tests; the new one covers a journal that does not parse, one whose integrity envelope does not hold and one that names a path outside the project, each compared word for word with the real approve. The site's tests (48), lint and build pass for the edited cli.md (site-1091b.log). The lane's processes ran with a neutral global git config (#1092)"
+    result: passed
+    revision: 003a14e6351565712fc5cc59ddd24c8d11fbe6bc
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 6034874e4a9003f19918a5f8789a31b9f191e2b06aa322afdcfdd65239a680f7
+    fingerprint: sha256:fcedd27399a829f55c4bb6a7fbdd6610909e288515221b64cea39017e5ebfa17
+    observed: 2026-11-19T07:32:11Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-red-waiting-sentence-at-5de3c276
+    claim: "Red-first, for ss-lead's finding on e24bdbf9: at 5de3c276 (the test alone) approve_dry_run::the_dry_run_refuses_while_an_interrupted_write_is_waiting fails on the exact sentence. e24bdbf9 had rewritten the message as one source line without its line continuations, so it printed runs of spaces ('the next          lifecycle command'). My own regression from this session, fixed in 2d8abc60; not a new bug."
+    result: failed
+    revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 3acfd6aa51ad4a0f77535ba33461f8fb6af9d6c87ee7c7ffbd06cf457d96d505
+    fingerprint: sha256:77e2c8370e266b0010f06eadc019544cb519eb5f7d14098bf65f9c6fd564fde1
+    observed: 2026-11-19T07:52:41Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-fd02224d
+    claim: "At fd02224d (fix 2d8abc60, change re-checked), fledge lanes run verify passed 10/10 steps in 16m01s on a machine also running other builds: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 636 passed), release build, strict spec check (62 specs) and the CI script tests. The interrupted-write test now compares the whole 'waiting to be recovered' sentence, in the --json message and in the text output. The lane's processes ran with a neutral global git config (#1092)"
+    result: passed
+    revision: fd02224d3f77af1d9c40b5a4b44817f0cc6d9d13
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 3acfd6aa51ad4a0f77535ba33461f8fb6af9d6c87ee7c7ffbd06cf457d96d505
+    fingerprint: sha256:d946b925645b2bf1e06bf3768030fd43118fe138832e43e32212cd606d781cac
+    observed: 2026-11-19T07:52:42Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-red-fix-field-at-6d6ac9ea
+    claim: "Red-first after the send-back: at 6d6ac9ea (the tests alone) four dry-run tests fail. A definition refusal for an open question and an ownership refusal carry no fix; a .specsync/change.lock that is a directory passes the dry run though approve cannot open it (Codex P2); an ownership message's line breaks spill the text output over several lines (Codex P2). The fifth new test (no fix elsewhere) passes there, as it should. Fixed in 4d5d0440."
+    result: failed
+    revision: 272abff42a0cf61efe11e38c5978037d20838b86
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 05080872cdf9122086d1c065fc68da70ae8eae3a13bb3904a1ce15db9160df59
+    fingerprint: sha256:af872ebed7d6e64ee5d3cbe42f5c43268029b841cc71419ace9a56da3fe3ab6f
+    observed: 2026-11-19T15:33:02Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-e2438304
+    claim: "At e2438304 (the fix field, the lock-path open and the one-line text output, with docs), fledge lanes run verify passed 10/10 steps in 12m19s, run alone: fmt, lint and check-types, cargo test (unit 3083 passed, 2 ignored; integration 641 passed, including the fourteen approve_dry_run tests), release build, strict spec check (62 specs) and the CI script tests. The site's tests (48), lint and build pass (site-1091d.log). The lane's processes ran with a neutral global git config (#1092)"
+    result: passed
+    revision: 272abff42a0cf61efe11e38c5978037d20838b86
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 05080872cdf9122086d1c065fc68da70ae8eae3a13bb3904a1ce15db9160df59
+    fingerprint: sha256:07d525b385ec0a29bc25528951cd5ef476319df1c49386af9cc04c1fec0ecbac
+    observed: 2026-11-19T15:33:03Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-5b4558e0
+    claim: "After main 2cc0897f (#1093, #1088) was merged in (7edf9808; conflicts by hand in sdd_version.rs, commands/change.rs, cmd_change/requirements.md and change.3md, plane moved to z=56; #1088's Change Log delta refusal folded into the deltas step, with a dry-run row for it in ea481983) and the change re-checked, fledge lanes run verify passed 10/10 steps in 12m52s at 5b4558e0, run alone. The lane's processes ran with a neutral global git config (#1092)"
+    result: passed
+    revision: 5b4558e0e9e0bb0f1f90136ccf6caefc6cff8c47
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: 3c7c568ab167e8abee9bfbb0f2d3d910ddee2d3c9fb8133eb0819a09d2b8e501
+    fingerprint: sha256:08708086a28d510279313e2a4c07221277f90ce777d09bc18d8b077bb09b0bbb
+    observed: 2026-11-19T15:57:20Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-red-lock-create-at-e04f81bd
+    claim: "Red-first for Codex's round-2 P2 on #1100 (reproduced by corvid-agent at 57c36d84): at e04f81bd (the test alone) a_lock_the_approval_cannot_create_is_refused_in_its_words fails: with no lock file and .specsync mode 0555 the dry run exits 0 (would_approve) while the real approve fails 'failed to open lifecycle lock …: Permission denied'. Fixed in 036735e3."
+    result: failed
+    revision: a768326cb740bf0b18695a809e780a09ad148436
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: e64ae66cbd71d774288cfe1a5df5c9c64e3ea40bb8a72ace702b222ff4e35925
+    fingerprint: sha256:7ad5edcdba39d79c7392030cb3075e8da39dfe94ef89a1cabd84d1dbe3e5d1c0
+    observed: 2026-11-19T16:57:24Z
+    actor: claude-code (hc t59)
+  - id: 2026-11-19-1091-verify-lane-at-a768326c
+    claim: "At a768326c (the lock-create fix, REQ-change-163's lock-check wording under Leif's standing OK, the change re-checked), fledge lanes run verify passed 10/10 steps in 20m55s, run alone, including the fifteen approve_dry_run tests. Probed through the binary against the real approve: an unwritable .specsync, a read-only lock file and a file in place of .specsync each give one refusal word for word, no lock created. Site 48 pass, lint and build OK (site-1091f.log). The lane's processes ran with a neutral global git config as a command prefix (#1092)"
+    result: passed
+    revision: a768326cb740bf0b18695a809e780a09ad148436
+    environment: macOS 27.2 (Darwin 27.2.0), Apple M5 Ultra, local clone
+    content: e64ae66cbd71d774288cfe1a5df5c9c64e3ea40bb8a72ace702b222ff4e35925
+    fingerprint: sha256:57e70094bd3aa83c02870cd4d42930e3651b58306c22cb530c092d8460217b24
+    observed: 2026-11-19T16:57:26Z
+    actor: claude-code (hc t59)
+```

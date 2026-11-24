@@ -42,3 +42,6 @@ The merge driver can be wrong in two ways. A conflict it cannot resolve costs a 
 
 @plane z=8 label="Order is content too (#874)"
 Seeding the merged order from the ancestor made every reorder invisible: bodies still matched by id, so a deliberate reorder merged clean and vanished. A merge driver that understands structure must treat the sequence as a third thing each side can edit — keep it when exactly one side moved it, conflict when both moved it differently. Content identity is not order identity.
+
+@plane z=9 label="Keep the string type of a date-shaped scalar (#1012)"
+A three-way frontmatter merge can agree on a date-shaped string and still change its meaning when rendering YAML. Preserve quotes so a consumer that resolves timestamps reads the same type after the union.

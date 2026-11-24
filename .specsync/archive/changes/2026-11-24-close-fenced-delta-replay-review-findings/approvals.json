@@ -1,0 +1,60 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795407928,
+      "digest": "21dc348ab2f44294e8df5f6503c57e220c559557aebbf37278c76b5e0049e6a1",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "close-fenced-delta-replay-review-findings",
+        "title": "Close fenced delta replay review findings",
+        "description": "Close fenced delta replay review findings",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "validator"
+        ],
+        "affected_paths": [
+          "specs/change/change.3md",
+          "specs/change/tasks.md",
+          "specs/change/testing.md",
+          "specs/validator/validator.spec.md",
+          "src/change/collect_requirement_ids.rs",
+          "src/change_tests/fenced_requirement_example_delta.rs",
+          "src/validator/requirement_ids.rs"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The materializer adopts the existing requirement reader fence rules and tests the existing replay contract. The reader behavior and normative requirements stay the same.",
+        "acceptance_criteria": [
+          "Already-applied checks accept a removal when only a fenced example remains and a modification when the canonical block already carries the new body.",
+          "The existing requirement reader and the canonical materializer apply the same fence rules. A malformed backtick opener leaves both requirement and spec section headings visible. Valid fenced examples leave the intended block boundaries intact."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Keep one fence recognizer, preserve original byte ranges and headings, and retain approved archive evidence.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve the #1144 follow-up scope.",
+        "where": "This Codex conversation, responding to the separately presented #1144 replay and fence-recognizer follow-up scope, relayed by the coordinating Codex agent",
+        "recorded_by": "Codex delta_block"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795480488,
+      "digest": "b33d3dfb1d2cb54f371ce55d478fdf72e4bdfe5c584f1206ab43c5741b86435f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

@@ -4,6 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Preserve delta headers and sibling bytes when writing a stale requirement rebase proposal, and refuse the repeated-word move reported in review (#1085, #1089).
 - [x] Reject linked and dangling late-close destinations in planning/dry-run and revalidate all plans at the locked write boundary; prove byte preservation, refusal recovery and normal late close (#994 P1, REQ-change-143).
 - [x] Refuse to open a change when `.specsync/sdd.json` cannot be parsed (REQ-change-108).
 - [x] Return from a bounded Git read when the direct child exits, even if a descendant still holds its output pipe (#854, #855, REQ-change-126, SPEED-1.a).
@@ -114,3 +115,35 @@ spec: change.spec.md
 - [x] Preserve exact unknown JSON values in approval/reopening succession prefixes and the first newly superseded approval: three committed intended REDs pass unchanged after the private-helper repair, with the five prior numeric and 22 related relay controls, formatting and production Clippy passing; keep initial fixture failures and prior archives separate.
 
 - [x] Rank a sequence-ledger freeze and a `verification_ignored_paths` refusal ahead of the upstream archive in the status handoff, with the refusal as a handoff signal (#908, #937, REQ-change-138).
+- [x] Read project files only through the bounded project read of `util` (REQ-change-161). Evidence: `tests/integration/project_reads.rs`.
+- [x] Replay the transaction journal only when this machine can have written it and only into files the workflow writes (REQ-change-162). Evidence: `src/change_tests/journal_replay_targets.rs`, `change_new_never_replays_a_committed_journal_into_git`.
+- [x] Write change records and workspaces only through the confined helpers, and refuse a linked record before writing (REQ-change-165). Evidence: the `change_*` tests in `tests/integration/project_writes.rs`.
+- [x] Keep the transaction journal in the local state folder and never replay one in the work tree (REQ-change-162). Evidence: `a_journal_in_the_work_tree_is_never_replayed`, `a_running_transaction_keeps_its_journal_outside_the_work_tree`.
+- [x] Never read a journal under a Git directory, and open a registry replay only for a `*.spec.md` path (REQ-change-162). Evidence: `a_journal_under_the_git_directory_is_never_replayed`, `a_registry_entry_that_is_not_a_spec_never_opens_a_replay`.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
+- [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
+- [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+- [x] Skip fenced headings when locating or ending a canonical delta block (#1050, REQ-change-152).
+- [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
+
+- [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).
+- [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
+- [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).
+- [x] Restore full-roster validation before accepted interview correction writes evidence (REQ-change-032).
+- [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
+- [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
+- [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).
+- [x] Use the explicit succession obligation to decide whether an accepted or archived coverer clears the recorded shared-input warning (#657).
+- [x] Check current approval for a recorded in-flight coverer and explicit succession for every signed owner of a permanently covered path (#657).
+- [x] Retire a valid coverage receipt during archived reopen and restore its bytes on publication failure (REQ-change-reopened-coverage-receipt-001).
+
+- [x] Check each owner’s current coverage as split successors move from implementation to acceptance (#657).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
+- [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
+
+- [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).
+
+- [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).
+
+- [x] Report unexplained canonical requirement loss after the last change is archived, using the shared comparison for audit and strict check (#1105, REQ-change-archived-requirement-loss-001).
+- [x] Answer for strict check whether SDD governs the branch, from the working tree or the comparison base audit reads (#1149 review, REQ-change-archived-requirement-loss-001).

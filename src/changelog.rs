@@ -67,14 +67,41 @@ fn list_specs_at_ref(root: &Path, git_ref: &str, specs_dir: &str) -> Vec<String>
     }
 }
 
-/// Read a file's contents at a given git ref.
+/// Read a spec's contents at a given git ref, within the spec bound (REQ-changelog-002).
+///
+/// History can hold a blob of any size, which a clone stores compressed. Its size is asked
+/// first, and a blob over [`crate::util::MAX_SPEC_FILE_BYTES`] is skipped with one warning that
+/// names the spec and the ref; the bytes read are bounded again, so nothing larger is held.
 fn read_file_at_ref(root: &Path, git_ref: &str, file_path: &str) -> Option<String> {
     let spec = format!("{git_ref}:{file_path}");
-    let output = crate::git_utils::output_after_child_exits(
-        Command::new("git").args(["show", &spec]).current_dir(root),
+    let limit = crate::util::MAX_SPEC_FILE_BYTES;
+    let over_bound = || {
+        eprintln!(
+            "warning: skipped {file_path} at {git_ref}: larger than {limit} bytes, the spec bound"
+        );
+        None
+    };
+    let size = crate::git_utils::output_after_child_exits(
+        Command::new("git")
+            .args(["cat-file", "-s", &spec])
+            .current_dir(root),
     )
     .ok()?;
-
+    if !size.status.success() {
+        return None;
+    }
+    let size: u64 = String::from_utf8_lossy(&size.stdout).trim().parse().ok()?;
+    if size > limit {
+        return over_bound();
+    }
+    let (output, overflowed) = crate::git_utils::output_after_child_exits_capped(
+        Command::new("git").args(["show", &spec]).current_dir(root),
+        usize::try_from(limit).unwrap_or(usize::MAX),
+    )
+    .ok()?;
+    if overflowed {
+        return over_bound();
+    }
     if output.status.success() {
         Some(String::from_utf8_lossy(&output.stdout).replace("\r\n", "\n"))
     } else {

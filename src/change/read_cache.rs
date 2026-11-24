@@ -6,15 +6,15 @@
 //
 // 1. An invocation-scoped archive index, so resolving one change's workspace no longer parses
 //    every archived `state.json` again on each lookup.
-// 2. A persistent cache of archived workflow-version history verdicts, stored under the Git
-//    common directory so every worktree shares it (never in the working tree, so it is never a
-//    project input). An entry is reused only when its content digest still matches the archived
+// 2. A persistent cache of archived workflow-version history verdicts, keyed by the Git
+//    common directory so every worktree shares it, in the user's cache folder (never in the
+//    working tree or the Git directory, so no repository or archive of one can bring it). An entry is reused only when its content digest still matches the archived
 //    `state.json` bytes, the commit it was computed at is an ancestor of the scope's `HEAD`, and
 //    no commit between them touched that change's active or archived state paths. Anything else recomputes the verdict live. Only passing verdicts are
 //    stored, so a refusal is always re-derived.
 
 const READ_CACHE_SCHEMA: u32 = 1;
-const READ_CACHE_FILE: &str = "specsync/read-cache-v1.json";
+const READ_CACHE_FILE: &str = "read-cache-v1.json";
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 struct PersistentReadCache {
@@ -59,6 +59,9 @@ struct WorkflowHistoryCacheEntry {
 #[derive(Debug, Default)]
 struct PersistentReadCacheFrame {
     path: Option<PathBuf>,
+    /// The project root and the canonical Git common directory the cache folder is opened by,
+    /// through the local state handles (REQ-util-009).
+    folder: Option<(PathBuf, PathBuf)>,
     loaded: Option<PersistentReadCache>,
     dirty: bool,
     /// Commit to the set of lifecycle state paths touched in `commit..HEAD`, or `None` when that
@@ -83,13 +86,13 @@ fn archive_index_in_scope(root: &Path, id: &str) -> Option<Vec<PathBuf>> {
 /// `find_change_dir` matches them (unreadable or unparsable state never matches).
 fn build_archive_index(root: &Path) -> BTreeMap<String, Vec<PathBuf>> {
     let mut index: BTreeMap<String, Vec<PathBuf>> = BTreeMap::new();
-    if let Ok(entries) = fs::read_dir(root.join(ARCHIVE_PATH)) {
+    if let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH)) {
         for entry in entries.flatten() {
             if !entry.path().is_dir() {
                 continue;
             }
             let state = entry.path().join("state.json");
-            if let Some(record) = fs::read(&state)
+            if let Some(record) = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES)
                 .ok()
                 .and_then(|content| serde_json::from_slice::<ChangeRecord>(&content).ok())
             {
@@ -116,7 +119,21 @@ fn read_cache_build_identity() -> String {
 /// a shallow repository (deepening it could reveal history a verdict never saw), replace refs or
 /// grafts (they rewrite parents and trees without moving `HEAD`), and a partial clone (a missing
 /// blob could make a verdict depend on what happened to be fetched).
+#[cfg(test)]
 fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
+    let common_dir = persistent_read_cache_common_dir(root)?;
+    // Keyed by the common directory, not the worktree: worktrees share one object graph, and an
+    // entry is only reused after proving it against the reading worktree's own `HEAD`. Kept in
+    // the user's cache folder, never in the Git directory, which an archive of a working copy
+    // carries whole (REQ-util-009, REQ-change-164).
+    crate::util::local_state::repository_state_dir(root, &common_dir)
+        .ok()
+        .map(|folder| folder.join(READ_CACHE_FILE))
+}
+
+/// The canonical Git common directory the read cache is kept for, or `None` when the cache is
+/// disabled for this repository.
+fn persistent_read_cache_common_dir(root: &Path) -> Option<PathBuf> {
     let probe = git_output(
         root,
         &["rev-parse", "--is-shallow-repository", "--git-common-dir"],
@@ -163,9 +180,313 @@ fn persistent_read_cache_path(root: &Path) -> Option<PathBuf> {
     if promisor.status.code() != Some(1) {
         return None;
     }
-    // The common directory, not the per-worktree one: worktrees share one object graph, and an
-    // entry is only reused after proving it against the reading worktree's own `HEAD`.
-    Some(common_dir.join(READ_CACHE_FILE))
+    Some(common_dir)
+}
+
+/// The read cache's folder, opened through the local state handles: no link is followed into
+/// it, and nothing there is waited on or read past the bound (REQ-util-009).
+fn read_cache_folder(
+    folder: &(PathBuf, PathBuf),
+    create: bool,
+) -> Option<crate::util::local_state::LocalState> {
+    crate::util::local_state::LocalState::open_repository(&folder.0, &folder.1, create)
+        .ok()
+        .flatten()
+}
+
+/// What one process decided for each partial clone it read (REQ-change-172): the download is
+/// asked once, and a failed one is the refusal every later read that fails gives.
+type PartialCloneDownload = std::sync::Arc<std::sync::OnceLock<Result<(), String>>>;
+static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, PartialCloneDownload>> =
+    std::sync::Mutex::new(BTreeMap::new());
+
+/// How long the one download may take: inside Chough's 120 s bound on each SpecSync call.
+const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
+
+/// REQ-change-172 (#1077, option 1): in a partial clone, every history object SpecSync's reads
+/// need that is not present (under `.specsync` and the canonical requirements, reachable from
+/// `HEAD` and the default branch) is downloaded first, in one fetch from the repository's
+/// promisor remote run with the user's own Git, never prompting. A full clone asks one
+/// configuration question and nothing more. When the download fails, the refusal names one
+/// `git fetch` that downloads those objects, given by a read that then fails
+/// (`partial_clone_download_refusal`); a read that needs none of them still succeeds.
+fn ensure_partial_clone_objects(root: &Path) {
+    ensure_partial_clone_objects_with(root, || download_partial_clone_objects(root));
+}
+
+fn ensure_partial_clone_objects_with(root: &Path, download: impl FnOnce() -> Result<(), String>) {
+    let slot = {
+        let mut downloads =
+            PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
+        if let Some(slot) = downloads.get(root) {
+            slot.clone()
+        } else {
+            downloads.entry(root.to_path_buf()).or_default().clone()
+        }
+    };
+    // The initializer uses metadata queries or direct Git runners, so it cannot re-enter
+    // this history-read hook. Keep the map unlocked while this root's readers wait.
+    slot.get_or_init(download);
+}
+
+/// The refusal a failed partial-clone download gave this process, if one did.
+fn partial_clone_download_refusal(root: &Path) -> Option<String> {
+    PARTIAL_CLONE_DOWNLOADS
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner())
+        .get(root)
+        .and_then(|slot| slot.get())
+        .and_then(|result| result.as_ref().err())
+        .cloned()
+}
+
+fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
+    // git writes no project file: --get-regexp only reads the promisor configuration.
+    let Some(config) = git_output(
+        root,
+        &["config", "--get-regexp", r"^(extensions\.partialclone|remote\..*\.promisor)$"],
+    ) else {
+        return Ok(());
+    };
+    let Some(remote) = config.lines().find_map(|line| {
+        let (key, value) = line.split_once(' ')?;
+        if key == "extensions.partialclone" {
+            return Some(value.trim().to_string());
+        }
+        // Every spelling Git reads as true (Codex on #1122).
+        let value = value.trim().to_ascii_lowercase();
+        let truthy = matches!(value.as_str(), "true" | "yes" | "on")
+            || value.parse::<i64>().is_ok_and(|number| number != 0);
+        key.strip_prefix("remote.")?
+            .strip_suffix(".promisor")
+            .filter(|_| truthy)
+            .map(str::to_string)
+    }) else {
+        return Ok(());
+    };
+    let mut revisions = vec!["HEAD".to_string()];
+    revisions.extend(lost_requirements_default_ref(root));
+    let list = |args: &[&str], input| {
+        partial_clone_history_listing(root, args, input)
+            .map_err(|error| partial_clone_listing_refusal(root, &remote, &revisions, &error))
+    };
+    // Name candidates before looking for their missing objects. An object walk with a glob
+    // pathspec can drop a historical file, and the current config does not describe older scopes.
+    let mut args = vec![
+        "log", "--format=", "--name-only", "-z", "--full-history", "-m", "--root",
+        "--no-renames", "--relative",
+    ];
+    args.extend(revisions.iter().map(String::as_str));
+    args.extend(["--", ":(glob)**/requirements.md", ":(glob)**/*.req.md"]);
+    let historical = list(&args, None)?;
+    // Git paths are bytes. An invalid UTF-8 name cannot become a project path, but it must
+    // not discard the other names in the listing.
+    let historical_paths = historical
+        .split(|byte| *byte == 0)
+        .filter_map(|path| std::str::from_utf8(path).ok())
+        .filter(|path| !path.is_empty());
+    let mut pathspecs: BTreeSet<String> = [
+        ".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml",
+    ]
+    .into_iter()
+    .chain(historical_paths)
+    .map(|path| format!(":(literal){path}"))
+    .collect();
+    pathspecs.extend(requirement_scope(root).pathspecs());
+
+    // Feed paths to Git directly, so a large history does not exceed ARG_MAX. Keep paths
+    // containing line separators on the argument vector because rev-list's stdin is line-based.
+    let mut args = vec![
+        "rev-list", "--objects", "--missing=print", "--quiet", "--full-history", "--stdin", "--",
+    ];
+    let mut input = format!("{}\n--\n", revisions.join("\n"));
+    for pathspec in &pathspecs {
+        if pathspec.contains(['\n', '\r']) {
+            args.push(pathspec);
+        } else {
+            input.push_str(pathspec);
+            input.push('\n');
+        }
+    }
+    let listing = list(&args, Some(input.into_bytes()))?;
+    let missing: Vec<&str> = missing_git_objects(&listing).collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    eprintln!(
+        "downloading {} objects this partial clone lacks from `{remote}`",
+        missing.len()
+    );
+    match fetch_with_the_users_git(root, &remote, &missing) {
+        Ok(()) => {
+            crate::git_utils::invalidate_repository_facts();
+            Ok(())
+        }
+        // The printed line names every id, and the shell's builtin `printf` hands them to the
+        // fetch on standard input, so no program's argument list carries them and it runs as
+        // printed however many objects are missing (Codex on #1122, second round).
+        Err(reason) => Err(format!(
+            "{} history objects are not in this partial clone, and SpecSync could not download them from `{remote}`: {reason}. Download them with your own Git: `{}`, then run the command again.",
+            missing.len(),
+            partial_clone_fetch_command(root, &remote, &missing, "--filter=blob:none"),
+        )),
+    }
+}
+
+/// Discover missing objects without starting any lazy fetch through isolated Git.
+fn partial_clone_history_listing(
+    root: &Path,
+    args: &[&str],
+    input: Option<Vec<u8>>,
+) -> Result<Vec<u8>, String> {
+    let mut command = configured_git_command(root);
+    command.env("GIT_NO_LAZY_FETCH", "1");
+    let output = run_git_command_bounded(&mut command, args, input, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(stderr.lines().rev().find(|line| !line.is_empty())
+            .unwrap_or("Git could not list the history objects").to_string());
+    }
+    Ok(output.stdout)
+}
+
+fn missing_git_objects(listing: &[u8]) -> impl Iterator<Item = &str> {
+    listing.split(|byte| *byte == b'\n').filter_map(|line| {
+        let oid = line.strip_prefix(b"?")?;
+        if matches!(oid.len(), 40 | 64) && oid.iter().all(u8::is_ascii_hexdigit) {
+            std::str::from_utf8(oid).ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn partial_clone_fetch_command(root: &Path, remote: &str, ids: &[&str], filter: &str) -> String {
+    shell_command_with_path(root, |directory| format!(
+        "printf '%s\\n' {} | git -C {directory} fetch --no-tags --no-write-fetch-head {filter} --stdin -- {}",
+        ids.join(" "),
+        shell_word(remote),
+    ))
+}
+
+/// Missing trees prevent a path-limited walk. The unrestricted walk can still name the missing
+/// objects so the repair fetch can ask for them, including below unpublished local commits.
+fn partial_clone_listing_refusal(
+    root: &Path,
+    remote: &str,
+    revisions: &[String],
+    error: &str,
+) -> String {
+    let mut args = vec!["rev-list", "--objects", "--missing=print", "--quiet", "--full-history"];
+    args.extend(revisions.iter().map(String::as_str));
+    let listing = partial_clone_history_listing(root, &args, None).unwrap_or_default();
+    let missing: Vec<&str> = missing_git_objects(&listing).collect();
+    let recovery = if missing.is_empty() {
+        shell_command_with_path(root, |directory| format!(
+            "git -C {directory} fetch --refetch --no-filter --no-tags --no-write-fetch-head -- {}",
+            shell_word(remote),
+        ))
+    } else {
+        // An unfiltered fetch of a missing tree also brings the objects below it.
+        partial_clone_fetch_command(root, remote, &missing, "--no-filter")
+    };
+    format!(
+        "this partial clone has history Git could not inspect: {error}. Restore it with your own Git: `{recovery}`, then run the command again."
+    )
+}
+
+/// One `git fetch --stdin -- <remote>` of `ids`, with the user's own configuration, rooted as
+/// SpecSync's other Git calls are (no `GIT_DIR`, `GIT_OBJECT_DIRECTORY` or the like pointing
+/// elsewhere), `GIT_TERMINAL_PROMPT=0`, and (on Unix) a new session with no controlling
+/// terminal, so a credential that needs typing fails it instead of waiting; the whole session is
+/// killed after `PARTIAL_CLONE_FETCH_SECONDS`. It runs Git directly, never through
+/// `run_git_bounded`, whose history reads would ask for this download again.
+fn fetch_with_the_users_git(root: &Path, remote: &str, ids: &[&str]) -> Result<(), String> {
+    let mut command = rooted_git_command(root);
+    command
+        .args(["fetch", "--no-tags", "--no-write-fetch-head", "--filter=blob:none", "--stdin", "--", remote])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped());
+    #[cfg(unix)]
+    unsafe {
+        use std::os::unix::process::CommandExt;
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
+    let mut child = command.spawn().map_err(|error| format!("Git could not be run: {error}"))?;
+    // Standard error is drained in chunks, keeping at most `FETCH_STDERR_CAP` bytes, and is never
+    // waited on past the deadline: a helper that inherits the pipe can hold it open after `git
+    // fetch` exits (Codex on #1122).
+    const FETCH_STDERR_CAP: usize = 64 * 1024;
+    let mut stderr = child.stderr.take();
+    let (sender, receiver) = std::sync::mpsc::channel::<Vec<u8>>();
+    std::thread::spawn(move || {
+        let mut kept = Vec::new();
+        let mut buffer = [0_u8; 8192];
+        if let Some(stderr) = stderr.as_mut() {
+            while let Ok(read) = std::io::Read::read(stderr, &mut buffer) {
+                if read == 0 {
+                    break;
+                }
+                let room = FETCH_STDERR_CAP.saturating_sub(kept.len());
+                kept.extend_from_slice(&buffer[..read.min(room)]);
+                let _ = sender.send(buffer[..read.min(room)].to_vec());
+            }
+        }
+    });
+    if let Some(mut stdin) = child.stdin.take() {
+        let _ = std::io::Write::write_all(&mut stdin, format!("{}\n", ids.join("\n")).as_bytes());
+    }
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(PARTIAL_CLONE_FETCH_SECONDS);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) if std::time::Instant::now() >= deadline => {
+                // The fetch leads its own session: stop every process in it, helpers included.
+                #[cfg(unix)]
+                unsafe {
+                    libc::kill(-(child.id() as libc::pid_t), libc::SIGKILL);
+                }
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!(
+                    "the download did not finish within {PARTIAL_CLONE_FETCH_SECONDS} seconds"
+                ));
+            }
+            Ok(None) => std::thread::sleep(std::time::Duration::from_millis(20)),
+            Err(error) => return Err(error.to_string()),
+        }
+    };
+    if status.success() {
+        return Ok(());
+    }
+    // What the fetch said by the time it exited, or by a short grace after it, never longer.
+    let mut bytes = Vec::new();
+    let grace = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    loop {
+        let wait = grace.saturating_duration_since(std::time::Instant::now());
+        match receiver.recv_timeout(wait) {
+            Ok(chunk) => bytes.extend_from_slice(&chunk),
+            Err(_) => break,
+        }
+        if bytes.len() >= FETCH_STDERR_CAP {
+            break;
+        }
+    }
+    let stderr = String::from_utf8_lossy(&bytes).into_owned();
+    let reason = stderr
+        .lines()
+        .map(str::trim)
+        .find_map(|line| line.strip_prefix("fatal: "))
+        .or_else(|| stderr.lines().map(str::trim).rfind(|line| !line.is_empty()))
+        .unwrap_or("Git gave no reason")
+        .trim_end_matches('.')
+        .to_string();
+    Err(reason)
 }
 
 thread_local! {
@@ -459,7 +780,17 @@ fn with_persistent_read_cache<Value>(
 ) -> Option<Value> {
     let (in_read_scope, mut frame) = take_persistent_cache_frame(root)?;
     if frame.loaded.is_none() {
-        frame.path = persistent_read_cache_path(root);
+        let common_dir = persistent_read_cache_common_dir(root);
+        frame.path = common_dir.as_ref().and_then(|common_dir| {
+            crate::util::local_state::repository_state_dir(root, common_dir)
+                .ok()
+                .map(|folder| folder.join(READ_CACHE_FILE))
+        });
+        frame.folder = frame
+            .path
+            .as_ref()
+            .and(common_dir)
+            .map(|common_dir| (root.to_path_buf(), common_dir));
         frame.head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"]);
         let prefix = git_repo_prefix(root).unwrap_or_default();
         let fresh = PersistentReadCache {
@@ -472,9 +803,11 @@ fn with_persistent_read_cache<Value>(
             workflow_v1_at_cutoff: BTreeSet::new(),
         };
         let loaded = frame
-            .path
+            .folder
             .as_ref()
-            .and_then(|path| fs::read(path).ok())
+            .and_then(|folder| read_cache_folder(folder, false))
+            // not a project file read: the read cache in SpecSync's own folder in the user cache, read through its no-follow, bounded handle (REQ-util-009)
+            .and_then(|state| state.read_file(READ_CACHE_FILE, crate::util::MAX_PROJECT_INPUT_BYTES).ok().flatten())
             .and_then(|bytes| serde_json::from_slice::<PersistentReadCache>(&bytes).ok())
             .filter(|cache| {
                 cache.schema == fresh.schema
@@ -548,7 +881,7 @@ fn path_is_state_candidate(path: &str, changes_root: &str, archive_root: &str, i
 fn archived_state_cache_key(root: &Path, record: &ChangeRecord) -> Option<(String, String)> {
     let workspace = find_change_dir(root, &record.id).ok()?;
     let state = workspace.join("state.json");
-    let bytes = fs::read(&state).ok()?;
+    let bytes = crate::util::read_project_bytes(root, &state, crate::util::MAX_STATE_FILE_BYTES).ok()?;
     if serde_json::from_slice::<ChangeRecord>(&bytes).ok().as_ref() != Some(record) {
         return None;
     }
@@ -711,27 +1044,17 @@ fn flush_persistent_read_cache(frame: &PersistentReadCacheFrame) {
     if !frame.dirty {
         return;
     }
-    let (Some(path), Some(cache)) = (frame.path.as_ref(), frame.loaded.as_ref()) else {
+    let (Some(folder), Some(cache)) = (frame.folder.as_ref(), frame.loaded.as_ref()) else {
         return;
     };
     let Ok(bytes) = serde_json::to_vec(cache) else {
         return;
     };
-    if let Some(parent) = path.parent()
-        && fs::create_dir_all(parent).is_err()
-    {
-        return;
-    }
-    // Unique per process and per flush, so concurrent writers (threads or processes) never share
-    // a temporary file; the rename stays atomic.
-    static FLUSH_NONCE: AtomicU64 = AtomicU64::new(0);
-    let temporary = path.with_extension(format!(
-        "tmp-{}-{}",
-        std::process::id(),
-        FLUSH_NONCE.fetch_add(1, Ordering::Relaxed)
-    ));
-    if fs::write(&temporary, bytes).is_ok() && fs::rename(&temporary, path).is_err() {
-        let _ = fs::remove_file(&temporary);
+    // The local state handle stages a new file there and renames it over the name, so a link at
+    // the name is replaced, never written through, and concurrent writers never share a
+    // temporary file (REQ-util-009).
+    if let Some(state) = read_cache_folder(folder, true) {
+        let _ = state.write_file(READ_CACHE_FILE, &bytes, false);
     }
 }
 
@@ -936,7 +1259,7 @@ fn archive_introductions_from_listing(
 /// about to need and the persistent cache cannot answer, several at a time, and memoizes them in
 /// the scope. The walk still visits every archive in order and returns the same first error; this
 /// only moves independent Git reads off the critical path. Outside a read scope it does nothing.
-fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<fs::DirEntry>]) {
+fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<crate::util::ProjectDirEntry>]) {
     let in_history_scope = HISTORY_CACHE_SCOPES.with(|scopes| {
         scopes
             .borrow()
@@ -948,7 +1271,7 @@ fn prefetch_archived_workflow_histories(root: &Path, entries: &[std::io::Result<
     }
     let mut pending = Vec::new();
     for entry in entries.iter().flatten() {
-        let Ok(content) = fs::read_to_string(entry.path().join("state.json")) else {
+        let Ok(content) = crate::util::read_project_string(root, &entry.path().join("state.json"), crate::util::MAX_STATE_FILE_BYTES) else {
             continue;
         };
         let Ok(record) = serde_json::from_str::<ChangeRecord>(&content) else {

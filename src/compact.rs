@@ -79,13 +79,17 @@ fn compact_changelogs_with_failures(
     dry_run: bool,
     failure_injection: FailureInjection,
 ) -> CompactReport {
-    let spec_files = find_spec_files(specs_dir);
+    let spec_files = find_spec_files(root, specs_dir);
     let mut plans = Vec::new();
     let mut failures = Vec::new();
 
     for spec_path in &spec_files {
         let rel_path = relative_display_path(root, spec_path);
-        let content = match fs::read_to_string(spec_path) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_path,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c,
             Err(error) => {
                 failures.push(CompactFailure {
@@ -168,6 +172,7 @@ fn compact_changelogs_with_failures(
             continue;
         }
 
+        // checked project write: a rename over the compact target, which passed its final-component link check and bounded read
         match temporary.persist(&plan.path) {
             Ok(_) => {
                 plan.result.applied = true;
@@ -660,11 +665,13 @@ fn stage_replacement(path: &Path, replacement: &[u8]) -> io::Result<tempfile::Na
             "target has no parent directory",
         )
     })?;
+    // checked project write: a staged file beside a spec `find_project_files` found and the bounded read reached, in its real parent directory
     let mut temporary = tempfile::Builder::new()
         .prefix(".specsync-compact-")
         .tempfile_in(parent)?;
     temporary.write_all(replacement)?;
     temporary.as_file_mut().sync_all()?;
+    // not a project file write: the staged file this function just created
     temporary
         .as_file_mut()
         .set_permissions(metadata.permissions())?;

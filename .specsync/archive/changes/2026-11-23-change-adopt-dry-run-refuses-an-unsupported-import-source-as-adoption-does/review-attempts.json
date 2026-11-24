@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "change-adopt-dry-run-refuses-an-unsupported-import-source-as-adoption-does",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "830ee703ea658a310c0224c439be5a0f6d39941b",
+      "contract_digest": "333bb12c6580f102ff99c82b9bba93e21ec5c1c3156b9704fb29779121965da6",
+      "execution_digest": "ee8c56a3057d6172c3e6108cbc5206a8ca37f92141b88aac874efc618c6af6d5",
+      "workspace_digest": "dc318f5337172b4b91a069a7025cd7f4e5b5a01c26eeabb8fc4151d350fc9db1",
+      "timestamp": 1795478193,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "Maintainer response in the SpecSync 6.4.2 release conversation on 2026-11-23, after inspection of the remaining PRs and the linked evidence.",
+        "recorded_by": "Codex"
+      }
+    }
+  ]
+}

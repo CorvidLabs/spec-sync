@@ -3,8 +3,8 @@
 This page is written to be **pasted wholesale into an agent session** in the repository you
 want to adopt spec-sync in. It is also readable on its own.
 
-This guide describes the 6.3 workflow with the published 6.3.0 pins. Install the stable binary and verify
-`specsync --version` prints `specsync 6.3.0` before adoption; historical recovery guidance is
+This guide describes the 6.4 workflow with the published 6.4.1 pins. Install the stable binary and verify
+`specsync --version` prints `specsync 6.4.1` before adoption; historical recovery guidance is
 labeled separately.
 
 ---
@@ -18,15 +18,15 @@ change end to end so the loop is proven rather than assumed.
 
 ## Install
 
-Pin explicitly. Cargo and GitHub serve 6.3.0:
+Pin explicitly. Cargo and GitHub serve 6.4.1:
 
     cargo install specsync
-    specsync --version    # specsync 6.3.0
+    specsync --version    # specsync 6.4.1
 
     # or a GitHub Release asset / git tag:
-    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.3.0 --locked specsync
+    cargo install --git https://github.com/CorvidLabs/spec-sync --tag v6.4.1 --locked specsync
 
-Homebrew (`CorvidLabs/tap/spec-sync`) tracks the published stable; confirm it reports 6.3.0
+Homebrew (`CorvidLabs/tap/spec-sync`) tracks the published stable; confirm it reports 6.4.1
 before relying on it. Prebuilt binaries exist for Linux and
 macOS only; 6.0 publishes no Windows binary (#735).
 
@@ -109,40 +109,40 @@ Write a `deltas/<module>.md` describing the requirement being added or changed, 
     specsync change ship <id>
 
 Run `review` and `ship` consecutively, without committing between them. The reviewer may be
-the scope approver. Commit and push the archive result, wait for required checks, then merge
-on GitHub. **Merge only after every active change on the PR is archived.**
+the scope approver. `ship` commits the archive itself; push that commit, wait for required
+checks, then merge on GitHub. **Merge only after every active change on the PR is archived.**
 
 With archive-first CI (the spec-sync Action's `require-archived` gate as the first job, or this
 repository's own `Archive` job), a pushed tip with any open change fails that gate and runs
 nothing else. The full lane runs once, on the archived tip. If it fails, push a fix commit on
 top with specs kept in sync; a fix that changes the approved scope needs a new change.
 
-`check --commit` and `ship --push` commit edits to files git already tracks, plus the untracked
+`change check --commit` and `change ship --push` commit edits to files git already tracks, plus the untracked
 files the change owns: its workspace and archive package, the canonical specs its deltas write,
 and SpecSync's own ledgers. They never stage any other untracked file, so `git add` a new source
-file yourself before `check --commit`. Every other untracked file stays out of the commit and is
+file yourself before `change check --commit`. Every other untracked file stays out of the commit and is
 listed as a warning, so a stray debug file cannot end up in a pushed commit.
 
 ## 5. Wire CI
 
     # For a candidate instead, choose a release that has binary assets.
-    - uses: CorvidLabs/spec-sync@v6.3.0
+    - uses: CorvidLabs/spec-sync@v6.4.1
       with:
-        version: '6.3.0'
+        version: '6.4.1'
         strict: 'true'
         lifecycle-enforce: 'true'
 
 Both pins are needed and they pin different things: the `uses` ref pins the action code, the
-`version` input pins the binary it downloads. Prefer the `@v6.3.0` pins shown above.
+`version` input pins the binary it downloads. Prefer the `@v6.4.1` pins shown above.
 Always pass `version: '6.0.0'` with `@v6.0.0`:
-that tag's Action still defaults the download to `6.0.0-rc.14`, and immutable `@v6.3.0` still
-defaults to `6.2.0`. This commit's omitted-input default is `6.3.0`. Move the floating `@v6` tag
+that tag's Action still defaults the download to `6.0.0-rc.14`, and immutable `@v6.4.1` still
+defaults to `6.4.0`. This commit's omitted-input default is `6.4.1`. Move the floating `@v6` tag
 only after promotion, to a commit whose omitted-input default is the promoted release. The action runs on Linux and macOS runners
 and refuses a Windows runner.
 
 When using Trust, pin **Trust 1.2.1**, as SpecSync's own `trust.yml` does
 (`uses: CorvidLabs/trust@v1.2.1` or SHA `dd52a7a`). Trust 1.2.1 defaults `specsync-version` to
-`6.0.0`; explicitly set `specsync-version: "6.3.0"` to match the current CLI and Action binary
+`6.0.0`; explicitly set `specsync-version: "6.4.1"` to match the current CLI and Action binary
 examples above. An older
 Trust wrapper (1.1.x, 1.2.0-rc.*) still defaults an RC or 5.x binary. A soft provenance
 setting alone does not enforce release provenance.
@@ -162,8 +162,9 @@ CI passes over drift. With it, drift gates.
 currency rules. A squash can make a historical review's ancestry unavailable even when verified
 content still matches. That is a recovery concern for changes merged while still active, not a
 reason to schedule fresh review after every normal merge. Complete review and finalization on
-the PR first. Use `change ship-status <id>` for the current gate and `change status <id>` for
-the supported recovery action if an older change was already merged prematurely.
+the PR first. Use `change ship-status <id>` for the current gate (it exits 1 while it names a
+blocker) and `change status <id>` for the supported recovery action if an older change was
+already merged prematurely.
 
 **Scope is approved explicitly.** Set `affected_specs` and `affected_paths` while the change is
 `draft`. To re-scope an approved, implementing or verifying change, use
@@ -204,7 +205,7 @@ it an export the spec must document. This is the drift check working, not a bug.
 **Recovery depends on the recorded workflow.** `reopen` also supports eligible accepted or
 archived workflow-v2 changes with stale delivery evidence, including interrupted finalization
 after terminal approval. Keep the approved definition unchanged, record the actor and reason,
-then use `reopen` → `check --commit` → human review → `review` → `finalize`. Historical
+then use `reopen` → `change check --commit` → human review → `review` → `finalize`. Historical
 `verify` / `accept` and classification/owner corrections have separate recovery guidance.
 Use `change status <id>` and the [workflow recovery guidance](../site/src/content/docs/workflow.md)
 for the state you actually have. Recovery does not replace finalizing before a normal merge.

@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795545806,
+      "commit": "1dfd0dbf5cd9eed09cfbc5ef49b3351cc696646c",
+      "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+      "execution_digest": "ff8a986beb3b3bce566924f04bebdeb8a03312a70f3d784eadcf6d6f54bfcc77",
+      "workspace_digest": "500cfc9b74361b8f9c24c1f541cef627ebfd344be51b4e26aff7c8e1fe263755",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795545821,
+      "commit": "f5516576a9e12eb3219c54f063f1c8444facf26e",
+      "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+      "execution_digest": "ff8a986beb3b3bce566924f04bebdeb8a03312a70f3d784eadcf6d6f54bfcc77",
+      "workspace_digest": "5ba918ab6af5f2f3e9b52f218e576874ef5ce864f4e4b46705d08a7353ec20be",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795545824,
+      "commit": "5d73f0b7a59549b70cd45b5ed3c03473672259a8",
+      "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+      "execution_digest": "ff8a986beb3b3bce566924f04bebdeb8a03312a70f3d784eadcf6d6f54bfcc77",
+      "workspace_digest": "5ba918ab6af5f2f3e9b52f218e576874ef5ce864f4e4b46705d08a7353ec20be",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795545824,
+      "commit": "ffca9ef0a6e5147522a7db883b1a56103d18d25e",
+      "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+      "execution_digest": "ff8a986beb3b3bce566924f04bebdeb8a03312a70f3d784eadcf6d6f54bfcc77",
+      "workspace_digest": "5ba918ab6af5f2f3e9b52f218e576874ef5ce864f4e4b46705d08a7353ec20be",
+      "acceptance_input_digest": "c3bc8d889476009595b2e0a77cac094e7599ced8f124579456aee3959f9e82a0",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/workflows/release.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "330414a816a69fb817bfa59e480fe3c65ad4666426d9ee718fdb9fdce26e6ce7",
+            "entry_digest": "fbf4c5f0b60bb891df1ff2e92af494df0d6c3b802099f69e58c2a58284da0c57",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "docs/releases/6.4.2.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f4503e56ce5d78399e3af5b8ed54b942aa444e0eb9e42b027b1e59a806128152",
+            "entry_digest": "fd34d03b8c3e7cb5d763d6a74d88ca072156cddd7cd323ace07b65e5c2cea9d3",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

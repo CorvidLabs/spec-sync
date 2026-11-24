@@ -77,18 +77,15 @@ Acceptance Criteria
 
 ### REQ-cmd-check-004
 
-The primary check command SHALL be the bidirectional spec-to-code drift check
-and SHALL NOT consult SDD policy, active change workspaces, or archive history.
+The primary check command SHALL provide bidirectional spec-to-code drift validation. With explicit `--strict` on a Git project that has SDD enabled in its working tree or at its trusted comparison base, it SHALL also run the shared branch comparison in REQ-change-archived-requirement-loss-001 and account for a loss using approved removals. It SHALL report the historical findings through its supported text and structured validation results. Lifecycle policy compliance, general workspace health and unrelated archive integrity SHALL remain with the lifecycle commands.
 
 Acceptance Criteria
 
-- `specsync check` does not print an active-change count and does not emit
-  SDD workspace or archive findings.
-- Exit status derives solely from spec validation results, the effective enforcement mode,
-  `--strict`, and `--require-coverage`.
-- Lifecycle gating remains reachable through the `change` verbs and `specsync change audit`,
-  whose behavior is unchanged. A project that never enables SDD can use `check` as the
-  whole product.
+- Ordinary `specsync check` reports drift without emitting lifecycle workspace or archive findings.
+- After the last change has been archived, `check --strict` exits unsuccessfully if the branch dropped a canonical requirement without an approved removal. It names the lost ID, the original canonical file, and how to display the original block.
+- A separate managed fixture with no requirement loss passes. A managed project can use only strict check in CI and still catch an unexplained loss.
+- A branch that sets `enabled` to false or deletes `.specsync/sdd.json` while its comparison base has SDD enabled is still compared. `check --strict` and `change audit --strict` both refuse an unexplained loss there.
+- A Git project that never enabled SDD, or whose comparison base has it disabled, retains the ordinary spec validation result, including when a requirement was edited without a removal delta. The same applies outside Git.
 
 ### REQ-cmd-check-005
 
@@ -219,6 +216,48 @@ Acceptance Criteria
 - In each case every other byte of the file is unchanged, `check --strict` passes, and a second `check --fix` changes nothing.
 
 ### REQ-cmd-check-018
+
+When the hash cache location is refused (REQ-hash-cache-007), `check` SHALL print one warning on stderr that names the refused path, SHALL validate every spec as it does with no cache, SHALL NOT read, create or write anything through that location, and SHALL keep the stdout output, verdict and exit code it has with no cache.
+
+Acceptance Criteria
+- With `.specsync/hashes.json` a symbolic link to a file outside the project, `specsync check`, `check --force`, `check --strict` and `check --format json` each exit as they do without the link, print `hash cache not used` once on stderr, and leave the link and the bytes of its target unchanged.
+- With that link dangling, nothing is created at its target.
+- With `.specsync` a symbolic link to a directory outside the project, `specsync check` prints the same warning and that directory gains no entry.
+- A project whose cache is a regular file or absent prints no such warning.
+
+### REQ-cmd-check-019
+
+`check` SHALL read the spec files it reads again for `--fix` and for stale-history detection only through the bounded project read of `util` (REQ-util-003), with a bound of 8 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-cmd-check-020
+
+`check --fix --backup` SHALL read each spec through the bounded project read and write its backup to `.specsync/backup-fix/<spec path>` through the confined project write (REQ-util-002). A `backup-fix` directory, or a file in it, that leads out of the repository SHALL be refused with the path, and `--fix` SHALL stop before it changes a spec. `--fix` SHALL rewrite specs through the confined project write.
+
+Acceptance Criteria
+- A `backup-fix` linked to an outside directory receives nothing, and the spec is unchanged; a backup file linked to an outside file keeps that file's bytes.
+- With no link, the backup is written where it was and the fix goes on.
+
+### REQ-cmd-check-021
+
+`check` SHALL use only the hash cache in the project's local state folder (REQ-hash-cache-009) and SHALL never read a `.specsync/hashes.json` in the work tree or a cache under a Git directory, so a cache a repository or an archive of one ships changes nothing and prints nothing. The "Cache:" line SHALL name the cache's real path. When no local state folder can be found, or it is refused (REQ-util-006), `check` SHALL print once `warning: hash cache not used:` with the reason and validate every spec.
+
+Acceptance Criteria
+- With a forged `.specsync/hashes.json` in a tree with no Git, `check` validates the failing spec and exits 1.
+- A copy of a project that ships its `.git`, cache included, validates every spec.
+- With `XDG_CACHE_HOME` inside the project, `check` warns once and validates every spec.
+- With the project's state folder writable by others, `check` warns once and validates every spec.
+
+### REQ-cmd-check-022
+
+`check` SHALL list the schema folder for its cache inputs only through `read_project_dir` (REQ-util-010).
+
+Acceptance Criteria
+- A schema folder that leads out of the project contributes no input name from outside.
+
+### REQ-cmd-check-023
 
 `check` SHALL report a module's `<module>.3md` lesson file that exists beside its spec but cannot be read or parsed as 3md as a warning on that spec, naming the file, the parser's error, and that the module's `context.md` is used for its lessons instead, so `check --strict` fails on it. A `.3md` that parses, and a module without one, SHALL add no finding. Lifecycle commands still read `context.md` for that module's lessons and never fail on it (REQ-change-106).
 

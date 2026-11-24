@@ -15,6 +15,7 @@
 
 const MAX_VERIFICATION_IGNORED_PATHS: usize = 8;
 const MAX_VERIFICATION_IGNORED_PATH_BYTES: usize = 128;
+const MAX_EXCLUSION_PARENT_ENTRIES: usize = 100_000;
 const VERIFICATION_IGNORED_PATTERN_CHARACTERS: [char; 7] = ['*', '?', '[', ']', '{', '}', '!'];
 const VERIFICATION_IGNORED_REFUSAL: &str = "invalid SDD policy: verification_ignored_paths";
 
@@ -141,12 +142,37 @@ fn validate_verification_ignored_paths(
             }
         }
     }
-    let protected = verification_ignored_protected_scopes(root, policy);
+    let config = crate::config::load_config(root);
+    let protected = verification_ignored_protected_scopes(root, policy, &config);
     for entry in entries {
-        for (scope, label) in &protected {
-            if verification_ignored_scopes_overlap(entry, scope) {
-                return Err(refuse(entry, format!("overlaps {label}")));
+        let mut excluded_depth = None;
+        for (scope, label, source) in &protected {
+            if !verification_ignored_scopes_overlap(entry, scope) {
+                continue;
             }
+            if *source {
+                let depth = match excluded_depth {
+                    Some(depth) => depth,
+                    None => {
+                        let depth =
+                            verification_ignored_excluded_depth(root, entry, &config.exclude_dirs)
+                                .map_err(|rule| refuse(entry, rule))?;
+                        excluded_depth = Some(depth);
+                        depth
+                    }
+                };
+                let source_depth = if scope == "." {
+                    0
+                } else {
+                    scope.split('/').count()
+                };
+                // An overlapping source with fewer components is an ancestor of the entry.
+                // The exclusion must be strictly below the source, where the walk applies it.
+                if depth > source_depth {
+                    continue;
+                }
+            }
+            return Err(refuse(entry, format!("overlaps {label}")));
         }
         verification_ignored_symlink_free(root, entry).map_err(|rule| refuse(entry, rule))?;
     }
@@ -197,37 +223,37 @@ fn verification_ignored_entry_shape(entry: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Every scope an entry may not equal, contain or lie inside, with the label its refusal names.
+/// Every scope an entry may not equal, contain or lie inside, with the label its refusal names and
+/// whether it is a `source_dirs` entry (#1083).
 fn verification_ignored_protected_scopes(
     root: &Path,
     policy: &SddPolicy,
-) -> Vec<(String, String)> {
-    let config = crate::config::load_config(root);
-    let mut scopes = vec![(".specsync".to_string(), "`.specsync`".to_string())];
+    config: &crate::types::SpecSyncConfig,
+) -> Vec<(String, String, bool)> {
+    let mut scopes = vec![(".specsync".to_string(), "`.specsync`".to_string(), false)];
     let specs = verification_ignored_overlap_scope(&config.specs_dir);
-    scopes.push((specs.clone(), format!("the specs tree `{specs}`")));
+    scopes.push((specs.clone(), format!("the specs tree `{specs}`"), false));
     for source in &config.source_dirs {
         let normalized = verification_ignored_overlap_scope(source);
-        scopes.push((normalized.clone(), format!("source_dirs `{normalized}`")));
+        scopes.push((normalized.clone(), format!("source_dirs `{normalized}`"), true));
     }
     if let Some(schema_dir) = &config.schema_dir {
         let normalized = verification_ignored_overlap_scope(schema_dir);
-        scopes.push((normalized.clone(), format!("schema_dir `{normalized}`")));
+        scopes.push((normalized.clone(), format!("schema_dir `{normalized}`"), false));
     }
     for path in PROTECTED_SDD_PATHS {
-        scopes.push((path.to_string(), format!("SDD policy file `{path}`")));
+        scopes.push((path.to_string(), format!("SDD policy file `{path}`"), false));
     }
     if let Some(principles) = &policy.principles_file {
-        scopes.push((principles.clone(), format!("principles_file `{principles}`")));
+        scopes.push((principles.clone(), format!("principles_file `{principles}`"), false));
     }
     for template in policy.custom_artifacts.values() {
         scopes.push((
             template.clone(),
-            format!("custom_artifacts template `{template}`"),
-        ));
+            format!("custom_artifacts template `{template}`"), false));
     }
-    for spec in crate::validator::find_spec_files(&root.join(&config.specs_dir)) {
-        let Ok(content) = fs::read_to_string(&spec) else {
+    for spec in crate::validator::find_spec_files(root, &root.join(&config.specs_dir)) {
+        let Ok(content) = crate::util::read_project_string(root, &spec, crate::util::MAX_SPEC_FILE_BYTES) else {
             continue;
         };
         let normalized = content.replace("\r\n", "\n");
@@ -238,8 +264,7 @@ fn verification_ignored_protected_scopes(
         for file in &parsed.frontmatter.files {
             scopes.push((
                 file.clone(),
-                format!("the files: entry `{file}` of spec `{spec_path}`"),
-            ));
+                format!("the files: entry `{file}` of spec `{spec_path}`"), false));
         }
         // The validator checks a path-form `depends_on` entry on disk; a bare module name
         // resolves under the specs tree, already protected, and a cross-project reference is
@@ -252,16 +277,15 @@ fn verification_ignored_protected_scopes(
             }
             scopes.push((
                 dependency.clone(),
-                format!("the depends_on entry `{dependency}` of spec `{spec_path}`"),
-            ));
+                format!("the depends_on entry `{dependency}` of spec `{spec_path}`"), false));
         }
         for reference in verification_ignored_consumed_by_references(&parsed.body) {
             let label = format!("the Consumed By reference `{reference}` of spec `{spec_path}`");
-            scopes.push((reference, label));
+            scopes.push((reference, label, false));
         }
     }
     for scope in &policy.meaningful_paths {
-        scopes.push((scope.clone(), format!("meaningful_paths `{scope}`")));
+        scopes.push((scope.clone(), format!("meaningful_paths `{scope}`"), false));
     }
     scopes
 }
@@ -328,6 +352,55 @@ fn verification_ignored_overlap_scope(path: &str) -> String {
     } else {
         components.join("/").to_ascii_lowercase()
     }
+}
+
+/// Depth of the deepest excluded component of an ignored path, or zero when none match.
+/// The source walk compares names read from the directory exactly. On a case-insensitive
+/// filesystem a lookup can find a different spelling than the walk sees, so use the containing
+/// directory to confirm the exact spelling of an existing component. An absent path has no
+/// alias and can be reserved for future tool output.
+fn verification_ignored_excluded_depth(
+    root: &Path,
+    entry: &str,
+    exclude_dirs: &[String],
+) -> Result<usize, String> {
+    let components: Vec<_> = entry.trim_end_matches('/').split('/').collect();
+    for (index, component) in components.iter().enumerate().rev() {
+        if !exclude_dirs.iter().any(|excluded| excluded == *component) {
+            continue;
+        }
+        let relative: PathBuf = components[..=index].iter().collect();
+        let path = root.join(&relative);
+        let inspect_error = |error| {
+            format!(
+                "could not inspect excluded directory `{}` ({error})",
+                relative.display()
+            )
+        };
+        if let Some(error) = crate::util::project_path_refusal(root, &path) {
+            return Err(inspect_error(std::io::Error::other(error)));
+        }
+        match fs::symlink_metadata(&path) {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(index + 1),
+            Err(error) => return Err(inspect_error(error)),
+        }
+        let parent = path.parent().unwrap_or(root);
+        let entries = crate::util::read_project_dir(root, parent).map_err(inspect_error)?;
+        if entries.len() > MAX_EXCLUSION_PARENT_ENTRIES {
+            return Err(format!(
+                "could not confirm excluded directory `{}` after {MAX_EXCLUSION_PARENT_ENTRIES} entries",
+                relative.display()
+            ));
+        }
+        if entries
+            .iter()
+            .any(|candidate| candidate.file_name() == Some(std::ffi::OsStr::new(component)))
+        {
+            return Ok(index + 1);
+        }
+    }
+    Ok(0)
 }
 
 /// Whether the entry equals, contains, or lies inside `scope`.

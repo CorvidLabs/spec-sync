@@ -1,0 +1,419 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795459995,
+      "commit": "5285cb2422e1cd90c2fffb0c93ed713331986476",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 3 open tasks in `.specsync/changes/prepare-specsync-6-4-2-package-metadata-and-release-handoff/tasks.md` (line 8: \"Reconcile the selected fixes against main and confirm dependency audit passes.\"; line 9: \"Prepare 6.4.2 metadata, pins, examples, changelog and release handoff.\"; line 10: \"Pass the release validators and the repository verification gates on the candida...\") and mark each one `[x]`, then re-run `specsync change check prepare-specsync-6-4-2-package-metadata-and-release-handoff --commit`"
+    },
+    {
+      "timestamp": 1795532058,
+      "commit": "86f55d0182eebb4a53dab43c96475b9df1d71aa4",
+      "contract_digest": "232c18cbd5b9ee48140736af7b9a162481eafcf6dc9de1afe5e45fdf6f72f3d4",
+      "execution_digest": "40c8ef4a9c7e31b9e47a57c367426c1fb40fd019b3399fc9f11513db8fd2c910",
+      "workspace_digest": "3a1888ea59f01fef737d9f01f3dc1f173ea8d23307d71b0eff5ff365a708c64d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795532063,
+      "commit": "52562fde4c94a4a2f0eef67135e968d96587f980",
+      "contract_digest": "232c18cbd5b9ee48140736af7b9a162481eafcf6dc9de1afe5e45fdf6f72f3d4",
+      "execution_digest": "40c8ef4a9c7e31b9e47a57c367426c1fb40fd019b3399fc9f11513db8fd2c910",
+      "workspace_digest": "3a1888ea59f01fef737d9f01f3dc1f173ea8d23307d71b0eff5ff365a708c64d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    },
+    {
+      "timestamp": 1795532063,
+      "commit": "7fb04e62b05b2355db13b2bd54568a9ef6be7982",
+      "contract_digest": "232c18cbd5b9ee48140736af7b9a162481eafcf6dc9de1afe5e45fdf6f72f3d4",
+      "execution_digest": "40c8ef4a9c7e31b9e47a57c367426c1fb40fd019b3399fc9f11513db8fd2c910",
+      "workspace_digest": "3a1888ea59f01fef737d9f01f3dc1f173ea8d23307d71b0eff5ff365a708c64d",
+      "acceptance_input_digest": "65d6a0f8be9a5e7cc60fd84d911ed64fbe1e80336a18d2403387b97bf6879792",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": ".github/scripts/test-validate-release-candidate.py",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9c7eaaaa9c8c88a0589e84acda6b85163bc8d5e5b5643fe7720d51885aca7bb9",
+            "entry_digest": "b005e7134ada45054ec9b410c8283176e3fa67418d855bf670c0f5dbeadc1e56",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".github/workflows/ci.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f0a99e81dbd27a39927317bb12be7e36a5896541602d7b32c62189d72dc40b4f",
+            "entry_digest": "13f9f01ae9f0f612f6f394bee2e0b8e7a76558fe710be20cda355ae9bbe9069c",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": ".github/workflows/trust.yml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "15c44681c9a47802df31bc935f05bc888b17e04e94094c6bddde8e169a583b7e",
+            "entry_digest": "5f9c86e6d8a55f8b7f1d9ef2920b20eb7d6ee16a60292ae52d2a75687ae01abb",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "98be04e3abbeaabe7d3a5cdd6f3850c618bc18361973ec125fc8f0532d55412c",
+            "entry_digest": "1ea60b3f5bea872202ea203b72846f041e9c362e6e30229e8e27d3108cf8edbb",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "Cargo.lock",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1a93dd605b8fb616ee929770b3976cc5f66f7cb11ca8fd1438a9b34337f01bed",
+            "entry_digest": "8df318b2719d342de780f05ea70102430260374b67e16122a5e2fa1c27737748",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "Cargo.toml",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bb17ae4701021d7fd9070c939425e0397f7411c7501d3b7b532c2b614a263441",
+            "entry_digest": "10ae9624c8d2ab455df50944d2cfd8ae1fff955d085146a362b79ca83f2b75dd",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "README.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ebefe45d4fec91374a62a538366fbee5c7e3c36482bed540cfc67437d642b979",
+            "entry_digest": "629aa11df75fde7ffca0a896612f70f3aa89b7064b86eacd1b0228c3ae2c88b6",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "docs/releases/6.4.2.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "21b4620f642058fe86cc299d3cd8be82003ee5b7400054940e8464f55d45d0b4",
+            "entry_digest": "92b35e8461f8d557afd86ea29fccdcb434df78fa841182ab2a6574d01386165b",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/blog/v4-3-2-release.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2d49b04b5406b7b3f9448100fd0e724e80a098c7f80db36fe574775939954a3f",
+            "entry_digest": "093060a8c482529a2ad1c1b52b93425bb5464cad3ed5737ccf04dc834677b046",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/blog/welcome.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4117ed5dfb4dcef9ba3efac7166659b07810705c7fe1dd6ce8296828eabc9a90",
+            "entry_digest": "56724c607bd6da2163adc412372264b32fb1b64568be62e6e35771761b528aff",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/config.ts",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "314f829be1f4d8562225d956f61a9f348488717f84b11bcd708ebeb9f15b57e8",
+            "entry_digest": "d30eb543453bc4078898f44e55f04f3e0d697d14dc4f91ed58935895f6ab0231",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/architecture.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "48c5f9e8f7570a63c00bb62c9d31dd7caf52a95a77f1ba71299ce3f3efa553ea",
+            "entry_digest": "83855fb165e5d73d02e303c9554393e75f6c7570d08539cc03951972a8f6f5f2",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/cli.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "38fccfb29ca08a0095d29b03a878c0e96929903cd54735b1e7a1c593fd6b1380",
+            "entry_digest": "3fdabd87d3c92a7265ae64f5ded90f1151f8d3e2d3663c9db1da70fd0fcc0138",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/companion-files.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "aaa99b4c625e0a903a6da534f28e69a724774756ffd5853a9824dc1f50dae80b",
+            "entry_digest": "ad5b336ed3d48ff0fae2ee4a011484e6fe9a7b47349d6ecbb94de8040ce0b233",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/comparisons/adversarial-proof.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dd651bb94bcba2f727ceef27e6eb53386f685142e9e9380f65db47ff61d017b0",
+            "entry_digest": "ef4fa9dd5f36b730b3d7b741087b22fac13234b2b941624eaba2c12470896d46",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/comparisons/bmad.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2610899ac26a07cd5ecf08e72caf4ac4b57979f4dc7f0e09ef8ff5e4bcbdfc30",
+            "entry_digest": "e64badcbc9dfb8a3520773aff451dc000c21bc5082350e926ea2ba12da47e198",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/comparisons/openspec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6efe3eae37e10670f634d317b5157079c832d6fd5bb57791c28768c305b715d6",
+            "entry_digest": "89740c23a88fa96c87c53157d1b6aaad43cb2d73afdae7acfeb7fa87baf66379",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/comparisons/spec-kit.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "4227d3b1566f3c800bb8a5dbf6537bf8a18e36b974fe853f4b6b16ff27fb3d80",
+            "entry_digest": "b8deecb05012f61d2b019b4f0eaf80074625567af12418fc3953ba15b5fcf5e9",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/comparisons/using-together.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f0f6d00c95d83e8f6e8dc28ccc9d713cb17418ed81263b250ec3f914a2e682c6",
+            "entry_digest": "97a82d073d7c228b36474c8767bce71b290ee698d3e7220d7586c812fc7f3ac4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/configuration.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d65603feb7248f02ac365d014508eaa793088790b1e5ef15864651f241769379",
+            "entry_digest": "9cd901626cce8934a1cce46f2dcf914bcc0ffa678d5ba851c1b85d445f2463b7",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/cross-project-refs.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e0e97f76e77324dc515de9d485aac0e06df165c5d2d36b301281836da983f3ee",
+            "entry_digest": "01021c17c90d03885ad6b26675f51ed61147913b3d9df48b3b981ceb5d7d3af4",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/deltas.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "57a07829bdb0be911007d3c0c0255e5fbd7209c5f234b4841c61ef9a0d585b27",
+            "entry_digest": "84f05756aac768d1d46b65b1204cb6830a2d7c25e7a7d0476c44c187c8bd648b",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/github-import-security.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "30536f514b098b2b969567cfa74064718def2f98a3f58e8c21d5366a91a31375",
+            "entry_digest": "ee979717c9b6fb52181cac74d225526f7090f6c329b863d5de63255baeeda614",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/index.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "7ad417c8fa742c3b7a45bf4657c291e06c1fba906791bf417349a51cc3fa3496",
+            "entry_digest": "5eb6c4d3777b0e0c6b74b7457077cd41e7de47ee54b496691e143c8b02794c2a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/ai-agents.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ec2336c0a62e9823accf7f730f9b1cec85b20589a17d702380c044e1c946a6b4",
+            "entry_digest": "58f21e9f68a1a18f03543f79f32c8d557183b7e5fc93ea52c7132f18845da9cb",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/github-action.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a4ceec5164bda6f662b8d405d753ef8368529f027eb722d437c5b8ba59700a4b",
+            "entry_digest": "7e21de04b77b31143be0de7fbb713ae9a1ab57e0bb1811f9cb8eafd354dfe798",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/integrations/vscode-extension.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "29134cca14f1e5319317a06200c9daf628515b8114119ee27a66b8718013e48f",
+            "entry_digest": "134d6f6ae5fcae3c99ce31c635e13b8e0aea4ce34775f53beffee88d598e9f2c",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/mcp-security.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ca1e08d4cca70e72d8827a4363d4b8e75d43e90c02e5bdd32fd264176ebbedda",
+            "entry_digest": "0402c3b95324d8546c7f5e7fa7d187d3c1a7f5376df8ebe6af9abad74f0e8c08",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/quickstart.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "681059a490789408b383703547e6a5658d5f998797807173d0ca902f33ee0106",
+            "entry_digest": "53c7b876bc596d30f21c76bcd39c9d6569fb2f179af93d31cfb7ab809cb1b387",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/spec-format.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1738e125de5d840e3dab02380100bd5bed6cd1acda228f85e51f4a6ebad61ae1",
+            "entry_digest": "92c9d5b091398d77f418f56aeba18cc6c00d2b2461c07470bb7d9ea8692258d7",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/why-specsync.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "324717dff3c16173c7066ea912075c6794df294fad68f6c0cc9fb5383003a74b",
+            "entry_digest": "87babc18afd076dd43c22834bc2b88a6b671e07f059844ab496575dd6299a9ff",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/docs/workflow.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6837f2553f913fc7775943ed98c2a1e3d5e4544790c1c245f2c896705c580787",
+            "entry_digest": "045aa06cd0e2580aead23265e75eb1140696e8fbc629fffc86bfff4532545074",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/ci-gate.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "910ab353716d69888ce14d0545a6c4ecda2c250d2a904d8cc673f19c0b4f7939",
+            "entry_digest": "44440451c173f076aa40dcc5b5df0ddade559bf64ed91790d657190f58ce4b0a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/polyglot.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a700dadd5a6837034c887353362429cafed32971177b2bca5099097a59fda72c",
+            "entry_digest": "6bc9267c4e0e69f5a1929d4b3a50c1c1f8029c2214f6efc44599049849b14666",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/rust-workspace.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e4725ad7e0e83c05dfc58b590525f533cd29162c0d6e6d86b6ca2ed3c0e2a6a5",
+            "entry_digest": "b236dcebdca55e7d88bb438b5f1973e15c6c7bb2092cc33c009a2ae99f7f5f7a",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
+    }
+  ]
+}

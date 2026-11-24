@@ -6,7 +6,8 @@ files:
   - src/hooks.rs
 db_tables: []
 tracks: [39]
-depends_on: []
+depends_on:
+  - specs/util/util.spec.md
 ---
 
 # Hooks
@@ -60,6 +61,9 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
     backticks cannot alter shell syntax or execute directory-name content.
 12. Instruction blocks, the pre-commit hook and Claude Code hook settings are written without U+2013 or U+2014. A new block begins with ``<!-- specsync:hook:begin (managed by `specsync hooks`; do not edit inside) -->``; uninstall also recognizes the begin sentinel releases up to and including 6.1.1 wrote, by an exact two-form list rather than a prefix. Project-keyed pre-commit blocks are found by their markers whatever body they hold; the unmarked legacy comparison still uses the current hook body, with no frozen copy of an older one
 13. Git reads in this module run through `git_utils::output_after_child_exits`, so a read returns when the Git child exits even while a descendant still holds its output pipe (REQ-git-utils-008).
+14. Every file `install` and `uninstall` create, rewrite or remove (`CLAUDE.md`, `.cursorrules`, `.github/copilot-instructions.md`, `AGENTS.md`, `.claude/settings.json`) is reached through `util`'s project file functions. A link that stays inside the project is written through, so `CLAUDE.md` as a link to `AGENTS.md` keeps working. A target, or a directory on the way to it, that leaves the project through a symbolic link, is a dangling link, or is not a regular file fails that target with an error naming the path, and both commands exit 1 (REQ-hooks-006).
+15. Every read of a project file here, the hook files (8 MiB); the pre-commit hook is read through the hooks folder handle (invariant 16), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-hooks-007).
+16. The hooks folder Git names (`git rev-parse --git-path hooks`, which honors `core.hooksPath`) is reached one component at a time without following any symbolic link, from the canonical Git directory when it lies there, from the canonical work-tree top when it lies there (husky's `.husky/_`, a `.githooks` folder), and otherwise from the canonical parent of the person's own folder. A folder outside both is made, when missing, only when `git config --show-scope` says `core.hooksPath` comes from the `global` or `system` config; set in the repository's config, which an archive can ship, or anywhere else, a missing folder is an error and nothing is made there. `pre-commit` is read without following a link or blocking, checked on the handle and within 8 MiB; replaced through its open, checked handle; created only with an exclusive create; made executable through the handle; and removed by unlinking its name. A link on the way, or a linked or dangling `pre-commit`, is refused with the path, and nothing is written or made executable outside the folder (REQ-hooks-009).
 
 ## Behavioral Examples
 
@@ -103,6 +107,9 @@ Manages agent instruction files and git hooks for spec-sync integration. Install
 | Cannot parse existing settings.json | Returns `Err` with parse error |
 | Partial or reversed pre-commit managed markers | Returns `Err` without rewriting the hook |
 | Project is not inside a Git repository | Pre-commit installation returns an actionable `Err` |
+| A folder on the hooks path is a symbolic link, or `pre-commit` is a link, dangling or not | `Err` naming the path (`configured Git hooks directory is reached through a symlink ...`, `refusing to replace symlinked pre-commit hook`); nothing is created or made executable at a link's target |
+| A hook target, or `.github` or `.claude`, leaves the project through a symbolic link, is a dangling link, or is not a regular file | That target fails with an error naming the path; nothing is written through the link or created at its target; `install` and `uninstall` exit 1 |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

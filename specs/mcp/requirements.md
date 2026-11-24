@@ -234,3 +234,35 @@ Acceptance Criteria
 - The implementation is Rust modules declared by `src/mcp.rs`. `src/mcp/server_name.rs` and `src/mcp/publish_staged_file_with_verification_hooks.rs` remain so the existing GitHub read-path scan can still include those paths. They are not modules.
 - No MCP source file exceeds 5,000 lines.
 
+### REQ-mcp-011
+
+`mcp lock --write` SHALL write `.specsync/mcp-tools.lock.json` only through `write_project_file` of `util` (REQ-util-002). A target that is a symbolic link to a regular file inside the project SHALL be written through. A target, or a directory on the way to it, that leaves the project through a symbolic link, a dangling link, and a target that is not a regular file SHALL be refused with an error that names the path, leaving the link and what it points at unchanged and creating nothing outside the project.
+
+Acceptance Criteria
+- The lock file linked to a file outside the project: `mcp lock --write` fails naming `.specsync/mcp-tools.lock.json` and the outside file is unchanged.
+- A dangling lock-file link creates nothing at its target.
+- The lock file linked to a regular file inside the project is written through.
+- With no link the lock is written as before and `mcp diff` accepts it.
+
+### REQ-mcp-012
+
+`mcp diff` SHALL read `.specsync/mcp-tools.lock.json` only through the bounded project read of `util` (REQ-util-003), with a bound of 4 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/mcp-tools.lock.json` a FIFO, `mcp diff` finishes without waiting on it and fails naming the path.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+
+### REQ-mcp-013
+
+The MCP server SHALL write project files only through the confined project write functions of `util` (REQ-util-002), or through a write whose path was refused as a link just before; any other direct write SHALL say, on the write or the line above it in the same statement, why its path is not a project file (a temporary or Git directory, a test barrier, a file Git hands the command). It SHALL find spec files through the checked confined walk of `validator` (REQ-validator-050) and return its refusal as a tool error.
+
+Acceptance Criteria
+- `tests/integration/project_writes.rs` `no_project_file_is_written_outside_the_confined_helpers` finds no unmarked direct write in this module's non-test source
+
+### REQ-mcp-014
+
+The MCP issues tool SHALL find spec files only through the confined spec walk, so a `specs` link that leaves the project is refused, not walked.
+
+Acceptance Criteria
+- The MCP issues walk uses `find_spec_files_checked` and still reports a non-regular spec path as inconclusive.
+

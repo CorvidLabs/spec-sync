@@ -128,6 +128,46 @@ mod doctor;
 
 #[path = "integration/spec_history.rs"]
 mod spec_history;
+#[path = "integration/vanished_requirements.rs"]
+mod vanished_requirements;
+
+#[path = "integration/terminal_evidence_isolation.rs"]
+mod terminal_evidence_isolation;
+
+#[cfg(unix)]
+#[path = "integration/project_links.rs"]
+mod project_links;
+
+#[cfg(unix)]
+#[path = "integration/project_reads.rs"]
+mod project_reads;
+
+#[cfg(unix)]
+#[path = "integration/project_writes.rs"]
+mod project_writes;
+
+#[path = "integration/committed_approvals.rs"]
+mod committed_approvals;
+
+#[path = "integration/approve_dry_run.rs"]
+mod approve_dry_run;
+
+#[path = "integration/repository_inputs.rs"]
+mod repository_inputs;
+
+#[path = "integration/hardening_641.rs"]
+mod hardening_641;
+
+#[path = "integration/ship_status_reopen_and_resume.rs"]
+mod ship_status_reopen_and_resume;
+
+#[path = "integration/git_environments.rs"]
+mod git_environments;
+#[path = "integration/rebase_stale_delta.rs"]
+mod rebase_stale_delta;
+
+#[path = "integration/stale_input_refusals.rs"]
+mod stale_input_refusals;
 
 #[path = "integration/check_scaling.rs"]
 mod check_scaling;

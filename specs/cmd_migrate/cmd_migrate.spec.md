@@ -14,6 +14,7 @@ depends_on:
   - specs/parser/parser.spec.md
   - specs/types/types.spec.md
   - specs/validator/validator.spec.md
+  - specs/util/util.spec.md
 implements: [198]
 ---
 
@@ -43,6 +44,8 @@ Implements the `specsync migrate` command — upgrades a spec-sync project from 
 8. Post-migration validation runs `specsync check` logic to confirm the migrated project is valid
 9. Partial migration state is detected and handled — if a previous migrate crashed, re-running will skip completed steps and resume
 10. The `5.0` source-family mode backfills reopening digest fields from recorded evidence only, verifies each repair before writing, and never mutates ledgers it cannot repair deterministically.
+11. Before its first step `migrate` looks at every path the steps touch, every discovered spec file, and every link already under `.specsync/lifecycle` and `.specsync/backup-3x`. If one leaves the project through a symbolic link, is a dangling link, or is not a regular file, it names them all and exits 1 with nothing changed. The steps then read, write, copy and remove through `util`'s project file functions, and `.specsync/.gitignore` is created with an exclusive create instead of after `exists()` (REQ-cmd-migrate-005).
+12. Every read of a project file here, `.specsync/version`, the config it converts and `.gitignore` (4 MiB) and spec files (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-migrate-006).
 
 ## Behavioral Examples
 
@@ -85,6 +88,8 @@ Implements the `specsync migrate` command — upgrades a spec-sync project from 
 | Spec file with malformed frontmatter | Warning: skip that spec's lifecycle extraction, continue with others, report in summary |
 | Disk full during backup | Error: "Backup failed — original files untouched. Free disk space and retry" |
 | `--no-backup` with destructive steps | Proceed without backup (user opted out) |
+| A path the migration would touch, or a spec file, leaves the project through a symbolic link, is a dangling link, or is not a regular file | Exits 1 before the first step, naming each such path; nothing is changed, in text and in JSON (`refused_paths`) |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

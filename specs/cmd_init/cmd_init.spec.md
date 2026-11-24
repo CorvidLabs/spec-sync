@@ -9,6 +9,7 @@ tracks: []
 depends_on:
   - specs/config/config.spec.md
   - specs/types/types.spec.md
+  - specs/util/util.spec.md
 ---
 
 # Cmd Init
@@ -33,6 +34,7 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 3. Writes the 5.0 policy, version, and layout deterministically without blocking in non-interactive environments. The written policy has `enabled: false` and `require_change_for_meaningful_files: false`.
 4. Local hash cache, lifecycle lock, and transaction journal files are ignored and never treated as portable project state.
 5. Re-running initialization is idempotent.
+6. Every read of a project file here, `.gitignore`, `.gitattributes` and `.specsync/sdd.json` (4 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-cmd-init-009).
 
 ## Behavioral Examples
 
@@ -54,6 +56,7 @@ Implements `specsync init`. Creates the 5.0 `.specsync/` layout with detected so
 |-----------|----------|
 | File write fails | Exits 1 |
 | No source dirs detected | Creates TOML config with `source_dirs = ["src"]` fallback |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

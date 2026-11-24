@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "check-fix-keeps-stdout-one-json-document-in-machine-formats",
+  "implementation_commit": "a91b111ec2939e1d0897f277fb973ad21106e2c0",
+  "implementation_tree": "d212526ab9a7b5c8f1d36f8c77273fd5d044fc2c",
+  "contract_digest": "118ae2249ddba3cb8eb080b6fe2f1c1496ffad80b43024a7fa59ef9971b091d3",
+  "workspace_digest": "dc318f5337172b4b91a069a7025cd7f4e5b5a01c26eeabb8fc4151d350fc9db1",
+  "closing_digest": "2e283484f3d22a5ca28a52458f4d23646d2e279568bde92e02579e38359fca51",
+  "review_digest": "52e3e8641bd84e3a6633c9ceddb2928c8895593c33f0cbcc3d26df7f7d655665",
+  "finalization_digest": "4c320163fc461222db6f7b6ba8ff3261189a716d52e67d0c02479312869b1935",
+  "timestamp": 1795478253
+}

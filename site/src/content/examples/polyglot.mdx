@@ -67,6 +67,8 @@ The deterministic fixer adds language-aware review rows for newly discovered exp
 
 ## 6. Wire the CI gate
 
+Use these pins after the 6.4.2 assets are published. Until then, pin `@v6.4.1` and `version: '6.4.1'`.
+
 ```yaml
 # .github/workflows/spec-sync.yml
 name: spec-sync
@@ -76,9 +78,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: CorvidLabs/spec-sync@v6.3.0
+      - uses: CorvidLabs/spec-sync@v6.4.2
         with:
-          version: '6.3.0'
+          version: '6.4.2'
           strict: true
 ```
 

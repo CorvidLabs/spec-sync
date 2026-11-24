@@ -1,6 +1,5 @@
 use colored::Colorize;
 use std::collections::HashSet;
-use std::fs;
 use std::path::{Path, PathBuf};
 use std::process;
 
@@ -10,8 +9,8 @@ use crate::github;
 use crate::hash_cache;
 use crate::ignore::IgnoreRules;
 use crate::output::{
-    FINDING_CSV_HEADER, eprint_coverage_line, eprint_summary, findings, print_check_markdown,
-    print_coverage_line, print_findings_csv, print_findings_table, print_summary,
+    eprint_coverage_line, eprint_summary, findings, print_check_markdown, print_coverage_line,
+    print_findings_csv, print_findings_table, print_summary,
 };
 use crate::parser;
 use crate::types;
@@ -89,6 +88,46 @@ fn append_suppressed_markdown(body: &mut String, details: &[serde_json::Value]) 
     }
 }
 
+/// Emit the check result when repair stops before normal validation starts.
+fn exit_failed_fix(
+    format: types::OutputFormat,
+    failures: &[String],
+    stale_entries: &[serde_json::Value],
+) -> ! {
+    use types::OutputFormat::*;
+    let warnings = warnings_with_staleness(Vec::new(), stale_entries);
+    match format {
+        Text => {} // The repair already printed the underlying error to stderr.
+        Json => {
+            let output = serde_json::json!({
+                "passed": false,
+                "errors": failures,
+                "warnings": [],
+                "notices": [],
+                "stale": stale_entries,
+                "specs_checked": 0,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        Csv => print_findings_csv(&findings(failures, &warnings, &[])),
+        Table => print_findings_table(&findings(failures, &warnings, &[])),
+        Markdown | Github => {
+            // Validation has not run, so there are no coverage or pass counts to render.
+            println!("## SpecSync repair failed\n\n### Errors\n");
+            for failure in failures {
+                println!("- {failure}");
+            }
+            if !warnings.is_empty() {
+                println!("\n### Warnings\n");
+                for warning in warnings {
+                    println!("- {warning}");
+                }
+            }
+        }
+    }
+    process::exit(1);
+}
+
 fn checked_coverage_or_exit(
     root: &Path,
     spec_files: &[PathBuf],
@@ -135,11 +174,12 @@ fn global_validation_inputs(root: &Path, config: &types::SpecSyncConfig) -> Vec<
     if let Some(cfg) = &config.config_path {
         inputs.push(normalize(cfg));
     }
+    // Listed only by the project rule, so a schema folder that leads out adds nothing
+    // (REQ-cmd-check-022).
     if let Some(dir) = &config.schema_dir
-        && let Ok(entries) = fs::read_dir(root.join(dir))
+        && let Ok(entries) = crate::util::read_project_dir(root, &root.join(dir))
     {
-        for entry in entries.flatten() {
-            let path = entry.path();
+        for path in entries {
             if path.is_file() {
                 inputs.push(normalize(&path));
             }
@@ -277,19 +317,25 @@ pub fn cmd_check(
         );
     }
 
+    // The cache lives in the project's local state folder outside the work tree, so whatever a
+    // repository ships at `.specsync/hashes.json` is never looked at (REQ-cmd-check-021). When
+    // that folder cannot be found or holds something the cache will not read or write, say so
+    // once, before anything can end the run, then run as with no cache (REQ-cmd-check-018).
+    let cache_refusal = hash_cache::HashCache::refusal(root);
+    if let Some(reason) = &cache_refusal {
+        eprintln!(
+            "{} hash cache not used: {reason}",
+            "warning:".yellow().bold()
+        );
+    }
+
     // Always allow the empty-specs case through: `check` handles it itself below,
     // where a requested coverage/enforcement gate is still evaluated (the shared
     // early-exit would `exit(0)` and silently pass the gate — and emit a non-JSON
     // message under --format json). Default warn mode still exits 0 there.
     let (config, all_spec_files) = load_and_discover(root, true);
-    // `specsync check` is the bi-directional spec<->code drift check. It does not
-    // consult SDD policy, active changes, or archive history. Those live behind
-    // `specsync change` (opt-in). Walking them here made every trust-layer
-    // failure present as "the drift check is broken", and printing "N active
-    // change(s)" on the default path made history look like part of the product.
-    // REQ-cmd-check-004: exit status derives solely from spec validation.
     let spec_files = filter_specs(root, &all_spec_files, spec_filters);
-    let spec_files = filter_by_status(&spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &spec_files, exclude_status, only_status);
     // CLI --enforcement flag overrides config; --strict implies strict enforcement.
     let enforcement = enforcement.unwrap_or(if strict {
         types::EnforcementMode::Strict
@@ -324,6 +370,28 @@ pub fn cmd_check(
         process::exit(1);
     }
 
+    // Historical requirement loss belongs to the project, so neither spec filters nor
+    // a cached per-spec result can account for it. Opted-out projects keep drift-only checks.
+    // A branch that switches SDD off is not opted out while its comparison base has it on.
+    let mut history_errors = Vec::new();
+    let mut history_notices = Vec::new();
+    if strict && crate::change::sdd_enabled_here_or_at_comparison_base(root) {
+        match crate::change::project_lost_requirements(root, "specsync check --strict") {
+            Ok(Some(note)) => history_notices.push(note),
+            Ok(None) => {}
+            Err(error) => history_errors.push(error),
+        }
+    }
+
+    if matches!(format, Text) {
+        for error in &history_errors {
+            eprintln!("{} {error}", "error:".red().bold());
+        }
+        for notice in &history_notices {
+            println!("  {} {notice}", "ℹ".cyan());
+        }
+    }
+
     if spec_files.is_empty() {
         // No specs to validate — but a requested gate must still be evaluated
         // against source coverage. Otherwise `check --require-coverage N`,
@@ -332,8 +400,14 @@ pub fn cmd_check(
         // default state right after `specsync init`). Default mode (warn, no gate)
         // still exits 0 with the informational message.
         let coverage = checked_coverage_or_exit(root, &spec_files, &config, format);
-        let mut exit_code =
-            compute_exit_code(0, 0, strict, enforcement, &coverage, require_coverage);
+        let mut exit_code = compute_exit_code(
+            history_errors.len(),
+            0,
+            strict,
+            enforcement,
+            &coverage,
+            require_coverage,
+        );
         // The comment above states the intent; `--strict` did not deliver it.
         // `compute_exit_code` escalates WARNINGS under `--strict`, and a project
         // with no specs produces none — so `check --strict` exited 0 over real
@@ -351,9 +425,9 @@ pub fn cmd_check(
             Json => {
                 let output = serde_json::json!({
                     "passed": exit_code == 0,
-                    "errors": [],
+                    "errors": history_errors,
                     "warnings": [],
-                    "notices": [],
+                    "notices": history_notices,
                     "stale": [],
                     "specs_checked": 0,
                     // Without these a consumer sees `specs_checked: 0` and cannot
@@ -369,6 +443,9 @@ pub fn cmd_check(
             Markdown | Github => {
                 println!("## SpecSync Check Results\n");
                 println!("No spec files found. Run `specsync generate` to scaffold specs.");
+                for finding in findings(&history_errors, &[], &history_notices) {
+                    println!("- {}: {}", finding.severity, finding.message);
+                }
             }
             Text | Table => {
                 let abs_specs = root.join(&config.specs_dir);
@@ -380,12 +457,17 @@ pub fn cmd_check(
                 // tree with source and zero specs produced a log containing
                 // nothing to notice.
                 print_coverage_line(&coverage);
+                if matches!(format, Table)
+                    && (!history_errors.is_empty() || !history_notices.is_empty())
+                {
+                    print_findings_table(&findings(&history_errors, &[], &history_notices));
+                }
             }
             Csv => {
                 // A well-formed CSV with zero rows, not empty output: the
                 // header proves the renderer ran and found nothing, which is a
                 // different claim from producing nothing at all.
-                println!("{FINDING_CSV_HEADER}");
+                print_findings_csv(&findings(&history_errors, &[], &history_notices));
                 let abs_specs = root.join(&config.specs_dir);
                 eprintln!(
                     "No spec files found in {}/. Run `specsync generate` to scaffold specs.",
@@ -450,12 +532,13 @@ pub fn cmd_check(
 
     let skipped = spec_files.len() - specs_to_validate.len();
     if skipped > 0 && matches!(format, Text) {
-        let cache_path = root.join(".specsync").join("hashes.json");
         println!(
             "{} Skipped {skipped} unchanged spec(s) (use --force/--no-cache to re-validate all)",
             "⊘".cyan()
         );
-        println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        if let Some(cache_path) = hash_cache::HashCache::cache_path(root) {
+            println!("  {} Cache: {}\n", "ℹ".dimmed(), cache_path.display());
+        }
     }
 
     let replayed_has_findings = replayed.iter().any(|snapshot| snapshot.has_findings());
@@ -537,48 +620,44 @@ pub fn cmd_check(
     // If --fix is requested, auto-add undocumented exports to specs
     if fix {
         if backup && !dry_run {
+            // The backup tree is written through the confined project write: a committed
+            // `backup-fix`, or a file in it, linked out of the repository is refused and `--fix`
+            // stops before it changes a spec (REQ-cmd-check-020).
             let backup_dir = root.join(".specsync/backup-fix");
-            if let Err(e) = fs::create_dir_all(&backup_dir) {
-                eprintln!(
-                    "{} Failed to create backup directory {}: {e}",
-                    "✗".red(),
+            if let Err(e) = crate::util::create_project_dir(root, &backup_dir) {
+                let message = format!(
+                    "Failed to create backup directory {}: {e}",
                     backup_dir.display()
                 );
+                eprintln!("{} {message}", "✗".red());
                 eprintln!("  Aborting --fix to avoid data loss. Fix the backup path and retry.");
-                process::exit(1);
+                exit_failed_fix(format, &[message], &stale_entries);
             }
             let mut backed_up = 0usize;
             for spec_file in &specs_to_validate {
                 let rel = match spec_file.strip_prefix(root) {
                     Ok(r) => r,
                     Err(_) => {
-                        eprintln!(
-                            "{} Cannot backup {}: path is not under project root",
-                            "✗".red(),
+                        let message = format!(
+                            "Cannot backup {}: path is not under project root",
                             spec_file.display()
                         );
-                        process::exit(1);
+                        eprintln!("{} {message}", "✗".red());
+                        exit_failed_fix(format, &[message], &stale_entries);
                     }
                 };
                 let dest = backup_dir.join(rel);
-                if let Some(parent) = dest.parent()
-                    && let Err(e) = fs::create_dir_all(parent)
-                {
-                    eprintln!(
-                        "{} Failed to create backup subdirectory {}: {e}",
-                        "✗".red(),
-                        parent.display()
-                    );
-                    process::exit(1);
-                }
-                if let Err(e) = fs::copy(spec_file, &dest) {
-                    eprintln!(
-                        "{} Failed to backup {}: {e}",
-                        "✗".red(),
-                        spec_file.display()
-                    );
+                let copied = crate::util::read_project_bytes(
+                    root,
+                    spec_file,
+                    crate::util::MAX_SPEC_FILE_BYTES,
+                )
+                .and_then(|bytes| crate::util::write_project_file(root, &dest, &bytes));
+                if let Err(e) = copied {
+                    let message = format!("Failed to backup {}: {e}", spec_file.display());
+                    eprintln!("{} {message}", "✗".red());
                     eprintln!("  Aborting --fix to avoid data loss.");
-                    process::exit(1);
+                    exit_failed_fix(format, &[message], &stale_entries);
                 }
                 backed_up += 1;
             }
@@ -592,7 +671,13 @@ pub fn cmd_check(
             }
         }
 
-        let outcome = auto_fix_specs(root, &specs_to_validate, &config, dry_run);
+        let outcome = auto_fix_specs(
+            root,
+            &specs_to_validate,
+            &config,
+            dry_run,
+            matches!(format, Text),
+        );
         if outcome.fixed > 0 && matches!(format, Text) {
             let verb = if dry_run {
                 "Would auto-add"
@@ -616,7 +701,7 @@ pub fn cmd_check(
                 "error:".red().bold(),
                 outcome.failures.len()
             );
-            process::exit(1);
+            exit_failed_fix(format, &outcome.failures, &stale_entries);
         }
     }
 
@@ -655,6 +740,8 @@ pub fn cmd_check(
     passed += replayed_passed;
     total_errors += replayed_errors;
     total_warnings += replayed_warnings;
+    total_errors += history_errors.len();
+    all_notices.extend(history_notices);
     // Git-based staleness detection (--stale flag)
     let stale_threshold = stale.map(|opt| opt.unwrap_or(5));
     let mut git_stale_warnings: usize = 0;
@@ -691,7 +778,11 @@ pub fn cmd_check(
         && history_missing.is_none()
     {
         for spec_file in &spec_files {
-            let content = match fs::read_to_string(spec_file) {
+            let content = match crate::util::read_project_string(
+                root,
+                spec_file,
+                crate::util::MAX_SPEC_FILE_BYTES,
+            ) {
                 Ok(c) => c.replace("\r\n", "\n"),
                 Err(_) => continue,
             };
@@ -813,7 +904,7 @@ pub fn cmd_check(
     // of re-validation, not a claim that there were no problems. --fix,
     // --strict, and --force still bypass the skip so an explicit request
     // never trusts hashes alone.
-    if total_errors == 0 {
+    if total_errors == 0 && cache_refusal.is_none() {
         record_validation_snapshots(&mut cache, root, &global_inputs, &inventory, outcomes);
         hash_cache::update_cache(root, &specs_to_validate, &mut cache);
         // Record global inputs (config + schema files) so a later unchanged run
@@ -821,13 +912,19 @@ pub fn cmd_check(
         for input in &global_inputs {
             cache.update(root, input);
         }
-        let _ = cache.save(root);
+        // A cache that cannot be saved, such as one over the bound every later load refuses, is
+        // said once; the run's verdict and the cache already there are unchanged
+        // (REQ-hash-cache-007).
+        if let Err(error) = cache.save(root) {
+            eprintln!("warning: hash cache not saved: {error}");
+        }
     }
 
     // --create-issues: create GitHub issues for specs with validation errors
-    if create_issues && total_errors > 0 {
+    if create_issues && total_errors > history_errors.len() {
         create_drift_issues(root, &config, &all_errors, format);
     }
+    all_errors.extend(history_errors);
 
     match format {
         Json => {
@@ -1332,11 +1429,15 @@ struct AutoFixOutcome {
     failures: Vec<String>,
 }
 
+/// `text_output` is whether the run prints text. Each spec's progress line goes to stdout for
+/// text and to stderr for every other format, so a machine format's stdout stays the one
+/// document it promises (#475).
 fn auto_fix_specs(
     root: &Path,
     spec_files: &[PathBuf],
     config: &types::SpecSyncConfig,
     dry_run: bool,
+    text_output: bool,
 ) -> AutoFixOutcome {
     use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_all_api_table_symbols, get_spec_symbols, parse_frontmatter};
@@ -1344,9 +1445,20 @@ fn auto_fix_specs(
     let mut fixed_count = 0;
     let mut failures: Vec<String> = Vec::new();
     let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
+    let report = |line: String| {
+        if text_output {
+            println!("{line}");
+        } else {
+            eprintln!("{line}");
+        }
+    };
 
     for spec_file in spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
             Err(error) => {
                 // `--fix` is a mutation request. A spec it could not even read
@@ -1360,30 +1472,33 @@ fn auto_fix_specs(
             }
         };
 
-        // First pass: fix near-miss required section headers (## level)
         let mut content = content;
-        if fix_near_miss_required_headers(&mut content, &config.required_sections) {
+        let required_headers =
+            fix_near_miss_required_headers(&mut content, &config.required_sections);
+        let export_headers = fix_near_miss_headers(&mut content);
+        if required_headers || export_headers {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            let verb = if dry_run { "would rename" } else { "renamed" };
-            println!(
-                "  {} {rel}: {verb} near-miss required section header(s) to canonical form",
-                "✓".green()
-            );
-            if !dry_run {
-                let _ = fs::write(spec_file, &content);
+            if !dry_run
+                && let Err(error) =
+                    crate::util::write_project_file(root, spec_file, content.as_bytes())
+            {
+                failures.push(format!(
+                    "{rel}: could not write the repaired headers: {error}"
+                ));
+                continue;
             }
-        }
-
-        // Second pass: fix near-miss export subsection headers (### level)
-        if fix_near_miss_headers(&mut content) {
-            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             let verb = if dry_run { "would rename" } else { "renamed" };
-            println!(
-                "  {} {rel}: {verb} near-miss export header(s) to canonical form",
-                "✓".green()
-            );
-            if !dry_run {
-                let _ = fs::write(spec_file, &content);
+            if required_headers {
+                report(format!(
+                    "  {} {rel}: {verb} near-miss required section header(s) to canonical form",
+                    "✓".green()
+                ));
+            }
+            if export_headers {
+                report(format!(
+                    "  {} {rel}: {verb} near-miss export header(s) to canonical form",
+                    "✓".green()
+                ));
             }
         }
 
@@ -1407,6 +1522,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             all_exports.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 config.export_level,
                 config.parse_mode,
@@ -1456,6 +1572,7 @@ fn auto_fix_specs(
             }
             let full_path = root.join(file);
             type_names.extend(get_exported_symbols_full(
+                root,
                 &full_path,
                 types::ExportLevel::Type,
                 config.parse_mode,
@@ -1614,21 +1731,21 @@ fn auto_fix_specs(
         if dry_run {
             fixed_count += 1;
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            println!(
+            report(format!(
                 "  {} {rel}: would add {} export(s)",
                 "✓".green(),
                 undocumented.len()
-            );
+            ));
         } else {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            match fs::write(spec_file, &new_content) {
+            match crate::util::write_project_file(root, spec_file, new_content.as_bytes()) {
                 Ok(()) => {
                     fixed_count += 1;
-                    println!(
+                    report(format!(
                         "  {} {rel}: added {} export(s)",
                         "✓".green(),
                         undocumented.len()
-                    );
+                    ));
                 }
                 // The one outcome `--fix` must never hide. Discarding this error
                 // meant a read-only spec produced exit 0 and a clean report,

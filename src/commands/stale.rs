@@ -1,5 +1,4 @@
 use colored::Colorize;
-use std::fs;
 use std::path::Path;
 
 use crate::git_utils::{
@@ -53,7 +52,7 @@ pub fn cmd_stale(
     }
 
     let (config, all_spec_files) = load_and_discover(root, false);
-    let spec_files = filter_by_status(&all_spec_files, exclude_status, only_status);
+    let spec_files = filter_by_status(root, &all_spec_files, exclude_status, only_status);
 
     let mut stale_specs: Vec<StaleInfo> = Vec::new();
     let mut unmeasurable_specs: Vec<UnmeasurableSpec> = Vec::new();
@@ -61,9 +60,30 @@ pub fn cmd_stale(
     let mut fresh_count = 0;
 
     for spec_file in &spec_files {
-        let content = match fs::read_to_string(spec_file) {
+        let content = match crate::util::read_project_string(
+            root,
+            spec_file,
+            crate::util::MAX_SPEC_FILE_BYTES,
+        ) {
             Ok(c) => c.replace("\r\n", "\n"),
-            Err(_) => continue,
+            Err(error) => {
+                // A spec whose read is refused is unmeasurable, never left out of the totals, so
+                // the summary cannot call every spec up to date (REQ-cmd-stale-005).
+                let rel_spec = spec_file
+                    .strip_prefix(root)
+                    .unwrap_or(spec_file)
+                    .to_string_lossy()
+                    .to_string();
+                unmeasurable_specs.push(UnmeasurableSpec {
+                    module_name: rel_spec.clone(),
+                    files: vec![(
+                        format!("{rel_spec}: {error}"),
+                        "the spec's read was refused",
+                    )],
+                    spec_path: rel_spec,
+                });
+                continue;
+            }
         };
         let parsed = match parser::parse_frontmatter(&content) {
             Some(p) => p,

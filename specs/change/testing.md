@@ -4,6 +4,8 @@ spec: change.spec.md
 
 # Testing
 
+The stale-delta CLI tests distinguish two unreadable Git objects. If the requirement-loss comparison cannot read its merge-base, local and CI checks both refuse. If only the older proposal input is unreadable, the interactive check refuses and CI skips the proposal. A separate case removes an unrelated requirement, verifies the delta and ledger are unchanged, restores the requirement and obtains the expected proposal.
+
 REQ-change-143 (#994 P1): `late_close_refuses_symlinked_closed_late_destination`, `late_close_refuses_symlinked_archive_destination` and their dangling-link variants in `tests/integration/doctor.rs` each exercise dry-run and an actual two-package close against same-filesystem outside targets. They require a refusal naming the link and recovery, unchanged source/project/outside bytes, no dangling-target creation, then successful byte-preserving close after replacing the link with an in-project directory. `late_close_revalidates_symlinked_destinations_before_any_batch_write` in `src/change_tests/doctor_collision.rs` bypasses planning to model a link planted afterward, covering both parent directories and the second plan's final component, linked and dangling; no package moves and the ledger stays byte-identical. Symlink tests are Unix-only. All five failed before the fix; existing late-close and rollback tests remain the normal-path controls.
 
 The write-boundary matrix also executes recovery for the final-component links: the refusal must leave the dated destination absent, and after removing only that symlink the whole batch succeeds with unchanged package and outside bytes and `verified: false`. This refinement failed first because the initial diagnostic advised replacing any link with a directory, which blocks a final-component retry.
@@ -45,6 +47,8 @@ Unit tests cover IDs, requirement grammar, semantic application, unsafe command 
 - Sequence-integrity coverage rejects unacknowledged active/archive collisions, accepts only the exact immutable historical baseline, and exercises the committed claim update.
 - Verification coverage proves `change check` does not spawn configured project commands, fails on phantom-export spec drift in a spec the change owns (`change_check_fails_when_specs_and_code_drift`), IGNORES the same drift in a module it neither declares nor maps (`change_check_ignores_drift_in_an_unowned_spec`), retains failed attempts, and proves a corrected spec↔code retry can become current without deleting history. `scope_includes_a_spec_mapping_a_declared_path_with_no_declared_module` pins the second half of the scope union at the helper, and `change_check_fails_a_no_spec_change_delivery_whose_mapped_spec_drifted` / `change_check_passes_a_no_spec_change_delivery_when_only_an_unmapped_spec_drifted` pin it through `verify_change` itself — a scoping rule that read only `affected_specs` would let a record naming no module verify vacuously, which the helper assertion alone cannot catch. Both were mutation-proved by disabling the path-union clause: both fail, while `change_check_ignores_drift_in_an_unowned_spec` still passes. The failure case requires the error to name `verification.json`, because the effective-contract gate walks declared MODULES and returns before any attempt is recorded; `an_empty_scope_is_named_rather_than_written_as_a_project_wide_pass` pins the evidence string. `change_check_fails_when_a_declared_module_has_no_spec_on_disk` is the DISCRIMINATOR for fail-closed scoping: a declared module whose spec is absent used to be dropped, so the change verified green against zero of the modules it declared while a clean path-scoped spec made the pass look real. It uses a `no_spec_change` record because the effective-contract walk skips those, leaving the scoped pass as the only gate, and it asserts the error names the module, that `verification.json` was recorded, and that the evidence carries `--spec change`, which is the only place the persisted record names the missing module. KNOWN RESIDUAL, pinned by `mixed_scope_evidence_names_the_missing_module_but_does_not_rerun_faithfully`: that recorded command reproduces the verdict only when every named spec resolves or none does — with one module resolved and one missing, `filter_specs` demotes the unmatched filter to a warning (`src/commands/mod.rs`) and the rerun can exit 0 while `change check` failed. Its CONTROL is `change_check_passes_a_no_spec_change_delivery_that_maps_no_spec_at_all`, which keeps the honest empty pass for a change that claimed no contract; `the_spec_filter_name_is_the_stem_filter_specs_matches_not_the_declared_module` pins the recorded name to the stem `filter_specs` matches. Mutation-proved by dropping the unresolved-module failure: the discriminator fails, both controls stay green. `status_does_not_advertise_strict_unless_strict_was_requested` proves status and `verification.json` name the same command.
 - Adoption coverage: `init_then_adopt_enables_sdd` is the DISCRIMINATOR for the on-switch — unfixed, `adopt` wrote a policy only when the file was missing, so the path `init` prints left `enabled: false`. `adopt_is_idempotent_on_an_enabled_policy` and `adopt_fails_closed_on_a_policy_it_cannot_parse` are the controls, and `adopt_re_pins_the_bootstrap_record_it_invalidates` proves the flip does not silently kill the exemption `init` recorded. `adoption_bootstrap_covers_only_the_original_policy` still holds: adoption never creates a second exemption source. `change_adopt_moves_only_new_changes_to_v2_without_rewriting_v1_policy` pins the byte-identical promise for an *enabled* v1 policy; `change_adopt_flips_only_enabled_on_a_disabled_v1_policy` pins the one case adoption rewrites — a v1 policy switched off — and proves it rewrites exactly `enabled` (mutation: also bumping `version` fails it).
+- `adopt_dry_run_and_import_skip_archive_descendants_but_refuse_active_symlinks` checks both OpenSpec and Spec Kit. A link inside a real top-level archive directory leaves preview and adoption eligible, while a link in an active change refuses both commands without writing adoption policy or import records.
+- `adopt_preview_reads_the_same_bounded_markdown_as_import` compares the actual error from both commands for invalid UTF-8 and oversized Markdown in OpenSpec canonical inputs, the Spec Kit constitution, and a nested active directory. Healthy canonical and nested active Markdown import successfully while malformed Markdown under the top-level archive stays untouched.
 - Canonical-successor coverage exercises incomplete, stale, failed, implementing, verifying, and accepted successor states against stale predecessor evidence.
 - Registry-path coverage applies spec and requirements deltas to a non-conventional registered module and rejects unsafe mappings.
 - `REQ-change-026`: sequence coverage includes five-digit IDs, protected ledger paths, exact accepted/archive baselines, removed historical IDs, and rejected mutable collisions.
@@ -316,3 +320,111 @@ These are author-focused results. Full verification, Trust, independent final
 review, human acceptance, current-main integration and hosted delivery remain
 pending. The old native archive and its historical review claims are unchanged
 and do not review this repair.
+
+## Bounded reads (REQ-change-161)
+
+FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/zero`. Unix-only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A project file this module reads is a FIFO, a link out of the project, or over its bound | Refused without waiting or reading past the bound | `tests/integration/project_reads.rs`: `change_status_does_not_wait_on_a_policy_that_is_not_a_regular_file`, `change_status_does_not_read_a_policy_linked_outside_the_project`, `change_status_refuses_a_policy_over_its_bound`, `a_lifecycle_write_does_not_wait_on_or_follow_the_transaction_journal`; `tests/integration/project_reads.rs`: `no_project_file_is_read_outside_the_bounded_read`, the source scan that fails on any direct file read outside the bounded project read |
+
+## The transaction journal (REQ-change-162)
+
+Each fixture has its own `git init`; every journal names files inside the fixture only.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| An entry for `.git/config`, `.GIT/config`, `.git./config`, `.git/HEAD` or a hook | Refused; Git's files keep their bytes | `a_journal_never_rewrites_or_deletes_git_files` |
+| A journal in the work tree, tracked in the index or only in `HEAD`, or untracked, with or without Git | Never opened or replayed; the lock refuses naming the file and how to clear it | `a_journal_git_tracks_is_never_replayed`, `a_journal_in_the_work_tree_is_never_replayed`, `change_new_never_replays_a_committed_journal_into_git`, `tests/integration/repository_inputs.rs`: `change_new_never_replays_a_journal_an_unpacked_tree_ships` |
+| A running transaction | Its journal is in the local state folder, not the work tree | `a_running_transaction_keeps_its_journal_outside_the_work_tree` |
+| One entry outside the workflow's files | The whole journal is refused | `one_entry_outside_the_change_workflow_refuses_the_whole_journal` |
+| `.git\\config` with `specs_dir = "."`, `specs/.git\\config` | Refused: backslashes are separators, as the write treats them | `a_backslash_entry_cannot_reach_git_files` |
+| `specs_dir = "."` and an entry for `Makefile` | Refused: under `specs_dir` only spec files, `requirements.md` and history fragments | `specs_dir_dot_does_not_widen_replay` |
+| The bare-array 5.x form | Refused with the `.broken` recovery | `a_bare_array_journal_is_no_longer_replayed` |
+| The person's own interrupted write, including a registry-mapped spec | Still recovered | `a_real_interrupted_write_is_still_recovered`, `a_registry_mapped_spec_is_recovered_and_its_neighbours_are_not` |
+
+## Change records written through the confined helpers (REQ-change-165)
+
+Every link points inside the test's own temporary directory.
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A committed `change.md` linked outside, with `change answer` or `change approve` | Refused before anything is written; the outside file, the state and the approvals keep their bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_through_a_link_out`, `change_approve_never_writes_change_md_through_a_link_out` |
+| A dangling artifact link, with `change answer` | Refused; nothing is created outside | `tests/integration/project_writes.rs`: `change_answer_never_creates_the_target_of_a_dangling_artifact_link` |
+| `.specsync/changes` linked outside, with `change new` | No workspace is created there | `tests/integration/project_writes.rs`: `change_new_creates_nothing_in_a_changes_directory_linked_out` |
+| `change.md` linked into `.git/hooks` | Refused; the hook keeps its bytes | `tests/integration/project_writes.rs`: `change_answer_never_writes_change_md_into_a_hook` |
+
+## Change 7: the journal and the registry (REQ-change-162)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A valid journal under `.git/specsync/<key>` | Never replayed | `a_journal_under_the_git_directory_is_never_replayed` |
+| A registry entry mapping a module to `.env`, with a deletion or a rewrite journaled | Refused; `.env` keeps its bytes | `a_registry_entry_that_is_not_a_spec_never_opens_a_replay` |
+
+## Change 8: the read cache and the proposals walk (REQ-change-164)
+
+| Case | Required behavior | Test |
+|------|-------------------|------|
+| A Git work tree | The read cache path is outside the clone | `the_read_cache_never_lives_in_the_git_directory` |
+| A `specs` link that leaves the project, holding `requirements.md` files | No proposals | `requirement_id_proposals_never_walk_a_specs_link_that_leaves_the_project` |
+
+The terminal evidence isolation tests exercise an oversized archived state file through the fallback roster. The error belongs to that archive and retains the configured size limit. The pre-snapshot archive test checks that scoped and unscoped summaries still authenticate beside a duplicate or malformed sibling. Strict validation refuses both siblings, and a damaged baseline authority still invalidates the legacy archive.
+REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`. The audit reports the frozen Change Log item in an approved change, reports it first when the same change has a stale delta base, and skips that diagnostic after archival.
+
+## Verification state and the Markdown summary (REQ-change-check-summary-state-001)
+
+- `review_and_ship_refuse_a_verification_commit_that_lacks_the_work` checks that the first passing check preserves a Markdown handoff note and reports `verifying` in the summary and CLI. It also checks that `check --commit` commits the summary and leaves evidence usable for scoped review.
+- `change_check_fails_when_specs_and_code_drift` checks that a completed failing check publishes both state projections and failed evidence.
+- `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
+- `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.
+
+The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cover an approval that has become stale, a historical sequence owner whose coverage is provisional, and the status shown when the original transition is unproven.
+
+The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.
+Archive tests also check that a stray coverage file survives refusal, that a moved package can retry with matching coverage, and that a failed integrity check rolls back newly written coverage.
+
+`an_archived_predecessor_warns_after_a_plain_coverer_closes` and `explicit_succession_clears_the_archived_predecessor_warning` check recorded coverers with and without an explicit obligation in both the accepted and archived states. `accepting_a_plain_coverer_leaves_the_active_predecessor_stale` exercises the matching active-change rule.
+
+The archive coverage regressions in `src/change_tests/provisional_coverage.rs` exercise a shared input with two signed owners. One explicit successor leaves a warning for the missing owner. Two independently approved successors can cover the owners separately. The same fixture checks both receipt entries as the first successor becomes Accepted and the other remains Implementing, then checks both again after the second acceptance. The tests also check that changing the recorded coverer’s approved definition restores the warning, and that an unrelated unreadable archive does not invalidate a directly covered input. A three-owner fixture verifies that one change covering the first and last owners produces only one receipt row. Another fixture changes a shared input before the later accepted change begins and checks that the archive refusal names it through its declared scope for the second owner.
+
+`reopened_covered_archive_recomputes_coverage_at_finalization` exercises reopen, verification, review, and re-finalization with the original receipt retained byte-for-byte in Git. `reopen_rollback_restores_the_receipt_and_preserves_replacements` checks the original archive after an injected post-removal failure and after replacement of the receipt following journal preparation. `reopened_archive_preserves_untracked_and_edited_valid_coverage` protects actual working copies even if their receipts parse. The existing active-source and post-move retry controls check unexpected coverage refusals.
+
+## Fenced canonical delta blocks (REQ-change-152)
+
+- `a_modified_delta_skips_a_fenced_example_of_the_same_id` checks that the real requirement is replaced and the preceding example and next requirement survive.
+- `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.
+- `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
+- `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.
+
+The upstream archive tests exercise a reopened package after a remote rename, matching and unrelated non-UTF-8 directory names, and copies of a remote-only record under backup and nested paths. Only a package’s own state.json establishes local archive history. The two non-UTF-8 package tests also run with `core.quotePath=false`, where Git can write raw path bytes to its commit summary.
+
+## Lost-requirement refusals (REQ-change-169)
+
+- The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.
+- A linked requirement removed on the default branch names the merge recovery. A dangling or cyclic reference link names the unreadable canonical file even when the Git diff does not include that path.
+- `registry_companions_use_normalized_paths_in_the_worktree_and_reference` moves a requirement between tracked companions declared with backslash separators, then checks that deleting it reports the original canonical path.
+- `a_merge_hint_quotes_the_default_ref_in_both_diagnostics` inspects the printed merge command for a default ref containing a literal apostrophe, for both default-only and mixed losses.
+- `a_specs_directory_with_leading_whitespace_preserves_and_reports_requirement_ids` keeps an edited requirement, detects its later deletion, and checks the printed restore command.
+- `requirements_are_read_in_a_project_subdirectory_with_leading_whitespace` preserves the repository prefix in historical reads and the restore command.
+- `a_reference_requirement_after_an_indented_fence_marker_is_reported_lost` verifies the merge-base blob and its restore command. `default_tip_keeps_a_requirement_after_an_indented_fence_marker` checks that the default-tip reader still sees the requirement and prints the correct recovery.
+- `an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it` checks one refused attempt, an unchanged acceptance receipt, a read-only audit, and successful archival after restore.
+- `a_sibling_removal_must_survive_the_selected_changes_commit` exercises an approved removal in its own workspace and as another change’s authority. It covers an untracked package, a partially staged package, and an approval whose working copy differs from its index entry. The staged definition survives a fresh clone while the private notes remain local.
+- `accept_records_a_lost_requirement_and_can_retry_after_restore` covers the legacy CLI. `ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it` checks the read-only status and dry-run, open-task priority, and exactly one attempt from a real ship. Both check that a broken attempts ledger leaves the loss diagnostic and the storage error visible.
+
+- `an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibling` verifies that finalize can use its own pending archive. A sibling refuses until the removal records and delta are staged. A real byte or mode change still refuses, while restoring the indexed bytes and mode succeeds without a Git stat refresh. A fresh clone then accepts the same removal. `an_archived_legacy_sibling_needs_its_selected_artifacts_in_the_index` covers a workflow-v1 approval whose selected artifact is present on disk but absent from the index.
+
+REQ-change-171 through REQ-change-173 use `tests/integration/git_environments.rs`. The tests exercise the exact trusted top level, private configuration cleanup, historical requirements scopes, an executable recovery fetch for missing trees below a local commit, and shallow-history guidance when the same checkout is also partial. Unit coverage in `src/change_tests/git_environments.rs` verifies that recovery accepts only complete SHA-1 and SHA-256 missing object IDs, and distinguishes history reads from metadata queries with Git config overrides. The download concurrency test parks the first reader and verifies that another root can progress while same-root readers wait for the same success or failure. The shell recovery test reads back the exact `safe.directory` value through Git, and the Linux CLI test copies the rendered command and retries the original read. The linked-worktree placement test also checks that the rejected temporary parent retains its timestamp. The partial-clone regressions round-trip the raw checkout argument in both recovery commands and read a Git history containing a non-UTF-8 requirements filename. The depth-1 and depth-2 creation refusals check that the lifecycle lock is absent.
+
+REQ-change-175 through REQ-change-177 (#1112, #1116, #1117) use the integration cases in `tests/integration/vanished_requirements.rs`. The unreadable-directory case also checks that audit, ship-status and ship dry-run preserve the verification attempt ledger, and that a check refusal appends the cannot-tell diagnostic when the directory contains a tracked requirements file. Another case removes a directory's requirements file from the index while leaving a tracked notes file and an untracked requirements copy. Ship-status names the loss when that directory cannot be read. The unreadable-file case uses invalid UTF-8 on the same path before and after adding it to Git. Ship-status names the lost requirement while the path is untracked and names the unreadable file after it is tracked. The project-read guard in `tests/integration/project_reads.rs` still covers the confined readers.
+
+## Accepted interview correction (REQ-change-032)
+
+`correcting_accepted_interview_metadata_requires_the_complete_roster` keeps the healthy accepted record readable, verifies that a sibling’s corrupt committed history blocks correction without workspace writes, and succeeds on the healthy roster.
+
+## Project requirement loss after archival (REQ-change-archived-requirement-loss-001)
+
+- The archive-only CLI fixture checks committed verification, an unstaged and staged loss, a warm drift cache, and the text and JSON audit results. Strict check also exposes the result through Markdown, GitHub, table, and CSV.
+- A separate archive-only no-loss control, an approved removal, and a tracked move keep both command families passing. A shallow checkout with a known default ref fails with fetch instructions. A local clone with no default ref discloses that history was not compared.
+- When both the branch and default tip removed the same requirement independently, both project commands show the reference block inspection command beside the merge advice.
+- A branch that disables or deletes the SDD policy its comparison base has enabled is still compared by both commands, uncommitted and committed. A default branch that has the policy disabled keeps both on the drift-only path.

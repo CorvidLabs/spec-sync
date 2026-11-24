@@ -1,0 +1,84 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795136191,
+      "digest": "64b321c50620be82959f32130698779cf9ff1f31916efe8c3f49d954281a88ff",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of keep-specsync-s-own-caches-and-journal-outside-the-work-tree\": \"a, all yes.. im back\" (Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 00:38Z, answering item 1 as t4c put it at about 21:09Z on 2026-11-19 with option A: 'one more change (change 6): move the hash cache, journal and remote cache out of the work tree; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave the paths you type yourself (--template) as they are, and document the low-rated items. Then this same reviewer re-checks its own findings, rather than a third full review. [...] (fold [change 5's review] into change 6 if you pick A)', and that the class fix moves them 'into the Git directory, where a repo can't commit files, or into your user cache folder when there's no Git'; t4c mapped it to review2's F1, F2, F3, F4, F6 and F7 fixed, F5 kept and documented, F8, F9 and F10 documented; relayed by t4c over hc to t5r). Relayed and recorded by claude-code-t5r at 2026-11-20T00:56:19Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-specsync-s-own-caches-and-journal-outside-the-work-tree",
+        "title": "Keep SpecSync's own caches and journal outside the work tree",
+        "description": "Keep SpecSync's own caches and journal outside the work tree",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check",
+          "cmd_resolve",
+          "hash_cache",
+          "hooks",
+          "rehash",
+          "util",
+          "validator"
+        ],
+        "affected_paths": [
+          "src/change/collect_requirement_ids.rs",
+          "src/change/sdd_version.rs",
+          "src/commands/check.rs",
+          "src/commands/rehash.rs",
+          "src/commands/resolve.rs",
+          "src/hash_cache.rs",
+          "src/hooks.rs",
+          "src/util.rs",
+          "src/util/local_state.rs",
+          "src/validator/tests.rs",
+          "tests/integration"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "SpecSync keeps its hash cache, transaction journal and remote spec cache outside the work tree: in <git rev-parse --absolute-git-dir>/specsync/<key>/ inside a Git work tree, keyed by the project's path in it, or in the user's cache folder (XDG_CACHE_HOME, ~/Library/Caches on macOS, ~/.cache elsewhere) keyed by the canonical project root when there is no work tree. A .specsync/hashes.json in the work tree, in any letter case and tracked or not, is never read or saved, so a forged pass in a clone, an unpacked tree or where Git cannot answer is never replayed. A .specsync/change-transaction.json in the work tree is never replayed: lifecycle commands refuse to start while it is there, with the path and how to clear it, without opening it. A .specsync-cache/remote-specs entry in the work tree is never used by resolve. The read and write scans cover exactly the files compiled into the binary (from Cargo's dep-info), skip only #[cfg(test)] items found by a lexer that ignores braces in strings, characters and comments, and also catch cap-std opens, renames and copies, tempfile_in and persist, hard and symbolic links, free functions imported from std::fs, and git arguments that write files; the hidden unbounded read in src/validator/tests.rs goes through the bounded read. The pre-commit hook is read, written, created, made executable and removed through a hooks folder opened component by component without following links, from the Git directory, the work tree top or the user's own folder, so a committed hooks folder link or a dangling pre-commit link is refused. The confinement widens to an enclosing work tree only when Git tracks the project root there. --template and --manifest stay as given; F5, F8, F9 and F10 of the second review are documented. The new tests fail on a2a50824 with only the tests added and pass with the fix"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "util.3md: stay inside the root by construction, and enforce the same rule wherever a path is read, written, walked or replayed; a state file SpecSync writes for itself is never kept where a repository can put one. change.3md: a refusal is a result worth recording and names its recovery (#433, #847). Leif's option A (2026-11-19 ~21:09Z, answered 'a, all yes.. im back' ~00:38Z on 2026-11-20) bounds the scope: move the hash cache, journal and remote cache out of the work tree, into the Git directory or the user's cache folder; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave --template and --manifest as given and document the low-rated items. Change 5 stays open and is reviewed with this one.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "6e5ea0359570dfb9b1e9551c4946a055dff0ff33ce9507432759b7598d05cbcc",
+        "cmd_check": "02d2789fd97b6f660f9ec7ca6e67edcd1675f6c8da6249344cb38829982bcdc5",
+        "cmd_resolve": "8381a39a239063c7b78e2ba533b924950ed0c8bd8c3463f708d4f698a1f653d8",
+        "hash_cache": "7ef9e47967fc938a574d6fbab262c9d48cdbe4477474bbe247fb61ed9ee4e87a",
+        "hooks": "36d3552d5561b4650b18194bce3f06b34551c34b08b4eebd809ea48c0801edc7",
+        "rehash": "3c2490ed333c17b5b6788ee97303fb4d392d2e31d8f068a640a06928583c49cb",
+        "util": "851a405c23c58c2d0bd3986ccfe5343caa3ad25b2d4755201be79edd7460f85d",
+        "validator": "12c59cc6630ff4c650c5a5a22823e61b866eaa5a7e954bebd93fb7d73e9b6550"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-162": "b2c3d6c3338afb6523b173d437b2bd39c42e2c8402f6b7844e994d6c49317383",
+        "cmd_check: REQUIREMENT REQ-cmd-check-021": "dfe385747f2665135a28ade9d6c9eb638b46fb6d2825443de8208acba3b9f0d0",
+        "cmd_resolve: REQUIREMENT REQ-cmd-resolve-002": "36766103766a15c988d26bd8ba0067a24fbc37071f514eb340978545053e036d",
+        "cmd_resolve: REQUIREMENT REQ-cmd-resolve-003": "29a6bf7115e40e687dc55d511080a9439b845f0089d7448ed6543a5caa07ac05",
+        "hash_cache: REQUIREMENT REQ-hash-cache-009": "45b0e1821ce46d26d5c3173fe14e5bf74e05430ccac106cdb6c210243b444ff0"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "a, all yes.. im back",
+        "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 00:38Z, answering item 1 as t4c put it at about 21:09Z on 2026-11-19 with option A: 'one more change (change 6): move the hash cache, journal and remote cache out of the work tree; close the scan blind spots, the hooks-folder case and the enclosing-repo case; leave the paths you type yourself (--template) as they are, and document the low-rated items. Then this same reviewer re-checks its own findings, rather than a third full review. [...] (fold [change 5's review] into change 6 if you pick A)', and that the class fix moves them 'into the Git directory, where a repo can't commit files, or into your user cache folder when there's no Git'; t4c mapped it to review2's F1, F2, F3, F4, F6 and F7 fixed, F5 kept and documented, F8, F9 and F10 documented; relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795155467,
+      "digest": "241207504a68216b0d4fa9352a053fe17b72bd785f484c36ba1cd494179dfc75",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

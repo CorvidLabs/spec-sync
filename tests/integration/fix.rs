@@ -238,7 +238,8 @@ fn fix_with_json_output() {
     )
     .unwrap();
 
-    // --fix with --json should still work and produce valid JSON
+    // --fix with --json prints exactly one JSON document on stdout; the per-spec progress line
+    // goes to stderr (#475).
     let output = specsync()
         .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
         .output()
@@ -246,12 +247,248 @@ fn fix_with_json_output() {
 
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    // The auto_fix_specs function may print non-JSON lines before the JSON output,
-    // so find the JSON object in the output
-    let json_start = stdout.find('{').expect("Expected JSON in output");
-    let json_str = &stdout[json_start..];
-    let json: serde_json::Value = serde_json::from_str(json_str.trim()).unwrap();
+    let json: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}):\n{stdout}"));
     assert!(json["specs_checked"].is_number());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("added 1 export(s)"),
+        "the progress line moves to stderr: {stderr}"
+    );
+    let fixed = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
+    assert!(fixed.contains("`login`"), "--fix still writes: {fixed}");
+}
+
+#[test]
+fn failed_fix_reports_one_json_document_and_keeps_successful_progress_on_stderr() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let auth = root.join("specs/auth/auth.spec.md");
+    fs::write(&auth, valid_spec("auth", &["src/auth.ts"])).unwrap();
+    fs::create_dir_all(root.join("specs/bad")).unwrap();
+    let bad = root.join("specs/bad/bad.spec.md");
+    fs::write(&bad, [0xff]).unwrap();
+
+    let output = specsync()
+        .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("a failed fix must still emit one complete JSON document");
+    assert_eq!(result["passed"], false);
+    let errors = result["errors"].as_array().unwrap();
+    assert!(
+        errors.iter().any(|e| e.as_str().is_some_and(
+            |message| message.contains("bad.spec.md") && message.contains("could not be read")
+        )),
+        "{result}"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("added 1 export"));
+    assert!(fs::read_to_string(auth).unwrap().contains("`login`"));
+    assert_eq!(fs::read(bad).unwrap(), [0xff]);
+}
+
+#[test]
+fn failed_fix_emits_each_unreadable_spec_in_the_requested_format() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir(root.join("src")).unwrap();
+    fs::create_dir(root.join("specs")).unwrap();
+    let names = ["first.spec.md", "second,quoted.spec.md"];
+    for name in names {
+        fs::write(root.join("specs").join(name), [0xff]).unwrap();
+    }
+
+    for format in ["csv", "table", "markdown", "github"] {
+        let output = specsync()
+            .args(["check", "--fix", "--format", format, "--root"])
+            .arg(root)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{format}: {stdout}");
+        for name in names {
+            assert_eq!(stdout.matches(name).count(), 1, "{format}: {stdout}");
+        }
+        assert_eq!(stdout.matches("could not be read").count(), 2, "{stdout}");
+        match format {
+            "csv" => {
+                assert_eq!(stdout.lines().next(), Some("severity,spec,message"));
+                assert_eq!(stdout.lines().skip(1).count(), 2, "{stdout}");
+                assert!(stdout.lines().skip(1).all(|row| row.starts_with("error,")));
+                assert!(stdout.lines().any(|row| row.contains('"')), "{stdout}");
+            }
+            "table" => assert!(stdout.starts_with("SEVERITY"), "{stdout}"),
+            _ => assert!(stdout.contains("### Errors"), "{stdout}"),
+        }
+    }
+}
+
+#[test]
+fn failed_fix_backup_reports_json_before_changing_a_spec() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = root.join("specs/auth/auth.spec.md");
+    let before = valid_spec("auth", &["src/auth.ts"]);
+    fs::write(&spec, &before).unwrap();
+    let requirements = root.join("specs/auth/requirements.md");
+    fs::write(&requirements, "# Requirements\n").unwrap();
+    specsync()
+        .arg("--root")
+        .arg(root)
+        .arg("check")
+        .assert()
+        .success();
+    fs::write(
+        &requirements,
+        "# Requirements\n\nRevised acceptance criteria.\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/backup-fix"), "occupied").unwrap();
+
+    let output = specsync()
+        .args([
+            "check",
+            "--fix",
+            "--backup",
+            "--json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["passed"], false);
+    assert!(result["errors"][0].as_str().unwrap().contains("backup"));
+    assert_eq!(result["stale"][0]["reason"], "requirements_changed");
+    assert_eq!(result["stale"][0]["spec"], "specs/auth/auth.spec.md");
+    for format in ["csv", "table", "markdown", "github"] {
+        let output = specsync()
+            .args(["check", "--fix", "--backup", "--format", format, "--root"])
+            .arg(root)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{format}: {stdout}");
+        assert!(stdout.contains("backup"), "{format}: {stdout}");
+        assert!(
+            stdout.contains("specs/auth/auth.spec.md"),
+            "{format}: {stdout}"
+        );
+        assert_eq!(
+            stdout.matches("requirements changed").count(),
+            1,
+            "{format}: {stdout}"
+        );
+        if format == "csv" {
+            assert!(
+                stdout.lines().any(|row| row.starts_with("warning,")),
+                "{stdout}"
+            );
+        }
+    }
+    assert_eq!(fs::read_to_string(spec).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_fix_does_not_report_a_read_only_header_as_repaired() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "// No exports.").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = root.join("specs/auth/auth.spec.md");
+    let before = valid_spec("auth", &["src/auth.ts"]).replace("## Purpose", "## Purpos");
+    fs::write(&spec, &before).unwrap();
+    fs::set_permissions(&spec, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::OpenOptions::new().write(true).open(&spec).is_ok() {
+        // A privileged runner cannot exercise the denied write.
+        return;
+    }
+
+    let output = specsync()
+        .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["passed"], false);
+    assert!(
+        result["errors"][0]
+            .as_str()
+            .unwrap()
+            .contains("auth.spec.md")
+    );
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(": renamed"));
+    assert_eq!(fs::read_to_string(spec).unwrap(), before);
+}
+
+// #475: `check --strict --force --fix --dry-run --json` printed `would add N export(s)` on stdout
+// before the JSON result, so a consumer parsing stdout failed.
+#[test]
+fn fix_dry_run_with_json_output_is_one_json_document() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\n",
+    )
+    .unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = valid_spec("auth", &["src/auth/service.ts"]);
+    fs::write(root.join("specs/auth/auth.spec.md"), &spec).unwrap();
+    fs::write(root.join("specs/auth/requirements.md"), "# Requirements\n").unwrap();
+
+    let output = specsync()
+        .args([
+            "check",
+            "--strict",
+            "--force",
+            "--fix",
+            "--dry-run",
+            "--json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let json: serde_json::Value = serde_json::from_str(stdout.trim())
+        .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}):\n{stdout}"));
+    assert!(json["specs_checked"].is_number(), "{json}");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("would add 1 export(s)"),
+        "the dry-run progress line moves to stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap(),
+        spec,
+        "--dry-run writes nothing"
+    );
 }
 
 // Regression: --fix used to insert new rows at the end of ## Public API, which put

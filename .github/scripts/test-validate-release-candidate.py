@@ -7,6 +7,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 
 sys.dont_write_bytecode = True
@@ -29,10 +31,11 @@ SPEC.loader.exec_module(VALIDATOR_MODULE)
 
 
 def git(repository: Path, *arguments: str) -> str:
-    """Run one local Git fixture command."""
+    """Keep system and user Git preferences out of disposable fixture repositories."""
     return subprocess.check_output(
         ["git", *arguments],
         cwd=repository,
+        env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
         text=True,
     ).strip()
 
@@ -195,7 +198,13 @@ class ReleaseCandidateTagTests(unittest.TestCase):
     def test_candidate_rejects_lightweight_or_missing_tag(self) -> None:
         fixture = ReleaseRepository()
         self.addCleanup(fixture.close)
-        git(fixture.root, "tag", fixture.rc_tag, fixture.candidate_sha)
+        caller_config = fixture.root / ".git" / "caller.gitconfig"
+        caller_config.write_text("[tag]\n\tgpgSign = true\n", encoding="utf-8")
+        with patch.dict(os.environ, GIT_CONFIG_GLOBAL=str(caller_config), GIT_EDITOR="false"):
+            git(fixture.root, "tag", fixture.rc_tag, fixture.candidate_sha)
+        self.assertEqual(
+            git(fixture.root, "cat-file", "-t", f"refs/tags/{fixture.rc_tag}"), "commit"
+        )
         lightweight = fixture.run_cli(
             "candidate",
             "--repository",
@@ -1727,11 +1736,11 @@ class PublishedActionDefaultTests(unittest.TestCase):
     def test_candidate_keeps_published_previous_stable_default(self) -> None:
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertIn("Validated release version 6.3.0", result.stdout)
+        self.assertIn("Validated release version 6.4.2", result.stdout)
 
     def test_premature_candidate_default_is_rejected(self) -> None:
-        self.set_default("6.3.0")
-        self.assert_rejected("action.yml default must be 6.1.0, found 6.3.0")
+        self.set_default("6.4.2")
+        self.assert_rejected("action.yml default must be 6.1.0, found 6.4.2")
 
     def test_arbitrary_unpublished_default_is_rejected(self) -> None:
         self.set_default("9.9.9")
@@ -1754,17 +1763,17 @@ class PublishedActionDefaultTests(unittest.TestCase):
 
     def test_ci_still_requires_candidate_binary(self) -> None:
         self.replace(
-            ".github/workflows/ci.yml", "          version: '6.3.0'",
+            ".github/workflows/ci.yml", "          version: '6.4.2'",
             "          version: '6.1.0'",
         )
-        self.assert_rejected("packaged Action consumer must use 6.3.0, found 6.1.0")
+        self.assert_rejected("packaged Action consumer must use 6.4.2, found 6.1.0")
 
     def test_trust_still_requires_candidate_binary(self) -> None:
         self.replace(
-            ".github/workflows/trust.yml", '          specsync-version: "6.3.0"',
+            ".github/workflows/trust.yml", '          specsync-version: "6.4.2"',
             '          specsync-version: "6.1.0"',
         )
-        self.assert_rejected("Trust candidate must use 6.3.0, found 6.1.0")
+        self.assert_rejected("Trust candidate must use 6.4.2, found 6.1.0")
 
     def test_ci_candidate_mirror_remains_required(self) -> None:
         self.replace(
@@ -1775,13 +1784,13 @@ class PublishedActionDefaultTests(unittest.TestCase):
     def test_archive_gate_main_ref_expires_once_a_newer_release_is_published(self) -> None:
         self.replace(
             "site/src/content/docs/integrations/github-action.md",
-            "      - uses: CorvidLabs/spec-sync@v6.3.0\n        with:\n          version: '6.3.0'\n          archive-gate-only: 'true'\n",
-            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.3.0'\n          archive-gate-only: 'true'\n",
+            "      - uses: CorvidLabs/spec-sync@v6.4.2\n        with:\n          version: '6.4.2'\n          archive-gate-only: 'true'\n",
+            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.4.2'\n          archive-gate-only: 'true'\n",
         )
         self.replace(
             ".github/scripts/validate-release-version.py",
             'PUBLISHED_ACTION_DEFAULT = "6.1.0"',
-            'PUBLISHED_ACTION_DEFAULT = "6.3.0"',
+            'PUBLISHED_ACTION_DEFAULT = "6.4.2"',
         )
         self.assert_rejected(
             "site/src/content/docs/integrations/github-action.md YAML block 4: @main"
@@ -1790,10 +1799,10 @@ class PublishedActionDefaultTests(unittest.TestCase):
     def test_main_ref_without_archive_gate_inputs_is_rejected(self) -> None:
         self.replace(
             "site/src/content/docs/integrations/github-action.md",
-            "      - uses: CorvidLabs/spec-sync@v6.3.0\n        with:\n          version: '6.3.0'\n          strict: 'true'\n          require-coverage: '100'\n",
-            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.3.0'\n          strict: 'true'\n          require-coverage: '100'\n",
+            "      - uses: CorvidLabs/spec-sync@v6.4.2\n        with:\n          version: '6.4.2'\n          strict: 'true'\n          require-coverage: '100'\n",
+            "      - uses: CorvidLabs/spec-sync@main\n        with:\n          version: '6.4.2'\n          strict: 'true'\n          require-coverage: '100'\n",
         )
-        self.assert_rejected("site Action refs must all be @v6.3.0")
+        self.assert_rejected("site Action refs must all be @v6.4.2")
 
     def test_trust_candidate_mirror_remains_required(self) -> None:
         self.replace(
@@ -1804,22 +1813,22 @@ class PublishedActionDefaultTests(unittest.TestCase):
 
     def test_package_and_lock_must_still_match(self) -> None:
         self.replace(
-            "Cargo.lock", 'name = "specsync"\nversion = "6.3.0"',
+            "Cargo.lock", 'name = "specsync"\nversion = "6.4.2"',
             'name = "specsync"\nversion = "6.1.0"',
         )
-        self.assert_rejected("Cargo.lock specsync version must be 6.3.0")
+        self.assert_rejected("Cargo.lock specsync version must be 6.4.2")
 
     def test_postpublication_default_requires_deliberate_advance(self) -> None:
         # This is an offline consistency control, not proof of publication.
         self.replace(
             ".github/scripts/validate-release-version.py",
-            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.3.0"',
+            'PUBLISHED_ACTION_DEFAULT = "6.1.0"', 'PUBLISHED_ACTION_DEFAULT = "6.4.2"',
         )
         # Publishing the first release with the archive gate inputs ended the `@main`
-        # allowance; the archive-gate example already pins the candidate @v6.3.0.
+        # allowance; the archive-gate example already pins the candidate @v6.4.2.
         content = (self.root / "site/src/content/docs/integrations/github-action.md").read_text(encoding="utf-8")
-        self.assertIn("      - uses: CorvidLabs/spec-sync@v6.3.0\n        with:\n          version: '6.3.0'\n          archive-gate-only: 'true'\n", content)
-        self.set_default("6.3.0")
+        self.assertIn("      - uses: CorvidLabs/spec-sync@v6.4.2\n        with:\n          version: '6.4.2'\n          archive-gate-only: 'true'\n", content)
+        self.set_default("6.4.2")
         result = self.validate()
         self.assertEqual(result.returncode, 0, result.stderr)
 

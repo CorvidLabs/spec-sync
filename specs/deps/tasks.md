@@ -21,6 +21,7 @@ spec: deps.spec.md
 - [x] Skip cross-project refs during local validation
 - [x] Inline unit tests for graph build, validation, cycles, import extraction, and topo sort
 - [x] Populate requirements.md with user stories and acceptance criteria (2026-04-10)
+- [x] Read project files only through the bounded project read of `util` (REQ-deps-004). Evidence: `tests/integration/project_reads.rs`.
 
 ## Open
 

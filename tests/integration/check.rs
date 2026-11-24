@@ -2166,7 +2166,7 @@ fn hashes_without_snapshots_revalidate_instead_of_going_silent() {
 
     specsync().current_dir(root).arg("check").assert().success();
 
-    let cache_path = root.join(".specsync/hashes.json");
+    let cache_path = state_cache_file(root);
     let mut cache: serde_json::Value =
         serde_json::from_str(&fs::read_to_string(&cache_path).unwrap()).unwrap();
     cache["snapshots"] = serde_json::json!({});
@@ -2186,7 +2186,210 @@ fn hashes_without_snapshots_revalidate_instead_of_going_silent() {
     );
 }
 
-/// #1060 (REQ-cmd-check-018): a module's `<module>.3md` that does not parse is a warning on its
+// ─── The hash cache is never read or written through a link (REQ-hash-cache-007) ───
+
+/// A valid project in `<tmp>/project` beside `<tmp>/outside`, so a link that leaves the project
+/// still reaches nothing but this fixture (GHSA-7q5v-8jcc-rx54).
+#[cfg(unix)]
+fn project_beside_outside(tmp: &TempDir) -> (std::path::PathBuf, std::path::PathBuf) {
+    let root = tmp.path().join("project");
+    let outside = tmp.path().join("outside");
+    fs::create_dir_all(root.join("src/auth")).unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    write_config(&root, "specs", &["src"]);
+    fs::write(
+        root.join("src/auth/service.ts"),
+        "export function login() {}\nexport function logout() {}\n",
+    )
+    .unwrap();
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        valid_spec("auth", &["src/auth/service.ts"]),
+    )
+    .unwrap();
+    (root, outside)
+}
+
+/// The names in `directory`, sorted.
+#[cfg(unix)]
+fn entry_names(directory: &std::path::Path) -> Vec<String> {
+    let mut names: Vec<String> = fs::read_dir(directory)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// Verifies REQ-cmd-check-018, REQ-cmd-check-021 and REQ-hash-cache-007. A repository that
+/// commits `.specsync/hashes.json` as a link must not make `check`, run by whoever cloned it,
+/// write the file the link names. The cache lives outside the work tree, so the link is never
+/// looked at: the run is the one it would be with no cache, and nothing is said about it.
+#[cfg(unix)]
+#[test]
+fn check_never_writes_the_hash_cache_through_a_link() {
+    use std::os::unix::fs::symlink;
+    const VICTIM: &str = "the owner's bytes\n";
+
+    for mode in [
+        &[][..],
+        &["--force"][..],
+        &["--strict"][..],
+        &["--format", "json"][..],
+        &["--spec", "auth", "--format", "json"][..],
+    ] {
+        let tmp = TempDir::new().unwrap();
+        let (root, outside) = project_beside_outside(&tmp);
+        let run = || {
+            specsync()
+                .arg("check")
+                .args(mode)
+                .arg("--root")
+                .arg(&root)
+                .output()
+                .unwrap()
+        };
+
+        // The same project with no cache at all is the run to match.
+        let without_cache = run();
+        let _ = fs::remove_dir_all(state_folder(&root));
+
+        let victim = outside.join("victim.txt");
+        fs::write(&victim, VICTIM).unwrap();
+        fs::create_dir_all(root.join(".specsync")).unwrap();
+        let link = root.join(".specsync/hashes.json");
+        symlink("../../outside/victim.txt", &link).unwrap();
+
+        let linked = run();
+        let stderr = String::from_utf8_lossy(&linked.stderr);
+        assert_eq!(
+            fs::read_to_string(&victim).unwrap(),
+            VICTIM,
+            "check {mode:?} wrote the hash cache through the link, over a file outside the project"
+        );
+        assert!(
+            fs::symlink_metadata(&link)
+                .unwrap()
+                .file_type()
+                .is_symlink(),
+            "check {mode:?} replaced the link"
+        );
+        assert_eq!(entry_names(&outside), ["victim.txt"], "check {mode:?}");
+        assert_eq!(
+            entry_names(&root.join(".specsync")),
+            ["hashes.json"],
+            "check {mode:?}"
+        );
+        assert_eq!(
+            linked.status.code(),
+            without_cache.status.code(),
+            "check {mode:?} changed its exit code: {stderr}"
+        );
+        assert_eq!(
+            String::from_utf8_lossy(&linked.stdout),
+            String::from_utf8_lossy(&without_cache.stdout),
+            "check {mode:?} changed its output"
+        );
+        assert!(
+            !stderr.contains("hash cache not used"),
+            "a link in the work tree is not the cache, so nothing is said about it: {stderr}"
+        );
+    }
+
+    // A link whose target does not exist yet must not create it.
+    let tmp = TempDir::new().unwrap();
+    let (root, outside) = project_beside_outside(&tmp);
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    symlink(
+        outside.join("not-there-yet.json"),
+        root.join(".specsync/hashes.json"),
+    )
+    .unwrap();
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .assert()
+        .success();
+    assert!(
+        entry_names(&outside).is_empty(),
+        "check created the hash cache at a dangling link's target: {:?}",
+        entry_names(&outside)
+    );
+    assert!(
+        state_cache_file(&root).is_file(),
+        "the cache went to its own folder"
+    );
+
+    // `.specsync` itself as the link would put `hashes.json` into a directory outside the project.
+    // Source discovery refuses a linked `.specsync` on its own and ends this run; nothing is
+    // written through it.
+    let tmp = TempDir::new().unwrap();
+    let (root, outside) = project_beside_outside(&tmp);
+    symlink("../outside", root.join(".specsync")).unwrap();
+    specsync()
+        .args(["check", "--root"])
+        .arg(&root)
+        .output()
+        .unwrap();
+    assert!(
+        entry_names(&outside).is_empty(),
+        "check wrote the hash cache into a directory outside the project: {:?}",
+        entry_names(&outside)
+    );
+}
+
+/// Verifies REQ-hash-cache-007 and REQ-rehash-003. `rehash` writes the cache only in its own
+/// folder outside the work tree: a link at `.specsync/hashes.json`, or a linked `.specsync`, is
+/// never written through, and `rehash` says where it wrote.
+#[cfg(unix)]
+#[test]
+fn rehash_never_writes_the_hash_cache_through_a_link() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let (root, outside) = project_beside_outside(&tmp);
+    let victim = outside.join("victim.txt");
+    fs::write(&victim, "the owner's bytes\n").unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    symlink(&victim, root.join(".specsync/hashes.json")).unwrap();
+
+    let rehashed = specsync()
+        .args(["rehash", "--root"])
+        .arg(&root)
+        .output()
+        .unwrap();
+    assert_eq!(
+        fs::read_to_string(&victim).unwrap(),
+        "the owner's bytes\n",
+        "rehash wrote the hash cache through the link, over a file outside the project"
+    );
+    assert_eq!(rehashed.status.code(), Some(0));
+    assert!(state_cache_file(&root).is_file());
+    assert!(
+        String::from_utf8_lossy(&rehashed.stdout)
+            .contains(&state_cache_file(&root).display().to_string()),
+        "rehash says where it wrote: {}",
+        String::from_utf8_lossy(&rehashed.stdout)
+    );
+    assert_eq!(entry_names(&outside), ["victim.txt"]);
+
+    let tmp = TempDir::new().unwrap();
+    let (root, outside) = project_beside_outside(&tmp);
+    symlink(&outside, root.join(".specsync")).unwrap();
+    specsync()
+        .args(["rehash", "--root"])
+        .arg(&root)
+        .output()
+        .unwrap();
+    assert!(
+        entry_names(&outside).is_empty(),
+        "rehash wrote the hash cache into a directory outside the project: {:?}",
+        entry_names(&outside)
+    );
+}
+
+/// #1060 (REQ-cmd-check-023): a module's `<module>.3md` that does not parse is a warning on its
 /// spec naming the file, the parser's error and that `context.md` is used instead, so
 /// `check --strict` fails on it. A `.3md` that parses, and a module with none, add no finding.
 #[test]

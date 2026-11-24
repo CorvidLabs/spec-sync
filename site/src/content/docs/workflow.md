@@ -63,6 +63,8 @@ Complete selected artifacts and semantic deltas, then obtain explicit human appr
 specsync change approve add-passkeys --actor "Ada"
 ```
 
+To see first whether the approval would be accepted, add `--dry-run`. It writes nothing, reports the first problem from each of the approval's own checks in `change approve`'s words, and exits 1 when any check refuses ([CLI reference](cli.md)).
+
 Requirements use stable IDs, normative SHALL statements, and acceptance criteria. Only a change to the approved stable intent, contract, acceptance criteria, or affected scope requires renewed human approval. Implementation details, tests, evidence, canonical delta materialization, and lifecycle metadata preserve that approval while automated verification and the scoped human review are refreshed.
 
 An approval shows what was approved, not who approved it: its digest binds the content, and `--actor` is a recorded claim that SpecSync does not authenticate. The same holds for `--reviewer`.
@@ -106,7 +108,7 @@ A change whose `tasks.md` still has an open box (`- [ ]`) is refused by `change 
 error: tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/add-passkeys/tasks.md` (line 4: "Prove the fix.") and mark it `[x]`, then re-run `specsync change check add-passkeys --commit`
 ```
 
-Finish the work, tick the box, and run that command. `change status` and `change ship-status` name the same open tasks before their next step.
+Finish the work, tick the box, and run that command. `change status` and `change ship-status` name the same open tasks before their next step. `change ship-status` exits 1 while it names a blocker such as this one, so a script or CI step that runs it stops there.
 
 CI is archive-first. The `Archive` check runs before anything else and every other job depends
 on it, so a pushed tip with any open change fails `Archive` and runs nothing else. Verification
@@ -132,10 +134,25 @@ refused it. This does not depend on the configured `enforcement`, which still go
 `passed: false` with an entry naming `specsync change check <id> (effective contract: <module>)`,
 so `change status` points back to `change check`.
 
+A completed check records `verifying` in `change.md`, `state.json`, and `change status`. The
+`passed` field in `verification.json` reports whether the check passed.
+
+Materialization and verification preserve the authored body of `change.md` when updating its
+`state` field. Approval, send-back, reopen, and archival regenerate the summary from the
+stored change record.
+
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,
-and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That command commits
+and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. It archives only an
+approvals ledger that Git history holds: `approvals.json` must be committed at `HEAD` and equal to
+it, and every version committed before must extend the one before it. `change check --commit`
+commits it; a ledger edited by hand afterwards is refused with `git checkout HEAD -- <path>` as the
+way back, and one whose working copy only adds records with the commit as the way out. A committed
+rewrite of an earlier approval, reopening or send-back is refused with the commit that made it, and
+since history cannot be made to extend itself, the way out is to take that commit out of the
+branch or to make the change again under a new id. `change ship`, `change archive` and
+`change ship-status` ask the same. That command commits
 the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)
 consecutively without an intervening commit. Push the archive commit and wait for required
 checks. Never merge while a change on that PR remains active.
@@ -243,6 +260,10 @@ Do not add legacy `accept` to this workflow-v2 sequence.
 The numeric IDs and `verify` / `accept` commands below describe historical workflow-v1 records.
 Consult `change status <id>` before repairing that evidence.
 
+An accepted change whose signed input a later change is editing does not have to be re-verified while that later change is in flight. When an approved, implementing or verifying change created after it declares the input's owner module and a path scope that covers it, the accepted change's evidence reads `provisionally-covered`, and `change audit` reports a warning naming both changes instead of an error, so `change audit --strict` passes. The accepted change may archive, and its archive keeps a `coverage.json` naming the change that covered each file. The archive's own evidence stays `authenticated-history` whatever becomes of that change. `change status`, `change show` and `change audit --archives` print each recorded entry with the covering change's present state, and warn, naming `specsync change reopen <id> --actor <name> --reason <text>`, once it has been sent back or closed. An in-flight covering change must still have approval for that path and module. After acceptance, the recorded change must prove explicit succession for an owner of the input. If several modules own the path, successors must account for every signed owner before the warning clears. With that obligation, the earlier active change reads `successor-covered`. Without it, the archive continues to warn and an active predecessor can become stale. The same rule applies after the covering change is archived. With no such change, the evidence is stale as before. When two accepted changes stop each other from being archived over one stale input, each refusal names the other change and says it is blocked too, and the `change reopen` it names frees both.
+
+SpecSync generates `coverage.json` during archival. If archival reports an unexpected copy in the change package, move that file outside the package and retry.
+
 If final review changes a governed source, test, configuration, policy, or contract input after acceptance, strict checking correctly rejects the stale closing evidence. Do not edit lifecycle JSON or archive the active workspace. Record an audited transition instead:
 
 ```bash
@@ -349,6 +370,26 @@ This installs:
 Check what's installed with `specsync hooks status`.
 
 ---
+
+### Clones Git reads differently
+
+SpecSync reads Git without your configuration, so its reads do not depend on your settings. Three
+kinds of checkout need more than that, and each is handled for you or named with one command.
+
+- **A repository owned by another user.** When SpecSync's own Git refuses it for dubious ownership
+  and your Git trusts it (`safe.directory`), SpecSync passes that trust, and nothing else, through a
+  private temporary file it removes when the command ends (REQ-change-171). When your Git refuses it
+  too, the command says so and names
+  `git config --global --add safe.directory <path>`.
+- **A partial clone** (`git clone --filter=blob:none`). Before its first history read, SpecSync
+  downloads every history object it needs that is not there, in one fetch with your own Git, and
+  says how many it downloads (REQ-change-172). The fetch never prompts and stops after 60 seconds.
+  The fetch includes requirements from historical configurations. If a fetch fails or a missing
+  tree prevents discovery, the command names a recovery fetch.
+- **A shallow clone.** A check of the project's lifecycle history that cannot see far enough says
+  the clone is shallow and names `git fetch --unshallow origin`, and `change new` refuses before it
+  writes anything (REQ-change-173). If the checkout is also partial, the baseline refusal
+  names the shallow-history recovery first.
 
 ## Creating Canonical Specs
 
@@ -497,9 +538,12 @@ When you rename, add, or remove exports:
 
 1. Run `specsync check` to see what drifted
 2. Update the spec's Public API table
-3. Bump the `version` in frontmatter
-4. Add a Change Log entry
-5. Run `specsync check` to confirm
+3. Run `specsync check` to confirm
+
+With the change workflow, `change check` records the change in the module's history fragment,
+`specs/<module>/history/<change-id>.md`; do not bump `version:` or add a Change Log row
+(`specsync history <module>` prints the whole log). Without it, the spec's `version:` and
+Change Log are yours to keep as you choose.
 
 When you add new source files:
 
@@ -517,7 +561,7 @@ When you create a new module:
 
 ## 7. Compaction and Archival
 
-As specs accumulate changelog entries and tasks get completed, companion files grow. Two commands handle this:
+As tasks get completed, companion files grow, and a Change Log table an older SpecSync wrote can be long. Two commands handle this:
 
 ### Compact changelogs
 
@@ -526,7 +570,7 @@ specsync compact --keep 10              # keep last 10 entries per spec
 specsync compact --keep 5 --dry-run     # preview what would be removed
 ```
 
-Trims older changelog entries to prevent unbounded growth. Use `--dry-run` first to preview.
+Summarizes older Change Log rows. From SpecSync 6.4 each change is recorded in a history fragment instead of a row, so a table no longer grows; this matters only for a table an older SpecSync wrote, or one you keep by hand. Use `--dry-run` first to preview.
 
 ### Archive completed tasks
 

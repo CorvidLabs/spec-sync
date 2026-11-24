@@ -103,6 +103,10 @@ No global ignore list or manifest-driven expansion of stated roots is introduced
   file lacks checked Cargo target authority; preserve directory-only fallback and
   extension/test/pattern exclusions without admitting arbitrary exact files.
 - [x] Add valid/malformed/missing, explicit-directory, alias, filter, symlink,
+- [x] Read project files only through the bounded project read of `util` (REQ-validator-049). Evidence: `tests/integration/project_reads.rs`.
+- [x] Walk spec discovery through the confined, budgeted walk (REQ-validator-050, REQ-validator-051). Evidence: `tests/integration/repository_inputs.rs`.
+- [x] Bound coverage's second spec read (REQ-validator-052). Evidence: the read scan.
+- [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-validator-053).
   escape and special-file controls beside the retained identity/budget regressions.
 - [ ] Qualify the final whole product tree, independently review it and complete
   genuine native lifecycle/hosted/release evidence; earlier 5f0c9c6 gates are historical.

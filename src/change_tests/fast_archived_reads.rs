@@ -251,6 +251,35 @@ fn an_unreadable_cutoff_archive_tree_is_an_error_not_an_absent_change() {
     );
 }
 
+// #990 (SPEED-1.a.3, REQ-change-145): the fallback probe for a cutoff without an archive root
+// passes the archive root as a literal top-level pathspec. A project in a directory whose name
+// begins with pathspec magic, such as `:(exclude)app`, must still get an answer rather than "could
+// not be read". The project is built as `app` and renamed in a commit, so only the probe meets the
+// magic name.
+#[test]
+fn a_cutoff_without_an_archive_root_is_not_unreadable_for_a_pathspec_magic_project_directory() {
+    let (temp, app) = subdirectory_project_named("app");
+    let record = completed_no_spec_record(&app);
+    let repository = temp.path();
+    fs::rename(repository.join("app"), repository.join(":(exclude)app")).unwrap();
+    quiet_git(repository, &["add", "--all"]);
+    quiet_git(repository, &["commit", "-q", "-m", "move the project under a magic name"]);
+    let root = repository.join(":(exclude)app");
+    let cutoff = quiet_git(repository, &["rev-parse", "HEAD"]);
+    let probe = std::process::Command::new("git")
+        .args(["cat-file", "-e", &format!("{cutoff}::(exclude)app/{ARCHIVE_PATH}")])
+        .current_dir(repository)
+        .output()
+        .unwrap();
+    assert!(!probe.status.success(), "the cutoff must have no archive root");
+
+    let answer = workflow_v1_record_present_in_cutoff_tree(&root, &record, &cutoff);
+    assert!(
+        answer.is_ok(),
+        "a cutoff without an archive root answered {answer:?}"
+    );
+}
+
 // #940 (SPEED-1.a.2, REQ-change-146): `find_change_dir` identifies an archive by the id its
 // state declares, not by its directory name. A workflow-v1 archive moved before the cutoff to a
 // directory that does not end in `-<id>` was accepted by the history walk, so the cutoff-tree
@@ -847,12 +876,13 @@ fn a_cache_hit_moves_its_entry_forward_to_the_current_head() {
 #[test]
 fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
     let temp = TempDir::new().unwrap();
-    let path = temp.path().join("specsync").join("read-cache-v1.json");
-    fs::create_dir_all(path.parent().unwrap()).unwrap();
-    // Another thread of this process is mid-write: the bare per-process name is taken.
-    fs::create_dir_all(path.with_extension(format!("tmp-{}", std::process::id()))).unwrap();
-    let frame = PersistentReadCacheFrame {
-        path: Some(path.clone()),
+    let root = temp.path().to_path_buf();
+    let common_dir = root.join(".git");
+    fs::create_dir_all(&common_dir).unwrap();
+    let folder = (root.clone(), common_dir.canonicalize().unwrap());
+    let frame = || PersistentReadCacheFrame {
+        path: Some(root.join("read-cache-v1.json")),
+        folder: Some(folder.clone()),
         loaded: Some(PersistentReadCache {
             schema: READ_CACHE_SCHEMA,
             ..PersistentReadCache::default()
@@ -860,7 +890,17 @@ fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
         dirty: true,
         ..PersistentReadCacheFrame::default()
     };
-    flush_persistent_read_cache(&frame);
+    // Writers at once: each stages its own temporary file in the local state folder, and the
+    // rename publishes one whole cache (REQ-util-009).
+    std::thread::scope(|scope| {
+        for _ in 0..4 {
+            scope.spawn(|| flush_persistent_read_cache(&frame()));
+        }
+    });
+    let state = crate::util::local_state::LocalState::open_repository(&folder.0, &folder.1, false)
+        .unwrap()
+        .expect("the read cache folder was made");
+    let path = state.file_path(READ_CACHE_FILE);
     let written: PersistentReadCache =
         serde_json::from_slice(&fs::read(&path).expect("the cache was not written")).unwrap();
     assert_eq!(written.schema, READ_CACHE_SCHEMA);
@@ -868,7 +908,7 @@ fn a_cache_flush_never_shares_its_temporary_file_with_another_writer() {
         .unwrap()
         .flatten()
         .map(|entry| entry.file_name())
-        .filter(|name| name.to_string_lossy().contains(".tmp-") && !name.to_string_lossy().ends_with(&std::process::id().to_string()))
+        .filter(|name| name.to_string_lossy() != READ_CACHE_FILE)
         .collect();
     assert!(leftovers.is_empty(), "temporary files left behind: {leftovers:?}");
 }
@@ -879,7 +919,11 @@ fn git_processes_spawned_by_prefetch_threads_are_counted() {
     let root = temp.path();
     fast_read_repository(root);
     let records: Vec<ChangeRecord> = (0..4).map(|_| finalized_archived_change(root)).collect();
-    let archives = || fs::read_dir(root.join(ARCHIVE_PATH)).unwrap().collect::<Vec<_>>();
+    let archives = || {
+        crate::util::read_project_dir_entries(root, &root.join(ARCHIVE_PATH))
+            .unwrap()
+            .collect::<Vec<_>>()
+    };
     // Workers run only when the lifecycle-state history index cannot answer (REQ-change-141), so
     // both halves turn it off to compare the per-archive work with the workers' count of it.
     without_lifecycle_state_history(|| {
@@ -1924,4 +1968,39 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
         );
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
+}
+
+// #1074. The reachable-history probe for the workflow-v2 baseline passes the baseline as a literal
+// top-level pathspec. In a project directory named like pathspec magic, `:(exclude)app/...` read as
+// an exclude, matched every other commit, and reported a baseline that was never committed as
+// deleted.
+#[test]
+fn a_never_committed_baseline_is_not_read_as_deleted_in_a_pathspec_magic_project_directory() {
+    let (temp, _root) = subdirectory_project_named(":(exclude)app");
+    let root = temp.path().join(":(exclude)app");
+    assert_eq!(
+        workflow_v2_baseline_exists_in_reachable_history(&root),
+        Ok(false),
+        "no commit ever added the baseline"
+    );
+    assert!(
+        read_workflow_v2_baseline(&root).is_ok_and(|baseline| baseline.is_none()),
+        "a missing, never-committed baseline is absent, not deleted"
+    );
+}
+
+/// Verifies REQ-change-164. A tarball of a working copy carries its `.git`, so passing verdicts
+/// kept in the Git common directory could come with an archive. The read cache lives in the
+/// user's cache folder instead.
+#[test]
+fn the_read_cache_never_lives_in_the_git_directory() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    fast_read_repository(root);
+    let path = persistent_read_cache_path(root).expect("the read cache is enabled");
+    assert!(
+        !path.starts_with(root.canonicalize().unwrap()),
+        "the read cache is inside the clone: {}",
+        path.display()
+    );
 }

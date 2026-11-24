@@ -1,0 +1,63 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795104063,
+      "digest": "f3da0208f61cbe6ff76dd5925fc382cdd662341536966c4261522189467b581c",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files\": \"yes\" (Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:55Z, after t4c summed up the change 4 scope details: affected 5.0.0 to 6.3.0; SETUP-8 as written; a tracked journal refuses the command with the git rm fix; replay only into .specsync/, specs_dir and registry-mapped spec files with their requirements.md and history/, .git refused case-insensitively with trailing dots and spaces stripped; one entry outside refuses the whole journal; the legacy form refused with the existing invalid-journal message and recovery; journal-into-.git and a keyed digest left out. His earlier yes at about 15:49Z approved the three points. Relayed by t4c over hc to t5r). Relayed and recorded by claude-code-t5r at 2026-11-19T16:00:57Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files",
+        "title": "Never replay a transaction journal SpecSync did not write, or into Git's files",
+        "description": "Never replay a transaction journal SpecSync did not write, or into Git's files",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "INTENT.md",
+          "hi/setup.md",
+          "specs/change/",
+          "src/change.rs",
+          "src/change/",
+          "src/change_tests.rs",
+          "src/change_tests/",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A journal at .specsync/change-transaction.json that Git tracks, in the index or in HEAD, is never replayed: the writing change command refuses and names the git rm fix. A journal entry with a .git component in any letter case, or with trailing dots or spaces, or naming a file outside .specsync/, the configured specs_dir and the registry-mapped spec files with their requirements.md and history fragments, refuses the whole journal and replays nothing. A bare-array journal is refused with the invalid-journal recovery. The person's own interrupted write is still recovered. The new tests fail on cf528407 and pass with the fix"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "change.3md: a refusal is a result worth recording and names its recovery (#433, #847); the existing invalid-journal message and its .broken recovery are reused. util.3md lesson: stay inside the root by construction, and enforce the same rule where a path is written and where it is replayed.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "9fc44e644bbc5acfcc8ee2a541506e1b7917882457a3ffb6b067512004f54adf"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes",
+        "where": "Claude Code chat message to his planning session (hc t4c) on 2026-11-19 at about 15:55Z, after t4c summed up the change 4 scope details: affected 5.0.0 to 6.3.0; SETUP-8 as written; a tracked journal refuses the command with the git rm fix; replay only into .specsync/, specs_dir and registry-mapped spec files with their requirements.md and history/, .git refused case-insensitively with trailing dots and spaces stripped; one entry outside refuses the whole journal; the legacy form refused with the existing invalid-journal message and recovery; journal-into-.git and a keyed digest left out. His earlier yes at about 15:49Z approved the three points. Relayed by t4c over hc to t5r",
+        "recorded_by": "claude-code-t5r"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795117642,
+      "digest": "3545b8a7aaffb7fb87eaf6aeb76bc7039f2af88a84736e9baecb931e043a21a8",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

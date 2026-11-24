@@ -806,6 +806,235 @@ fn adopt_dry_run_does_not_enable_policy() {
     assert!(!temp.path().join(".specsync/sdd.json").exists());
 }
 
+// #432: the dry run previews adoption, so it refuses a source the real run refuses instead of
+// printing a plan that claims to import from it.
+#[test]
+fn adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does() {
+    let temp = TempDir::new().unwrap();
+    for dry_run in [false, true] {
+        let mut args = vec![
+            "--root",
+            temp.path().to_str().unwrap(),
+            "change",
+            "adopt",
+            "--source",
+            "bogus",
+        ];
+        if dry_run {
+            args.push("--dry-run");
+        }
+        specsync()
+            .args(&args)
+            .assert()
+            .failure()
+            .stderr(predicate::str::contains(
+                "unsupported adoption source `bogus`",
+            ))
+            .stdout(predicate::str::contains("import active and canonical artifacts").not());
+        assert!(!temp.path().join(".specsync/sdd.json").exists());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn adopt_dry_run_and_import_skip_archive_descendants_but_refuse_active_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    for (source, changes, entry_file) in [
+        ("openspec", "openspec/changes", "proposal.md"),
+        ("speckit", "specs", "spec.md"),
+    ] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let active = root.join(changes).join("active-passkeys");
+        let archive = root.join(changes).join("archive/previous-passkeys");
+        fs::create_dir_all(&active).unwrap();
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(active.join(entry_file), "# Active passkeys\n").unwrap();
+        fs::write(archive.join(entry_file), "# Archived passkeys\n").unwrap();
+        let archived_link = archive.join("historical-link.md");
+        symlink(entry_file, &archived_link).unwrap();
+
+        let adopt = |dry_run| {
+            let mut command = specsync();
+            command.args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                source,
+            ]);
+            if dry_run {
+                command.arg("--dry-run");
+            }
+            command
+        };
+        let assert_no_import = || {
+            assert!(!root.join(".specsync/sdd.json").exists());
+            assert!(!root.join(".specsync/import-provenance.json").exists());
+            assert!(!root.join(".specsync/adoption-report.json").exists());
+            assert!(!root.join(".specsync/changes").exists());
+        };
+
+        adopt(true).assert().success();
+        assert_no_import();
+
+        let active_link = active.join("active-link.md");
+        symlink(entry_file, &active_link).unwrap();
+        for dry_run in [true, false] {
+            adopt(dry_run)
+                .assert()
+                .failure()
+                .stderr(predicate::str::contains(
+                    "refusing symlinked foreign import path",
+                ))
+                .stderr(predicate::str::contains("active-link.md"));
+            assert_no_import();
+        }
+        fs::remove_file(active_link).unwrap();
+
+        adopt(false).assert().success();
+        let mut imports = fs::read_dir(root.join(".specsync/changes")).unwrap();
+        let imported = imports.next().unwrap().unwrap().path();
+        assert!(imports.next().is_none());
+        assert_eq!(
+            fs::read_to_string(imported.join("imported").join(entry_file)).unwrap(),
+            "# Active passkeys\n"
+        );
+        assert_eq!(
+            fs::read_link(archived_link).unwrap(),
+            PathBuf::from(entry_file)
+        );
+    }
+}
+
+#[test]
+fn adopt_preview_reads_the_same_bounded_markdown_as_import() {
+    const MAX_SPEC_BYTES: u64 = 8 * 1024 * 1024;
+    for (source, changes, entry_name, canonical, imported_canonical) in [
+        (
+            "openspec",
+            "openspec/changes",
+            "proposal.md",
+            "openspec/specs/identity/spec.md",
+            "imports/openspec/canonical/identity/spec.md",
+        ),
+        (
+            "speckit",
+            "specs",
+            "spec.md",
+            ".specify/memory/constitution.md",
+            "imports/speckit/constitution.md",
+        ),
+    ] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let native = root.join(".specsync");
+        let active = root.join(changes).join("active-passkeys");
+        let canonical = root.join(canonical);
+        let nested = active.join("archive/nested.md");
+        let ignored = root.join(changes).join("archive/old-passkeys");
+        for directory in [
+            canonical.parent().unwrap(),
+            nested.parent().unwrap(),
+            &ignored,
+        ] {
+            fs::create_dir_all(directory).unwrap();
+        }
+        fs::write(active.join(entry_name), "# Active passkeys\n").unwrap();
+        fs::write(ignored.join(entry_name), [0xff]).unwrap();
+        fs::File::create(ignored.join("large.md"))
+            .unwrap()
+            .set_len(MAX_SPEC_BYTES + 1)
+            .unwrap();
+        let healthy = "# Imported Markdown\n";
+        fs::write(&canonical, healthy).unwrap();
+        fs::write(&nested, healthy).unwrap();
+
+        let adopt = |dry_run| {
+            let mut command = specsync();
+            command.args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                source,
+            ]);
+            if dry_run {
+                command.arg("--dry-run");
+            }
+            command.output().unwrap()
+        };
+        let assert_no_import = || {
+            for path in [
+                "sdd.json",
+                "import-provenance.json",
+                "adoption-report.json",
+                "changes",
+                "imports",
+            ] {
+                assert!(!native.join(path).exists(), "{source}: created {path}");
+            }
+        };
+        for path in [&canonical, &nested] {
+            for oversized in [false, true] {
+                let expected_error = if oversized {
+                    fs::File::create(path)
+                        .unwrap()
+                        .set_len(MAX_SPEC_BYTES + 1)
+                        .unwrap();
+                    "8388608"
+                } else {
+                    fs::write(path, [0xff]).unwrap();
+                    "valid UTF-8"
+                };
+                let preview = adopt(true);
+                assert_no_import();
+                let actual = adopt(false);
+                assert_no_import();
+                assert_eq!(actual.status.code(), Some(1), "{source}: {actual:?}");
+                assert_eq!(preview.status.code(), Some(1), "{source}: {preview:?}");
+                assert_eq!(
+                    preview.stderr,
+                    actual.stderr,
+                    "{source}: {}",
+                    path.display()
+                );
+                assert!(
+                    String::from_utf8_lossy(&preview.stderr).contains(expected_error),
+                    "{preview:?}"
+                );
+                assert!(preview.stdout.is_empty(), "{preview:?}");
+                fs::write(path, healthy).unwrap();
+            }
+        }
+
+        let preview = adopt(true);
+        assert!(preview.status.success(), "{source}: {preview:?}");
+        assert_no_import();
+        let actual = adopt(false);
+        assert!(actual.status.success(), "{source}: {actual:?}");
+        let mut imports = fs::read_dir(native.join("changes")).unwrap();
+        let imported = imports.next().unwrap().unwrap().path().join("imported");
+        assert!(imports.next().is_none());
+        assert_eq!(
+            fs::read_to_string(imported.join("archive/nested.md")).unwrap(),
+            healthy
+        );
+        assert_eq!(
+            fs::read_to_string(native.join(imported_canonical)).unwrap(),
+            healthy
+        );
+        assert_eq!(fs::read(ignored.join(entry_name)).unwrap(), [0xff]);
+        assert_eq!(
+            fs::metadata(ignored.join("large.md")).unwrap().len(),
+            MAX_SPEC_BYTES + 1
+        );
+    }
+}
+
 #[test]
 fn adopt_existing_4x_project_is_idempotent() {
     let temp = TempDir::new().unwrap();
@@ -3866,7 +4095,14 @@ fn a_change_reviewed_before_its_send_back_is_reviewed_again_and_finalizes() {
             .contains(&format!("specsync change review {id}")),
         "{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4125,11 +4361,12 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         "{json}"
     );
     let step = handoff["before_clearing"][0].as_str().unwrap().to_string();
-    let restore_from_head = format!("git restore --source=HEAD --staged --worktree -- '{package}'");
+    let restore_from_head =
+        format!("git restore --source=HEAD --staged --worktree -- ':(literal){package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_head}` to put back the committed archive, then `specsync change status '{id}'`"
+            "run `{restore_from_head}` to put back the committed archive, then `specsync change status -- '{id}'`"
         )
     );
     assert_eq!(
@@ -4195,13 +4432,13 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         .unwrap()
         .to_string();
     let find_archiving_commit =
-        format!("git log -1 --diff-filter=A --format=%H -- '{package}/state.json'");
+        format!("git log -1 --diff-filter=A --format=%H -- ':(literal){package}/state.json'");
     let restore_from_commit =
-        format!("git restore --source=<commit> --staged --worktree -- '{package}'");
+        format!("git restore --source=<commit> --staged --worktree -- ':(literal){package}'");
     assert_eq!(
         step,
         format!(
-            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status '{id}'`"
+            "run `{restore_from_commit}` with the commit that archived it (`{find_archiving_commit}`), commit the restore, then run `specsync change status -- '{id}'`"
         )
     );
     assert_eq!(json["summary"]["next_action"], step);
@@ -4248,7 +4485,7 @@ fn a_corrupt_archive_is_not_safe_to_leave_and_names_the_restore_that_recovers_it
         .to_string();
     assert!(
         step.starts_with(&format!(
-            "run `specsync change status '{id}' --json`, restore what its `"
+            "run `specsync change status --json -- '{id}'`, restore what its `"
         )),
         "the step reads the status JSON when no package restore would help: {step}"
     );
@@ -4401,7 +4638,9 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
         "the scope needs another look",
     ]);
     run(&["change", "approve", &id, "--actor", "Scope owner"]);
-    run(&["change", "check", &id]);
+    // Committed with the check, as the lifecycle does: finalize archives only approvals that Git
+    // history holds (REQ-change-166).
+    run(&["change", "check", &id, "--commit"]);
 
     let status: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
     assert_eq!(status["summary"]["approval_valid"], true, "{status}");
@@ -4412,7 +4651,14 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
             .contains(&format!("specsync change review {id}")),
         "after a send-back the next action is a fresh review:\n{status}"
     );
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     let review_line = ship_status
         .lines()
         .find(|line| line.trim_start().starts_with("Review:"))
@@ -4606,7 +4852,14 @@ fn ship_readiness_names_unowned_production_source_before_finalize_and_the_recove
     );
 
     // Readiness tells the truth before finalize does.
-    let ship_status = run(&["change", "ship-status", &id]);
+    // A blocked ship-status prints its report and exits 1 (#654).
+    let blocked = invoke(&["change", "ship-status", &id]);
+    assert_eq!(
+        blocked.status.code(),
+        Some(1),
+        "a blocked ship-status exits 1"
+    );
+    let ship_status = String::from_utf8(blocked.stdout).unwrap();
     assert!(
         !ship_status.contains("ready to finalize"),
         "a change finalize refuses on ownership is not ready:\n{ship_status}"
@@ -6541,7 +6794,7 @@ fn a_custom_replace_ref_base_does_not_change_what_status_reads() {
     };
     let read = |envs: &[(&str, &str)], fresh: bool| {
         if fresh {
-            let _ = fs::remove_file(fixture.root.join(".git/specsync/read-cache-v1.json"));
+            let _ = fs::remove_file(read_cache_file(&fixture.root));
         }
         let mut command = specsync();
         command.args([
@@ -7713,8 +7966,19 @@ fn after_approve_next_action_names_check_commit() {
 fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     let (_temp, root, id) = ss535_no_spec_project();
     let seed = git_ok(&root, &["rev-parse", "HEAD"]);
-    ss_ok(&root, &["change", "check", &id]);
     let workspace = root.join(".specsync/changes").join(&id);
+    let summary_path = workspace.join("change.md");
+    let summary = format!(
+        "{}\n## Handoff notes\n\nReview the README example.\n",
+        fs::read_to_string(&summary_path).unwrap()
+    );
+    assert!(summary.lines().any(|line| line == "state: approved"));
+    fs::write(&summary_path, &summary).unwrap();
+    ss_ok(&root, &["change", "check", &id]);
+    let expected_summary = summary.replacen("state: approved", "state: verifying", 1);
+    assert_eq!(fs::read_to_string(&summary_path).unwrap(), expected_summary);
+    let status = ss_ok(&root, &["change", "status", &id]);
+    assert!(status.contains("State: verifying"), "{status}");
     let verification: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("verification.json")).unwrap())
             .unwrap();
@@ -7758,9 +8022,8 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     );
     let state: Value =
         serde_json::from_str(&fs::read_to_string(workspace.join("state.json")).unwrap()).unwrap();
-    assert_ne!(
-        state["state"].as_str().unwrap_or(""),
-        "archived",
+    assert_eq!(
+        state["state"], "verifying",
         "a refused ship must leave the change unarchived: {state}"
     );
 
@@ -7773,6 +8036,13 @@ fn review_and_ship_refuse_a_verification_commit_that_lacks_the_work() {
     assert_eq!(
         git_ok(&root, &["show", "HEAD:README.md"]),
         "hello\n\nThe greeter says hello."
+    );
+    assert_eq!(
+        git_ok(
+            &root,
+            &["show", &format!("HEAD:.specsync/changes/{id}/change.md")]
+        ),
+        expected_summary.trim_end()
     );
     ss_ok(
         &root,
@@ -7938,4 +8208,129 @@ fn uncommitted_specsync_evidence_alone_does_not_refuse_review() {
         String::from_utf8_lossy(&ship.stdout),
         String::from_utf8_lossy(&ship.stderr)
     );
+}
+
+/// Where SpecSync keeps the change read cache of the repository at `root` (REQ-util-009): in the
+/// tests' user cache folder, named by the digest of the canonical Git common directory.
+fn read_cache_file(root: &std::path::Path) -> std::path::PathBuf {
+    use sha2::{Digest, Sha256};
+    let common = root.join(".git").canonicalize().unwrap();
+    let mut hasher = Sha256::new();
+    hasher.update(b"repository\0");
+    hasher.update(common.as_os_str().as_encoded_bytes());
+    let key = format!("{:x}", hasher.finalize())[..16].to_string();
+    crate::helpers::test_cache_home()
+        .join("specsync")
+        .join("repositories")
+        .join(key)
+        .join("read-cache-v1.json")
+}
+
+// #654: `change ship-status` exits 1 whenever it reports a blocker, in text and in JSON, for one
+// change and for the roster, after printing its whole report. A script that runs it no longer
+// reads "Blocker" alongside success. JSON stays one document.
+#[test]
+fn ship_status_exits_one_when_it_reports_a_blocker() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = |args: &[&str]| {
+        let status = Command::new("git")
+            .args(args)
+            .current_dir(root)
+            .status()
+            .unwrap();
+        assert!(status.success(), "git {args:?}");
+    };
+    let invoke = |args: &[&str]| {
+        super::helpers::specsync_std()
+            .arg("--root")
+            .arg(root)
+            .args(args)
+            .output()
+            .unwrap()
+    };
+    let run = |args: &[&str]| {
+        let output = invoke(args);
+        assert!(
+            output.status.success(),
+            "{args:?}: {}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+    };
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    fs::write(root.join("README.md"), "# probe\n").unwrap();
+    run(&["init"]);
+    run(&["change", "adopt"]);
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "adopt"]);
+    run(&[
+        "change",
+        "new",
+        "probe ship status exit",
+        "--kind",
+        "bug-fix",
+        "--no-spec-change",
+        "--rationale",
+        "probe",
+        "--path",
+        "README.md",
+    ]);
+    let id = "probe-ship-status-exit";
+    for (question, answer) in [
+        ("acceptance_criteria", "the probe reads"),
+        ("public_contract", "no"),
+        ("architecture_risk", "no"),
+        ("constraints", "none"),
+    ] {
+        run(&["change", "answer", id, question, answer]);
+    }
+    let dir = root.join(".specsync/changes").join(id);
+    for artifact in ["context", "tasks", "testing"] {
+        let path = dir.join(format!("{artifact}.md"));
+        if path.exists() {
+            fs::write(
+                &path,
+                format!("---\nchange: {id}\nartifact: {artifact}\n---\n\n# Probe\n\nProbe text.\n"),
+            )
+            .unwrap();
+        }
+    }
+    run(&["change", "approve", id, "--actor", "Probe"]);
+
+    // Approved, never verified: ship-status names a blocker.
+    let text = invoke(&["change", "ship-status", id]);
+    let printed = String::from_utf8_lossy(&text.stdout);
+    assert!(printed.contains("Blocker:"), "{printed}");
+    assert_eq!(text.status.code(), Some(1), "text ship-status: {printed}");
+
+    let json = invoke(&["--json", "change", "ship-status", id]);
+    let report: Value = serde_json::from_slice(&json.stdout)
+        .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+    assert!(
+        report["blockers"]
+            .as_array()
+            .is_some_and(|blockers| !blockers.is_empty()),
+        "{report}"
+    );
+    assert_eq!(json.status.code(), Some(1), "JSON ship-status: {report}");
+
+    for args in [
+        &["change", "ship-status"][..],
+        &["--json", "change", "ship-status"][..],
+    ] {
+        let roster = invoke(args);
+        if args[0] == "--json" {
+            let _: Value = serde_json::from_slice(&roster.stdout)
+                .unwrap_or_else(|error| panic!("one JSON document: {error}"));
+        }
+        assert_eq!(
+            roster.status.code(),
+            Some(1),
+            "{args:?}: {}",
+            String::from_utf8_lossy(&roster.stdout)
+        );
+    }
 }

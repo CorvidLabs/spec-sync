@@ -47,9 +47,9 @@ pub fn enable_historical_reconciliation(
                 let workspace = change_dir(root, id);
                 let path = workspace.join("state.json");
                 // A reconciled change that holds a relay stays gated (REQ-change-158).
-                let content = json_content_keeping_unknown_members(
+                let content = json_content_keeping_unknown_members(root, 
                     &path,
-                    relay_gated_record(&workspace, &record).as_ref(),
+                    relay_gated_record(root, &workspace, &record).as_ref(),
                 )?;
                 (path, content)
             },
@@ -437,7 +437,12 @@ type AcceptedTransitionProof = (String, Vec<u8>, ChangeRecord);
 /// as the existing graph-validity memo, not the report snapshot or an invocation-wide cache.
 #[derive(Default)]
 struct AcceptedInputValidationMemo {
-    validity: BTreeMap<String, Result<AcceptedInputValidity, String>>,
+    validity: BTreeMap<String, Result<AcceptedInputValidity, AcceptedInputError>>,
+    /// Per accepted change, each changed input an in-flight later change covers for now, as
+    /// `(path, covering change)` (#657).
+    provisional: BTreeMap<String, Vec<(String, String)>>,
+    /// A covering change can declare many inputs. Validate its approval once per traversal.
+    covering_approvals: BTreeMap<String, bool>,
     authenticated: BTreeMap<String, Result<VerificationRecord, String>>,
     historical_receipts: BTreeMap<(String, String), Result<HistoricalReceiptProof, String>>,
     accepted_transitions: BTreeMap<String, Result<AcceptedTransitionProof, String>>,

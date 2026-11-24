@@ -14,7 +14,7 @@ Acceptance Criteria
 - `change supersede` records explicit predecessor/path/module/digest obligations only before definition approval.
 - `change approve --portable-5-0-1` records one atomic marked pair and renders it as one definition transition.
 - Audited reopen returns the verifying change and its versioned supersession event in deterministic JSON.
-- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, or stale; archived status renders authenticated-history or corrupt-history.
+- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, provisionally-covered, or stale; archived status renders authenticated-history or corrupt-history.
 
 ### REQ-cmd-change-002
 
@@ -599,4 +599,86 @@ Acceptance Criteria
 - For a spec at `version: 4` whose table is `| Version | Date | Change |`, with two fragments, `specsync history <module>` prints the existing rows unchanged, then rows numbered 5 and 6 in date order.
 - `--format json` lists the table rows and the fragments separately.
 - An unknown module and a malformed fragment each exit 1 and name the module or the file.
+
+### REQ-cmd-change-038
+
+The `change` command handlers SHALL read `.specsync/sdd.json` and the change records they read (`finalization.json`, `verification.json`, `review.json`) only through the bounded project read of `util` (REQ-util-003), with a bound of 4 MiB. A read refused there, because the file leaves the project through a symbolic link, is a dangling link, is not a regular file, or is larger than the bound, SHALL be handled as that read's other read errors are, with a message that names the path and the reason, and SHALL never wait on the file or read past the bound.
+
+Acceptance Criteria
+- With `.specsync/sdd.json` a FIFO, `change audit` finishes without waiting on it.
+- `tests/integration/project_reads.rs` `no_project_file_is_read_outside_the_bounded_read` finds no direct file read in this module's non-test source outside the allowed list
+### REQ-cmd-change-039
+
+`change ship-status` SHALL exit 1 whenever its report names a blocker, after printing the whole
+report, for one change and for the roster. JSON output SHALL stay one document. A report with no
+blocker SHALL exit 0 as before (#654).
+
+#### Acceptance Criteria
+
+- An approved change with no verification evidence: `change ship-status <id>` prints its
+  `Blocker:` line and exits 1, and `--json` prints one document with a non-empty `blockers`
+  list and exits 1.
+- `change ship-status` with no id exits 1, in text and in JSON, when any listed change has a
+  blocker.
+- A change ready to finalize, and a closed-late change, exit 0 as before.
+
+### REQ-cmd-change-040
+
+`specsync change approve <id> --dry-run` SHALL print the dry run of REQ-change-163 and record nothing. It SHALL take the flags `change approve` takes and check them as the approval does. In text it SHALL print one line for each refused check, with the check's name and its message, one line for each skipped check naming the refused check it waits on, and a closing line that says whether the change would be approved and that nothing was written. With `--json` it SHALL print one document holding the change id, `dry_run: true`, `would_approve`, and `checks`: one entry per check in approval order, with its `check` name, its `result` (`passed`, `refused` or `skipped`), the `message` of a refused check and the `skipped_because` check of a skipped one. A refused `definition` entry for a draft with an unanswered interview question, and a refused `ownership` entry whose message names the `change answer … affected_specs` command that declares the owning modules, SHALL also carry `fix`: that same command as plain text, built by the code that writes it into the message and never read back out of the message; no other entry SHALL carry `fix`. A `fix` MAY hold a placeholder in angle brackets, such as `<observable outcome>` or `<yes|no>`, that the caller must fill in, so a `fix` SHALL NOT be described as safe to run as printed. It SHALL exit 0 when no check refuses and 1 when any does, and SHALL NOT print a refusal as the `error` document a real refusal prints.
+
+Acceptance Criteria
+- For a refused draft, the text names the check and its message and the command exits 1; with `--json`, stdout is one document with one `refused` entry carrying that message, and the exit code is 1.
+- For a clean draft, `would_approve` is true, every check is `passed`, the exit code is 0, and the text says the change would be approved and that nothing was written.
+- The first `refused` entry's `message` equals the `error` a real `change approve` with the same flags then prints.
+- With `--words` and no `--where`, the `relay` check is refused with the approval's own message.
+- A draft with no acceptance criterion gets a `definition` entry whose `fix` is `specsync change answer <id> acceptance_criteria "<observable outcome>"`, and the entry's `message` names that same command. A draft whose only open question is `public_contract` gets `fix` `specsync change answer <id> public_contract <yes|no>`.
+- A draft with an affected path that an undeclared module's spec lists gets an `ownership` entry whose `fix` is the `change answer <id> affected_specs <modules>` command its message names. After that command is run as printed, the next dry run's `ownership` check passes.
+- A `deltas`, `relay`, `state` or other refused entry has no `fix`, and the text output is the same as without the field.
+
+### REQ-cmd-change-041
+
+`change correct-owner --manifest` SHALL read the manifest the person names only through `read_typed_file` (REQ-util-011), with a bound of 4 MiB, so a FIFO, a device or a larger file is refused with the path and the reason instead of being waited on or read whole.
+
+Acceptance Criteria
+- A FIFO given as the manifest is refused without waiting.
+
+### REQ-cmd-change-committed-ledger-001
+
+`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the file restored, `ready_to_finalize` is true again.
+
+### REQ-cmd-change-archived-coverage-diagnostics-001
+
+For an archived change, `change status`, `change show`, and `change audit --archives` SHALL report a present invalid `coverage.json` as an advisory warning, naming the affected archive, receipt path and safe restore action. Status and show SHALL expose the diagnostic in an optional JSON field and render the same warning in text. Archive audit SHALL include it in its existing warning list. A genuinely absent receipt SHALL produce no diagnostic. Successful coverage rows, the independently authenticated terminal state, and the exit conventions for archive warnings SHALL remain unchanged. These commands SHALL NOT repair or remove the receipt.
+
+Acceptance Criteria
+- The commands expose a warning for truncated, oversized, wrongly identified, unsupported, or unreadable receipts in both formats. Valid and genuinely absent controls preserve their current outputs.
+- For an otherwise valid archive, reporting invalid auxiliary coverage does not change the terminal integrity classification or itself fail archive audit. Reporting it makes no project writes.
+
+### REQ-cmd-change-042
+
+`change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- On the starling-shaped branch, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the lost blocks restored, `ready_to_finalize` is true again.
+
+### REQ-cmd-change-044
+
+Text `change status` in a shallow clone SHALL give REQ-change-173's refusal instead of the correction-ledger text.
+
+Acceptance Criteria
+- In a shallow clone deep enough for the project's workflow-v2 baseline but not for a change's recorded base commit, text `change status <id>` says the clone is shallow and names `git fetch --unshallow origin`, not "correction ledger integrity is invalid".
+- In a full clone, a corrupt correction ledger keeps its own text.
+
+### REQ-cmd-change-045
+
+`change ship-status` SHALL list the blocker of REQ-cmd-change-042 only for a change that can still be checked, finalized or shipped, and SHALL NOT list it for an archived or retired change (#1113).
+
+Acceptance Criteria
+- On a branch that lost a requirement after its change was archived, `change ship-status <archived-id>` lists no lost-requirements blocker.
+- An active change on the same branch still lists it.
 

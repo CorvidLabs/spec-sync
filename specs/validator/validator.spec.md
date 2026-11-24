@@ -38,7 +38,9 @@ instead of a false success.
 | `duplicate_requirement_errors_in` | `text: &str, relative_path: &str` | `Vec<String>` | Crate-private duplicate-ID errors for one requirements body. Fenced examples are not IDs |
 | `duplicate_requirement_ids` | `text: &str` | `Vec<(String, usize)>` | Crate-private `(id, count)` pairs for `### REQ-...` headings that occur more than once |
 | `validate_spec_content` | `spec_path: &Path, content: &str, root: &Path, schema_tables: &HashSet<String>, schema_columns: &HashMap<String, SchemaTable>, config: &SpecSyncConfig` | `ValidationResult` | Validate already-read spec bytes without reopening the spec or adjacent companions; mapped sources retain normal path-based behavior |
-| `find_spec_files` | `dir: &Path` | `Vec<PathBuf>` | Recursively find sorted `*.spec.md` files |
+| `find_spec_files` | `root: &Path, dir: &Path` | `Vec<PathBuf>` | Sorted `*.spec.md` files under `dir`, through `find_spec_files_checked`; prints the reason and exits 1 when discovery stops (REQ-validator-050) |
+| `find_files_named` | `root: &Path, dir: &Path, name: &str` | `Result<Vec<PathBuf>, String>` | Every file named exactly `name` under `dir`, sorted, through the confined, budgeted walk (REQ-validator-053) |
+| `find_spec_files_checked` | `root: &Path, dir: &Path` | `Result<Vec<PathBuf>, String>` | Sorted `*.spec.md` files under the project directory `dir`, through `util`'s confined `find_project_files` with 100,000 entries and 256 levels; `Err` with `spec discovery stopped:` and the reason (REQ-validator-050) |
 | `load_config_and_discover_retained` | `root: &Path` | `Result<(SpecSyncConfig, Vec<PathBuf>), String>` | Crate-private bounded retained-root configuration and spec inventory used by CLI commands |
 | `compute_coverage` | `root, spec_files, config` | `CoverageReport` | Compatibility file and LOC coverage computation |
 | `compute_coverage_checked` | `root, spec_files, config` | `Result<CoverageReport, String>` | Checked coverage that surfaces malformed/unreadable manifest discovery |
@@ -58,6 +60,7 @@ instead of a false success.
 | `validate_spec_content_with_sources` | `spec_path, content, root, schema_tables, schema_columns, config, sources: &HashMap<String, SourceSnapshot>` | `ValidationResult` | Validate supplied spec bytes and supplied mapped-source observations without ambient spec/source reopening |
 | `validate_local_dependency` | Shared confined dependency verdict |
 | `requirement_heading_id` | `line: &str` | `Option<&str>` | The requirement id a `### ` heading names (title suffix, trailing punctuation and up to three spaces of indent tolerated); the one parser every reader and the delta materializer share |
+| `update_fence` | `line: &str, fence: &mut Option<(char, usize)>` | `bool` | Update CommonMark fence state and identify a delimiter for the requirement reader and canonical delta block scan |
 
 ## Invariants
 
@@ -134,6 +137,10 @@ links and special files retain their existing fatal safety checks. Explicit
 directory-only lists can still complete with a manifest notice when discovery
 degrades. This does not admit arbitrary configured files as exact Cargo targets.
 25. `specsync check` validates the history fragments beside every spec it validates (REQ-validator-048): each `history/` entry must be a regular `<change-id>.md` fragment with a matching `change:`, a calendar `date:` and a one-line summary, and no change may be recorded both by a fragment and by a Change Log row. Each violation is an error naming the file.
+26. Every read of a project file here, the requirements files and archived specs it reads for requirement IDs (8 MiB), goes through the bounded project read of `util`. A link that leaves the project, a dangling link, a file that is not regular and a file over its bound are refused and handled as that read's other read errors are, so nothing here waits on a FIFO or a device or reads past its bound (REQ-validator-049).
+27. Spec discovery outside `check`'s retained discovery (`find_spec_files`, `find_spec_files_checked`) walks the configured `specs_dir` through `util`'s confined `find_project_files`, with the budget coverage uses: a `specs` link that leaves the repository, the Git directory, and a tree past 100,000 entries or 256 levels stop the walk with `spec discovery stopped:` and the reason, so nothing a repository carries can send it over the file system or hold it. `validate_spec` reads a temporary effective contract within its own directory (REQ-validator-050, REQ-validator-051).
+28. `compute_coverage_checked` reads each retained spec again, to count the files it names that are missing, only through the bounded project read (8 MiB); a refused read is skipped as a missing spec is (REQ-validator-052).
+29. The duplicate requirement ID check walks `specs_dir` only through `find_files_named`, and a missing file's suggestion lists its folder only through `util::read_project_dir`, so a folder that leads out of the project is refused, never walked or listed (REQ-validator-053).
 
 ## Behavioral Examples
 
@@ -234,7 +241,8 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 | Condition | Behavior |
 |-----------|----------|
 | Spec file unreadable | Error: "Cannot read spec" |
-| A `<module>.3md` beside the spec cannot be read or does not parse as 3md | Warning naming the file, the parser's error and that `context.md` is used for its lessons instead, so `check --strict` fails (REQ-cmd-check-018) |
+| Spec discovery meets a `specs` link out of the repository, or passes 100,000 entries or 256 levels | `find_spec_files_checked` returns `spec discovery stopped: <reason>`; `find_spec_files` prints it and exits 1 |
+| A `<module>.3md` beside the spec cannot be read or does not parse as 3md | Warning naming the file, the parser's error and that `context.md` is used for its lessons instead, so `check --strict` fails (REQ-cmd-check-023) |
 | Pre-read snapshot passed to `validate_spec_content` | Validates those exact bytes without opening `spec_path` or adjacent companions |
 | Supplied source is `Missing`, `Rejected`, or `Unreadable` | Reports the corresponding mapped-source validation outcome without ambient fallback |
 | Missing frontmatter delimiters | Error: "Missing or malformed YAML frontmatter" |
@@ -248,6 +256,7 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 | Caller-selected coverage spec is outside the retained project, missing, linked/reparse-backed, special, replaced, invalid UTF-8, or over the shared coverage input bounds | Returns `Err`; ownership mappings are never obtained through the ambient spec pathname |
 | Valid checked coverage contains more sibling spec/source directories than the process descriptor limit | Children are reopened sequentially through retained parents; coverage completes with handles bounded by traversal depth |
 | Valid checked coverage configures more source roots than the process descriptor limit | Root identities are selected without retaining handles, then each root is reopened, identity-checked, traversed, and released sequentially |
+| A project file this module reads leaves the project through a link, dangles, is not a regular file, or is over its bound | Refused without waiting or reading past the bound, and handled like that read's other read errors |
 
 ## Dependencies
 

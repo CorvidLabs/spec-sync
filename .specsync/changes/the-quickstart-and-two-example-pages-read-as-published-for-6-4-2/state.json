@@ -11,7 +11,7 @@
   "canonical_applied": true,
   "base_commit": "9caed41498939ad7fdf6d74c2dd1c4eab3413bf0",
   "created_at": 1795560400,
-  "updated_at": 1795560465,
+  "updated_at": 1795560473,
   "affected_specs": [],
   "affected_paths": [
     "site/src/content/docs/quickstart.md",

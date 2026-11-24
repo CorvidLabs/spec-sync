@@ -7,6 +7,7 @@ import copy
 import hashlib
 import importlib.util
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 
 sys.dont_write_bytecode = True
@@ -29,10 +31,11 @@ SPEC.loader.exec_module(VALIDATOR_MODULE)
 
 
 def git(repository: Path, *arguments: str) -> str:
-    """Run one local Git fixture command."""
+    """Keep system and user Git preferences out of disposable fixture repositories."""
     return subprocess.check_output(
         ["git", *arguments],
         cwd=repository,
+        env={**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"},
         text=True,
     ).strip()
 
@@ -195,7 +198,13 @@ class ReleaseCandidateTagTests(unittest.TestCase):
     def test_candidate_rejects_lightweight_or_missing_tag(self) -> None:
         fixture = ReleaseRepository()
         self.addCleanup(fixture.close)
-        git(fixture.root, "tag", fixture.rc_tag, fixture.candidate_sha)
+        caller_config = fixture.root / ".git" / "caller.gitconfig"
+        caller_config.write_text("[tag]\n\tgpgSign = true\n", encoding="utf-8")
+        with patch.dict(os.environ, GIT_CONFIG_GLOBAL=str(caller_config), GIT_EDITOR="false"):
+            git(fixture.root, "tag", fixture.rc_tag, fixture.candidate_sha)
+        self.assertEqual(
+            git(fixture.root, "cat-file", "-t", f"refs/tags/{fixture.rc_tag}"), "commit"
+        )
         lightweight = fixture.run_cli(
             "candidate",
             "--repository",

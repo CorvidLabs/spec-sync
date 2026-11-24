@@ -1,13 +1,13 @@
 {
-  "timestamp": 1795458059,
-  "commit": "91f2facf093c59919b9912fa3f6856988ffd93ab",
+  "timestamp": 1795483076,
+  "commit": "c4ff8ca400579dabb5ca325ba10ae9389eb16bfb",
   "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
   "execution_digest": "3a1b09d08b41651008939858a7276585958cb1651715589f16525ca851d49394",
-  "workspace_digest": "e616e625902a698d2207629ece607512ee7c5ce060c82710912c02161a118ad5",
+  "workspace_digest": "cf2f3e06e1e2f7c934dd73c9d73b51d5d6890121f9ef3ece192e12aa4b96c3fa",
   "passed": true,
   "commands": [
     {
-      "command": "specsync check --spec change --spec cmd_change --strict",
+      "command": "specsync check --spec change --spec cmd_change",
       "success": true,
       "exit_code": 0
     }

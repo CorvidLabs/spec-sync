@@ -860,9 +860,12 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
         LostRequirementsRefusal::Lost(message) | LostRequirementsRefusal::Misconfigured(message) => {
             message
         }
+        // In a partial clone whose one download failed, the way out is that download
+        // (REQ-change-172): `git fetch origin` brings no blobs to a blobless clone.
         LostRequirementsRefusal::Unreadable(what) => format!(
             "cannot tell whether this branch lost canonical requirements: {what}; {}",
-            lost_requirements_way_out(root, record)
+            partial_clone_download_refusal(root)
+                .unwrap_or_else(|| lost_requirements_way_out(root, record))
         ),
     })
 }

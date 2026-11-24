@@ -367,6 +367,26 @@ Check what's installed with `specsync hooks status`.
 
 ---
 
+### Clones Git reads differently
+
+SpecSync reads Git without your configuration, so its reads do not depend on your settings. Three
+kinds of checkout need more than that, and each is handled for you or named with one command.
+
+- **A repository owned by another user.** When SpecSync's own Git refuses it for dubious ownership
+  and your Git trusts it (`safe.directory`), SpecSync passes that trust, and nothing else, through a
+  private temporary file it removes when the command ends (REQ-change-171). When your Git refuses it
+  too, the command says so and names
+  `git config --global --add safe.directory <path>`.
+- **A partial clone** (`git clone --filter=blob:none`). Before its first history read, SpecSync
+  downloads every history object it needs that is not there, in one fetch with your own Git, and
+  says how many it downloads (REQ-change-172). The fetch never prompts and stops after 60 seconds.
+  The fetch includes requirements from historical configurations. If a fetch fails or a missing
+  tree prevents discovery, the command names a recovery fetch.
+- **A shallow clone.** A check of the project's lifecycle history that cannot see far enough says
+  the clone is shallow and names `git fetch --unshallow origin`, and `change new` refuses before it
+  writes anything (REQ-change-173). If the checkout is also partial, the baseline refusal
+  names the shallow-history recovery first.
+
 ## Creating Canonical Specs
 
 ### Option A: Scaffold a single module

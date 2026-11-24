@@ -25,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- In a shallow clone, a lifecycle-history refusal says the clone is shallow and names `git fetch --unshallow origin` instead of calling the baseline or the correction ledger invalid, and `change new` refuses before it writes anything, where it used to create a change no other command could use (#1072).
+
+- In a partial clone, SpecSync downloads every history object its reads need in one fetch with your own Git, never prompting and within 60 seconds, and says how many it downloads; a private HTTPS clone no longer fails with "could not read Username". When the download fails, the refusal names the one `git fetch` that downloads those objects (#1077).
+
+- A repository owned by another user that your own Git trusts through `safe.directory` is read as it is for its owner. SpecSync passes that trust, and nothing else, to its isolated Git through a private temporary file it removes when the command ends. When your Git refuses the repository too, the refusal names dubious ownership, the path and `git config --global --add safe.directory <path>` (#909).
+
 - The `Archive` jobs in `ci.yml` and `trust.yml` check out full history, so the archive gate sees the default branch and never tells a stale copy of a change the remote default already archived to ship; `test-required-ci-gate.py` fails when a job that runs the gate checks out a single commit, and the gate script itself still never fetches (REQ-cmd-change-029, #965).
 
 - The upstream archive lookup reads archive tree entries as bytes, so an unrelated archive package with a non-UTF-8 directory name on the remote default branch no longer makes the lookup answer "cannot tell"; a non-UTF-8 package that does hold this change's record still does (#961). An archive that HEAD's history already holds, including one `change reopen` moved back out of the archive, is no longer reported as remote-only after the remote default branch renames its package (#945).

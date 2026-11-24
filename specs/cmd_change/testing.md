@@ -72,3 +72,7 @@ FIFOs run under a timeout and over-bound files are sparse; nothing reads `/dev/z
 REQ-cmd-change-044 uses the shallow checkout cases in `tests/integration/git_environments.rs`, including an adopted checkout that is both shallow and blobless.
 
 REQ-cmd-change-045 (#1113) is covered by the archived and active records on one branch in `tests/integration/vanished_requirements.rs` and the retired-record check in `src/change_tests/vanished_requirements.rs`.
+
+## Invalid archive coverage
+
+`a_present_invalid_archive_coverage_receipt_is_reported_without_changing_authentication` exercises the status projection and archive audit with a missing receipt, invalid JSON, a mismatched ID, an unsupported schema, unsafe and empty paths, and an oversized receipt. The diagnostic names the archive, path, and restore operation. The JSON projection retains the authenticated terminal state and the read commands make no project writes. `an_archive_coverage_restore_uses_only_the_literal_receipt_path` executes the displayed recovery for an archive directory with bracket and wildcard characters and checks that the neighboring receipt stays untouched.

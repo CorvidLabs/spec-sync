@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795450067,
+      "digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "note": "Scope approval for the two published archive coverage defects. No implementation review recorded.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-archived-coverage-recoverable-and-visible",
+        "title": "Keep archived coverage recoverable and visible",
+        "description": "Keep archived coverage recoverable and visible",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/collect_requirement_ids.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/sdd_version.rs",
+          "src/change_tests/provisional_coverage.rs",
+          "src/commands/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An archived change with a generated coverage receipt can reopen and re-finalize using current coverage. A refused or interrupted reopen preserves the archived package and unexpected files. Status, show and audit --archives report a present invalid coverage receipt, while legitimately absent receipts remain silent and authenticated archive evidence stays valid."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "REQ-change-162 uses the confined durable transaction journal and restores original bytes on publication failure. REQ-change-165 confines project reads and writes. REQ-change-167 keeps the archive evidence independent of optional coverage. The command adapter renders domain diagnostics in text and JSON.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "47099814f5e64e50c02104dc0c418349bae1aa380245ba8416ce674c48741f4a",
+        "cmd_change": "12d29345e0d71042dc90b21e8d52a46b6fe4fcfdfc6c178f454075581e21ee65"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Can you continue and get these all up as PRs and then focus on Spexink? I have an agent working on Chuff, so if we can focus on Spexink and then get it to a good state release, I'd love to trend to zero PRs and zero bugs on issues and just making it super solid and not adding any features, just fixing all the bugs and issues.",
+        "where": "SpecSync Codex conversation on 2026-11-23, following the two archive coverage findings and proposed repair, relayed by coordinating Codex agent",
+        "recorded_by": "codex:state_check"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795479860,
+      "digest": "73fe094c6db558924d60024068e024437b68f741904daa63b5b4f2ff8f3b48a2",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

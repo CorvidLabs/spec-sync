@@ -2279,6 +2279,29 @@ Acceptance Criteria
 - A rewrite made on a branch that was merged in is refused at the merge commit that brought it onto the first-parent history.
 - The usual flow (approve, `check --commit`, review, finalize) archives as before.
 
+### REQ-change-167
+
+A changed delivery input of an `accepted` change SHALL count as covered for now when no accepted or archived successor covers it and an `approved`, `implementing` or `verifying` change created after the accepted one declares the input's owning module and a path scope that covers the input. An accepted change whose changed inputs are all covered, at least one of them only for now, SHALL read `provisionally-covered` as its terminal evidence, with a reason that names each such input and the change covering it. `change audit` SHALL report it as a warning naming both changes and never as an error, so `change audit --strict` exits 0 on it, and `specsync doctor` SHALL NOT list it as drifted. A changed input that nothing covers SHALL stay stale and stay an audit error. A provisionally covered change SHALL NOT cover another change's input and SHALL NOT stand as a retirement replacement, and `change reopen` SHALL still accept it. `change archive`, and `change finalize` on workflow v2, SHALL accept it, the archive preflight of any other change SHALL pass over it, and its archive SHALL hold `coverage.json`: a schema version, the change id, and one `{path, change}` entry for each input covered for now. The archive's own evidence SHALL NOT depend on `coverage.json` or on what becomes of the covering change. `change status` and `change show` on such an archive SHALL print each recorded entry with the covering change's present state. When the covering change is sent back or closed, or reaches acceptance or archival without valid explicit succession for the recorded input, they and `change audit --archives` SHALL say, as a warning, that the input changed after acceptance and no accepted change stands behind it, and SHALL name `specsync change reopen <id> --actor <name> --reason <text>` for the archived change.
+
+Acceptance Criteria
+- An accepted change, a later approved change that declares the same module and path, and a committed edit of that file: the accepted change reads `provisionally-covered` naming the later change; `change audit` and `change audit --strict` exit 0 with one warning naming both; `specsync doctor` lists no drift for it.
+- The same edit with no later change declaring the file: the accepted change reads `stale` and `change audit` exits 1, as before.
+- A later change that is still a draft, or that declares the path without the owning module, does not cover.
+- `change archive` on the provisionally covered change, or `change finalize` on workflow v2, succeeds and writes `coverage.json` naming the file and the covering change; another change's finalize is not refused because of it.
+- A provisionally covered change is not accepted as another change's covering successor or as a retirement replacement, and `change reopen` accepts it.
+- When the covering change is accepted with a valid explicit succession obligation for the shared input, the earlier change reads `successor-covered`. If it lacks that obligation and no other successor covers the input, the active predecessor is stale.
+- After the archive, with the covering change sent back to draft: the archived change still reads `authenticated-history`; `change status` on it prints the recorded entry and the warning; `change audit --archives` prints the warning and exits 0. With the covering change accepted or archived, the warning persists unless that change has valid explicit succession for the recorded input.
+- An archive with no `coverage.json` reads exactly as before.
+
+### REQ-change-168
+
+The two archive refusals that share one stale delivery input SHALL each name the other side and say that it is blocked too. When `change archive` refuses an accepted change because a delivery input changed after acceptance and no accepted or archived successor covers it, the refusal SHALL add one sentence naming each later change whose declared scope covers that input or whose delivery changed it and saying that it cannot be archived either while this change is stale. When archiving a change is refused because the archive preflight finds another accepted change stale, the refusal SHALL add one sentence saying that the named change cannot be archived either until it is reopened or a covering change is accepted, so the two wait on each other. Neither sentence SHALL replace the `change reopen` command the refusal already names.
+
+Acceptance Criteria
+- Two accepted changes share a delivery input, the later one edited it and does not cover it: `change archive` on the earlier one names the later one and says it is blocked too; archiving the later one names the earlier one and says it is blocked too; both still name `specsync change reopen` for the earlier one.
+- Running the named `change reopen` on the earlier change lets the later one archive.
+- With no later change whose scope covers the input or whose delivery changed it, the first refusal reads as it does today.
+
 ### REQ-change-169
 
 `change check`, `change verify`, `change accept`, `change finalize` and `change ship` SHALL refuse, before anything is written, a change on a branch that has lost a canonical requirement that no approved `## REMOVED` delta names (#1081). The branch's requirements SHALL be compared with those at a reference commit: the merge-base of `HEAD` and the default branch (`origin/HEAD`, else `origin/main` or `origin/master`, each only when it resolves and is not the branch `HEAD` is on), or, when there is no default branch, the change's `base_commit` when that commit is in `HEAD`'s history. A requirement is a `### REQ-` heading outside a fenced block in a `requirements.md` or a legacy `<module>.req.md` under the specs directory or beside a registered spec. A requirement is lost when its id is in such a file at the reference commit and in none of the tracked ones in the working tree; a requirement that moved to another such file under the same id is not lost. A lost requirement is accounted for when an approved `## REMOVED` requirement item names its id in the delta of this change, of another active change on the branch whose definition approval is valid, or of a change the branch archived after the reference commit. The refusal SHALL name every lost requirement that is not accounted for and the file that held it at the reference commit, SHALL record a refused attempt as other check refusals do (#847), and SHALL name the way out: restore each block from the reference commit (`git show <commit>:<file>` prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again. When a lost requirement's text is in the working tree under a new id, the refusal SHALL also say that a requirement id is permanent, so a renumbered requirement needs a `## REMOVED` item for its old id. When there is a default branch and Git cannot read the merge-base or a requirements file at it, the refusal SHALL name what could not be read. When there is neither a default branch nor a `base_commit` in `HEAD`'s history, the comparison SHALL be skipped, and `change check` SHALL print one note saying so. `change audit` SHALL report the same refusal for each active change.
@@ -2388,6 +2411,15 @@ Acceptance Criteria
 - Once the directory is readable again, the check passes.
 - A requirements file that cannot be read is named the same way.
 - On a branch that lost nothing, an unreadable directory changes nothing.
+
+### REQ-change-reopened-coverage-receipt-001
+
+When a stale Archived change is successfully reopened, SpecSync SHALL retire its valid generated `coverage.json` for that archive generation in the same durable file transaction as the reopened state and ledger. A failed file publication SHALL restore the prior receipt bytes with the other original files, and a refused reopen SHALL preserve the original archive. Re-finalization SHALL compute coverage for the new generation. A file left by the user in an Accepted or active workspace, an invalid receipt, or bytes changed during publication SHALL NOT be treated as an eligible generated receipt. A genuinely absent file SHALL be distinguished from a present unreadable or invalid receipt. Neither its contents nor a diagnostic about it SHALL determine authenticated terminal archive evidence.
+
+Acceptance Criteria
+- A committed, provisionally covered archive can reopen, re-check, and finalize again. A new generation without temporary coverage has no receipt, and its previous committed archive retains its original bytes.
+- A write failure during an archived reopen restores the original receipt and package. An unexpected active coverage file is preserved and remains an archival conflict.
+- A present receipt with invalid schema, change identity, entries, or unreadable contents is surfaced without suppressing independently authenticated archive evidence.
 
 ### REQ-change-archived-requirement-loss-001
 

@@ -3093,6 +3093,324 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     Ok(archive)
 }
 
+/// The record an archive keeps of the in-flight changes that covered its changed inputs (#657).
+const PROVISIONAL_COVERAGE_FILE: &str = "coverage.json";
+
+#[derive(Deserialize)]
+struct ArchiveCoverageReceipt {
+    schema_version: u32,
+    change_id: String,
+    covered_by: Vec<ArchiveCoverageEntry>,
+}
+
+#[derive(Deserialize)]
+struct ArchiveCoverageEntry {
+    path: String,
+    change: String,
+}
+
+fn read_archive_coverage(
+    root: &Path,
+    path: &Path,
+    id: &str,
+) -> Result<Option<(String, ArchiveCoverageReceipt)>, String> {
+    reject_symlink_components_for(root, path, "archive coverage receipt")?;
+    let Some(bytes) = crate::util::read_project_file(root, path, MAX_CHANGE_ARTIFACT_BYTES)
+        .map_err(|error| error.to_string())?
+    else {
+        return Ok(None);
+    };
+    let text = String::from_utf8(bytes).map_err(|error| error.to_string())?;
+    let receipt: ArchiveCoverageReceipt =
+        serde_json::from_str(&text).map_err(|error| error.to_string())?;
+    if receipt.schema_version != 1 {
+        return Err(format!("unsupported schema version {}", receipt.schema_version));
+    }
+    if receipt.change_id != id {
+        return Err("the receipt identifies a different change".into());
+    }
+    if receipt.covered_by.is_empty() {
+        return Err("the receipt contains no coverage entries".into());
+    }
+    let mut entries = BTreeSet::new();
+    for entry in &receipt.covered_by {
+        if entry.path.len() > MAX_ACCEPTANCE_PATH_BYTES
+            || strict_portable_relative_path(&entry.path).as_deref() != Ok(entry.path.as_str())
+            || validate_change_id(&entry.change).is_err()
+            || entry.change == id
+            || !entries.insert((&entry.path, &entry.change))
+        {
+            return Err("the receipt contains an invalid or repeated coverage entry".into());
+        }
+    }
+    Ok(Some((text, receipt)))
+}
+
+/// A receipt can describe a generation only when the same bytes were committed with it.
+/// A later receipt edit, package relocation, or restoration of a superseded receipt cannot
+/// provide new coverage. Archives still authenticate their own terminal evidence separately.
+fn validate_committed_archive_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    let relative = git_repo_relative_path(root, &portable_project_path(root, path))?;
+    let literal = format!(":(top,literal){relative}");
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .ok_or("the committed archive could not be read")?;
+    if !git_entry_at_commit(root, &head, &relative)?.is_some_and(|(mode, bytes)| {
+        matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+    }) {
+        return Err("the receipt differs from the committed archive".into());
+    }
+    let status = run_git_bounded(
+        root,
+        &["status", "--porcelain=v1", "--untracked-files=all", "--", &literal],
+        None,
+        MAX_GIT_DIAGNOSTIC_BYTES,
+    )?;
+    if !status.status.success() || !status.stdout.is_empty() {
+        return Err("the receipt differs from the committed archive".into());
+    }
+
+    if !history_is_fixed_by_head(root) {
+        return Err("complete, unmodified Git history is required to identify the archive generation".into());
+    }
+
+    let directory = relative.strip_suffix("/coverage.json").ok_or("invalid receipt path")?;
+    let approvals_path = format!("{directory}/approvals.json");
+    let approvals = scoped_review_file_at_commit(root, &head, &approvals_path)?
+        .ok_or("the archive's committed approval ledger is missing")?;
+    let generation = relay_blind_approval_ledger_bytes(&approvals)
+        .ok_or("the archive's committed approval ledger is invalid")?;
+    let mut matched = false;
+    for introduction in admissible_archive_introductions(root, record, &approvals)? {
+        if ensure_git_ancestor(root, &introduction.commit, &head, "archive coverage introduction").is_err()
+            || introduction.approvals.as_deref().and_then(relay_blind_approval_ledger_bytes).as_ref()
+                != Some(&generation)
+        {
+            continue;
+        }
+        let original = format!("{}/{PROVISIONAL_COVERAGE_FILE}", introduction.directory);
+        if !git_entry_at_commit(root, &introduction.commit, &original)?.is_some_and(|(mode, bytes)| {
+            matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+        }) {
+            return Err("the receipt differs from the one committed with this archive generation".into());
+        }
+        matched = true;
+    }
+    if !matched {
+        return Err("no committed archive introduction authenticates the receipt".into());
+    }
+    Ok(())
+}
+
+fn archive_coverage_warning(root: &Path, path: &Path, id: &str, error: &str) -> String {
+    let relative = portable_project_path(root, path);
+    let literal = shell_word(&format!(":(literal){relative}"));
+    format!(
+        "archive `{id}` has invalid coverage at `{relative}` ({error}); restore it from a known-good commit with `git restore --source <known-good-commit> -- {literal}`"
+    )
+}
+
+/// What an archived change's `coverage.json` recorded, with each covering change's present state
+/// (REQ-change-167). A covering change that reaches acceptance needs the explicit succession
+/// evidence for the recorded input. A present invalid receipt produces a diagnostic independently
+/// of the archive's authenticated evidence.
+pub fn archived_provisional_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
+    archived_provisional_coverage_with_roster(root, record, None)
+}
+
+fn archived_provisional_coverage_with_roster(
+    root: &Path,
+    record: &ChangeRecord,
+    roster: Option<&BTreeMap<String, ChangeRecord>>,
+) -> Result<Vec<ProvisionalCoverageSummary>, String> {
+    if record.state != ChangeState::Archived {
+        return Ok(Vec::new());
+    }
+    let Ok(directory) = find_change_dir(root, &record.id) else {
+        return Ok(Vec::new());
+    };
+    let path = directory.join(PROVISIONAL_COVERAGE_FILE);
+    let Some((content, coverage)) = read_archive_coverage(root, &path, &record.id)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?
+    else {
+        return Ok(Vec::new());
+    };
+    validate_committed_archive_coverage(root, record, &path, &content)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?;
+    // Load the signed manifest and change roster at most once per archive, and only when
+    // a recorded covering change can still qualify.
+    let signed = std::cell::OnceCell::new();
+    let local_roster = std::cell::OnceCell::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    let mut is_standing = |candidate: &ChangeRecord, path: &str| {
+        let terminal = matches!(candidate.state, ChangeState::Accepted | ChangeState::Archived);
+        if terminal
+            && !candidate.supersedes.iter().any(|edge| {
+                edge.predecessor_id == record.id
+                    && edge.obligations.iter().any(|item| item.path == path)
+            })
+        {
+            return false;
+        }
+        let Some(manifest) = signed.get_or_init(|| resolved_acceptance_manifest(root, record).ok()) else {
+            return false;
+        };
+        let Ok(index) = manifest.entries.binary_search_by(|entry| entry.path.as_str().cmp(path)) else {
+            return false;
+        };
+        let expected = &manifest.entries[index];
+        let mut remaining: Vec<_> = expected.owners.iter().collect();
+        if !terminal {
+            remaining.retain(|owner| {
+                !in_flight_change_covers(root, &mut memo, candidate, record, path, owner)
+            });
+            if remaining.len() == expected.owners.len() {
+                return false;
+            }
+            // A named in-flight change can cover every owner on its own. No other
+            // workspace has to load successfully to establish its current approval.
+            if remaining.is_empty() {
+                return true;
+            }
+        }
+        let Some(records) = roster.or_else(|| {
+            local_roster.get_or_init(|| list_all_changes_structural(root).ok()).as_ref()
+        }) else {
+            return false;
+        };
+        let mut rejected = BTreeMap::new();
+        let mut historical = false;
+        let mut proves = |owner: &str, covering: &ChangeRecord| {
+            if in_flight_change_covers(root, &mut memo, covering, record, path, owner) {
+                return true;
+            }
+            successor_covers_input(
+                root, record, records, [covering], &mut BTreeSet::new(), &mut memo, None,
+                expected, owner, &mut rejected, &mut historical,
+            )
+        };
+        // The recorded change must still cover part of the input. Other changes can cover
+        // the remaining signed owners, just as they do in the active predecessor walk.
+        let mut recorded_contributes = !terminal;
+        let complete = remaining.into_iter().all(|owner| {
+            if terminal && proves(owner, candidate) {
+                recorded_contributes = true;
+                return true;
+            }
+            records.values().any(|other| other.id != candidate.id && proves(owner, other))
+        });
+        recorded_contributes && complete
+    };
+    Ok(coverage.covered_by
+        .into_iter()
+        .map(|ArchiveCoverageEntry { path, change }| {
+            let covering = load_change(root, &change).ok();
+            let change_state = covering.as_ref().map(|record| record.state);
+            let warning_reason = match covering {
+                Some(candidate) => match candidate.state {
+                    ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying => {
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without current approved coverage for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
+                    ChangeState::Accepted | ChangeState::Archived => {
+                        (!is_standing(&candidate, &path)).then(|| format!(
+                            "now {} without complete verified explicit succession for this input",
+                            candidate.state.as_str()
+                        ))
+                    }
+                    state => Some(format!("now {}, so no accepted change stands behind it", state.as_str())),
+                },
+                None => Some("no longer in the project, so no accepted change stands behind it".into()),
+            };
+            let warning = warning_reason.map(|reason| format!(
+                "`{path}` changed after `{}` was accepted and was covered for now by `{change}`, which is {reason}; run `specsync change reopen {} --actor <name> --reason <text>`",
+                record.id, record.id
+            ));
+            ProvisionalCoverageSummary {
+                path,
+                change,
+                change_state,
+                warning,
+            }
+        })
+        .collect())
+}
+
+/// The later accepted changes that declare `path` under a stale owner, or whose delivery changed it: each
+/// of them waits on `record` too, because archiving any change runs the preflight that finds
+/// `record` stale (REQ-change-168). A later change that edits the input without declaring it is the
+/// common case, since it covers nothing (the tester on #657 with #688).
+fn later_changes_blocked_by(
+    root: &Path,
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owners: &[String],
+) -> Vec<String> {
+    records
+        .values()
+        .filter(|candidate| {
+            candidate.id != record.id
+                && candidate.state == ChangeState::Accepted
+                && happens_after(candidate, record)
+                && ((candidate.affected_specs.iter().any(|module| owners.contains(module))
+                    && candidate
+                        .affected_paths
+                        .iter()
+                        .any(|scope| path_matches_scope(path, scope)))
+                    || delivery_changed_path(root, candidate, record, path))
+        })
+        .map(|candidate| candidate.id.clone())
+        .collect()
+}
+
+/// Whether `candidate`'s delivery changed `path` after `record` was verified: a commit that
+/// `candidate`'s verification reaches, and that neither its base nor `record`'s verified commit
+/// reaches, touches the path.
+fn delivery_changed_path(
+    root: &Path,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+) -> bool {
+    let verified = |change: &ChangeRecord| {
+        load_verification(root, change)
+            .ok()
+            .and_then(|verification| verification.commit)
+            .filter(|commit| is_canonical_commit_id(commit))
+    };
+    let Some(delivered) = verified(candidate) else {
+        return false;
+    };
+    let Ok(relative) = git_repo_relative_path(root, path) else {
+        return false;
+    };
+    let mut args = vec!["rev-list".to_string(), "--max-count=1".to_string(), delivered];
+    if let Some(base) = candidate
+        .base_commit
+        .as_deref()
+        .filter(|base| is_canonical_commit_id(base))
+    {
+        args.push(format!("^{base}"));
+    }
+    if let Some(earlier) = verified(record) {
+        args.push(format!("^{earlier}"));
+    }
+    args.push("--".to_string());
+    args.push(format!(":(top,literal){relative}"));
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    git_output_allow_empty(root, &args).is_some_and(|commits| !commits.trim().is_empty())
+}
+
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
@@ -4143,7 +4461,9 @@ fn archive_change_with_options(
             destination.display()
         ));
     }
-    ensure_archiving_closing_approval_valid(root, &record)?;
+    // Which in-flight changes cover this change's changed inputs for now; its archive records
+    // them (#657).
+    let provisional_coverage = ensure_archiving_closing_approval_valid(root, &record)?;
     if !allow_delivery_diff
         && let Some(policy) = load_policy_checked(root)?
         && policy.enabled
@@ -4173,6 +4493,44 @@ fn archive_change_with_options(
     } else {
         source.as_path()
     };
+    let computed_coverage = if provisional_coverage.is_empty() {
+        None
+    } else {
+        Some(json_content(&serde_json::json!({
+            "schema_version": 1,
+            "change_id": record.id,
+            "covered_by": provisional_coverage
+                .iter()
+                .map(|(path, change)| serde_json::json!({ "path": path, "change": change }))
+                .collect::<Vec<_>>(),
+        }))?)
+    };
+    let read_coverage = |directory: &Path| -> Result<Option<Vec<u8>>, String> {
+        let path = directory.join(PROVISIONAL_COVERAGE_FILE);
+        validate_prepared_transaction_target(root, &path)?;
+        match crate::util::read_project_bytes(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(bytes) => Ok(Some(bytes)),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(error) => Err(error.to_string()),
+        }
+    };
+    let coverage_conflict = |directory: &Path| {
+        format!(
+            "unexpected archive coverage at {}; move it aside and retry archival",
+            directory.join(PROVISIONAL_COVERAGE_FILE).display()
+        )
+    };
+    let original_coverage = read_coverage(current_location)
+        .map_err(|error| format!("{}: {error}", coverage_conflict(current_location)))?;
+    // A moved package may carry coverage generated by an earlier attempt. Recompute it
+    // here and retain it only when its bytes agree with the current closing validation.
+    if original_coverage.is_some()
+        && (!resume_post_move
+            || original_coverage.as_deref() != computed_coverage.as_deref().map(str::as_bytes))
+    {
+        return Err(coverage_conflict(current_location));
+    }
+    let coverage_to_publish = computed_coverage.filter(|_| original_coverage.is_none());
     let original_state_bytes = crate::util::read_project_bytes(root, &current_location.join("state.json"), crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to preserve accepted state before archive: {error}"))?;
     let original_markdown_bytes = crate::util::read_project_bytes(root, &current_location.join("change.md"), crate::util::MAX_STATE_FILE_BYTES)
@@ -4233,9 +4591,11 @@ fn archive_change_with_options(
         ) {
             drop(memo);
             let _ = remove_file_durable(root, &accepted_snapshot);
+            // REQ-change-168: the stale change cannot be archived either, so the two wait on
+            // each other until it is reopened or a covering change is accepted.
             return Err(format!(
-                "archive post-move preflight would invalidate `{}`: {error}",
-                candidate.id
+                "archive post-move preflight would invalidate `{}`: {error}. `{}` cannot be archived either until it is reopened or a covering change is accepted, so the two wait on each other",
+                candidate.id, candidate.id
             ));
         }
     }
@@ -4251,37 +4611,58 @@ fn archive_change_with_options(
     let mut archived = record.clone();
     archived.state = ChangeState::Archived;
     archived.updated_at = now();
+    let mut coverage_write_attempted = false;
     let finalize = if force_finalize_failure {
         Err("forced post-move archive finalization failure".to_string())
     } else {
-        // The package has moved, so the archived state rewrites the state.json it carried.
-        json_content_keeping_unknown_members(root, 
-            &destination.join("state.json"),
-            relay_gated_record(root, &destination, &archived).as_ref(),
-        )
-        .and_then(|state| {
-            write_prepared_files(
+        (|| {
+            if read_coverage(&destination)
+                .map_err(|error| format!("{}: {error}", coverage_conflict(&destination)))?
+                != original_coverage
+            {
+                return Err(coverage_conflict(&destination));
+            }
+            // The package has moved, so the archived state rewrites the state.json it carried.
+            let state = json_content_keeping_unknown_members(
                 root,
-                &[
-                    (destination.join("state.json"), state),
-                    (
-                        destination.join("change.md"),
-                        change_markdown_content(&archived),
-                    ),
-                ],
-            )
-        })
+                &destination.join("state.json"),
+                relay_gated_record(root, &destination, &archived).as_ref(),
+            )?;
+            let mut prepared = vec![
+                (destination.join("state.json"), state),
+                (
+                    destination.join("change.md"),
+                    change_markdown_content(&archived),
+                ),
+            ];
+            if let Some(content) = &coverage_to_publish {
+                prepared.push((destination.join(PROVISIONAL_COVERAGE_FILE), content.clone()));
+                coverage_write_attempted = true;
+            }
+            write_prepared_files(root, &prepared)
+        })()
+    };
+    let restore_package_files = || {
+        atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)?;
+        atomic_write_durable(
+            root,
+            &destination.join("change.md"),
+            &original_markdown_bytes,
+        )?;
+        // Historical validation runs after the publication journal has been cleared.
+        if let Some(expected) = coverage_to_publish.as_deref().filter(|_| coverage_write_attempted)
+            && let Some(bytes) = read_coverage(&destination)?
+        {
+            if bytes != expected.as_bytes() {
+                return Err(coverage_conflict(&destination));
+            }
+            remove_file_durable(root, &destination.join(PROVISIONAL_COVERAGE_FILE))?;
+        }
+        Ok(())
     };
     if let Err(error) = finalize {
         if resume_post_move {
-            let restore =
-                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
-                    .and_then(|()| {
-                        atomic_write_durable(root, 
-                            &destination.join("change.md"),
-                            &original_markdown_bytes,
-                        )
-                    });
+            let restore = restore_package_files();
             return match restore {
                 Ok(()) => Err(format!(
                     "failed to finalize archive; post-move destination remains retryable: {error}"
@@ -4291,10 +4672,7 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
-            .and_then(|()| {
-                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
-            })
+        let restore = restore_package_files()
             .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
             .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
@@ -4314,14 +4692,7 @@ fn archive_change_with_options(
         None => validate_archived_integrity(root, &archived),
     } {
         if resume_post_move {
-            let restore =
-                atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
-                    .and_then(|()| {
-                        atomic_write_durable(root, 
-                            &destination.join("change.md"),
-                            &original_markdown_bytes,
-                        )
-                    });
+            let restore = restore_package_files();
             return match restore {
                 Ok(()) => Err(format!(
                     "archived evidence failed validation; post-move destination remains retryable: {error}"
@@ -4331,10 +4702,7 @@ fn archive_change_with_options(
                 )),
             };
         }
-        let restore = atomic_write_durable(root, &destination.join("state.json"), &original_state_bytes)
-            .and_then(|()| {
-                atomic_write_durable(root, &destination.join("change.md"), &original_markdown_bytes)
-            })
+        let restore = restore_package_files()
             .and_then(|()| remove_file_durable(root, &destination.join("accepted-state.json")))
             .and_then(|()| rename_durable(root, &destination, &source));
         return match restore {
@@ -5133,6 +5501,11 @@ fn summarize_change_with_effective(
         },
         )
     };
+    let (provisional_coverage, provisional_coverage_warning) =
+        match archived_provisional_coverage(root, record) {
+            Ok(entries) => (entries, None),
+            Err(warning) => (Vec::new(), Some(warning)),
+        };
     ChangeSummary {
         id: record.id.clone(),
         title: record.title.clone(),
@@ -5153,6 +5526,8 @@ fn summarize_change_with_effective(
             .unwrap_or_default(),
         next_action,
         terminal_evidence,
+        provisional_coverage,
+        provisional_coverage_warning,
         handoff,
     }
 }
@@ -5238,6 +5613,20 @@ pub fn audit_project_with_archives(root: &Path, archives: bool) -> SddCheckRepor
             if !report.errors.contains(&error) {
                 report.enabled = true;
                 report.errors.push(error);
+            }
+        }
+        // REQ-change-167: an archive covered for now whose covering change was sent back or
+        // closed is a warning, never an error.
+        if let Ok(records) = list_all_changes_structural(root) {
+            for record in records.values().filter(|record| record.state == ChangeState::Archived) {
+                match archived_provisional_coverage_with_roster(root, record, Some(&records)) {
+                    Ok(entries) => {
+                        for warning in entries.into_iter().filter_map(|entry| entry.warning) {
+                            report.warnings.push(format!("{}: {warning}", record.id));
+                        }
+                    }
+                    Err(warning) => report.warnings.push(warning),
+                }
             }
         }
     }
@@ -5634,6 +6023,22 @@ fn check_project_with_command_output(
         ) && let Err(error) = ensure_dependencies_satisfied(root, record)
         {
             report.errors.push(format!("{}: {error}", record.id));
+        }
+        // A changed input an in-flight later change declares is covered until that change is
+        // accepted: a warning naming it, not an error (#657).
+        if record.state == ChangeState::Accepted
+            && let Some(evidence) = report
+                .terminal_evidence
+                .iter()
+                .find(|evidence| evidence.id == record.id)
+            && evidence.evidence.validity == TerminalEvidenceValidity::ProvisionallyCovered
+        {
+            let warning = format!(
+                "{}: {}",
+                record.id,
+                evidence.evidence.reason.as_deref().unwrap_or("covered for now")
+            );
+            report.warnings.push(warning);
         }
         if record.state == ChangeState::Accepted
             && let Some(evidence) = report

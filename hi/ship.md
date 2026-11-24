@@ -13,6 +13,8 @@ SHIP-2.e was drafted by an agent for issue #633 (audit D7) and approved by Leif 
 
 SHIP-1.c.3 was drafted by the agent for issue #893. Leif approved it as drafted in the Herdr orc tab on 2026-11-06 at about 19:35 MST ("3yes 3b-yes": the note and its JSON list, and emptying spec-sync's own `verification_commands`), relayed by orc t18. Recorded by the ss-triage Claude agent (t15w). Leif later narrowed the 3b policy choice through orc t18: empty only `verification_commands` and keep the 13 component modules and 3 strict commands, so this repository's note remains visible; the criterion text is unchanged.
 
+SHIP-13, SHIP-13.a, SHIP-13.b, SHIP-13.c and SHIP-13.d were drafted by an agent for issues #657 and #688, from Leif's choices: for #657 on 2026-11-13 at about 04:04Z, "It may archive (Recommended)", meaning the archive records which change covered the shared file; for #688 on 2026-11-18, one sentence in each of the two archive refusals, naming the other change and saying it is blocked too. Leif approved the definition that carries them, with these five sentences marked as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:17Z: "Approve as written". They are the agent's wording, which he chose with those words; he did not write them. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
 ## Criteria
 
 - **SHIP-1**  Once the scope is approved, the agreed contract edit is applied for me rather than retyped by hand.
@@ -60,3 +62,8 @@ SHIP-1.c.3 was drafted by the agent for issue #893. Leif approved it as drafted 
   - **SHIP-12.e**  A change whose pull request has not merged cannot be closed late.
   - **SHIP-12.f**  I can close several at once, and each one is recorded as if I had closed it alone.
   - **SHIP-12.g**  A change closed late does not trip up an older version of SpecSync, and that older version never counts it as checked.
+- **SHIP-13**  An accepted change does not go stale because a later change I am still working on edits a file they share.
+  - **SHIP-13.a**  I am told which later change is covering that file for now.
+  - **SHIP-13.b**  It can be archived while it is covered that way, and its archive says which change covered it.
+  - **SHIP-13.c**  If that later change is sent back or closed instead of accepted, I am told the file has no accepted change behind it.
+  - **SHIP-13.d**  When two changes each stop the other from being archived, each refusal names the other and says it is blocked too.

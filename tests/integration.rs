@@ -162,3 +162,6 @@ mod ship_status_reopen_and_resume;
 mod git_environments;
 #[path = "integration/rebase_stale_delta.rs"]
 mod rebase_stale_delta;
+
+#[path = "integration/stale_input_refusals.rs"]
+mod stale_input_refusals;

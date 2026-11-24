@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "check-reports-a-module-s-3md-lesson-file-that-does-not-parse",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "281624276a56f653f426afba36ebf7615bee9aa4",
+      "contract_digest": "6fe8d8ebd9cf22bc77aab46d25036c7b1d6bf72f61156d10c6aa8eece73499b2",
+      "execution_digest": "9160ce6071c0ca8176a80ad542f08c5e8c33c1f61f9adf382dc04bab4305578b",
+      "workspace_digest": "bf4ce3c6557cc5b3f0d7716417ce93ee420ab7f99494c976595d7a520914c537",
+      "timestamp": 1795554201,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I accept all four",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: do you accept each implementation?', which listed the four changes of the validation batch (#1071, #1076, #574 and #1060) with their native Verify lane at cb679a13, Trust, scoped checks and CLI dogfood against the 6.4.2 release binary. This change is the #1060 one of those four; the request named it as including the bounded-read fix reported to him before and as the one worth a closer look.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

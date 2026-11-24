@@ -93,6 +93,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: renew the #1060 change's definition', which named this scope: REQ-cmd-check-018 becomes REQ-cmd-check-023 because main took 018 to 022, the requirement's words are identical, and the validator Error Cases delta gains main's two new rows so applying it no longer drops them.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795554229,
+      "digest": "d0f0393edbf19f56ecf1253f700630c0c1f9535e08e1e9d4a0c453f71915f865",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

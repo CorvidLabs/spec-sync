@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "check-reports-a-module-s-3md-lesson-file-that-does-not-parse",
+  "implementation_commit": "281624276a56f653f426afba36ebf7615bee9aa4",
+  "implementation_tree": "733d71ab6933c6f5c631842522ab58f58eed7e2e",
+  "contract_digest": "6fe8d8ebd9cf22bc77aab46d25036c7b1d6bf72f61156d10c6aa8eece73499b2",
+  "workspace_digest": "bf4ce3c6557cc5b3f0d7716417ce93ee420ab7f99494c976595d7a520914c537",
+  "closing_digest": "d0f0393edbf19f56ecf1253f700630c0c1f9535e08e1e9d4a0c453f71915f865",
+  "review_digest": "06d6c23d056db1f4f8e2398f89d580e50b34468faa82475610ac0c7b59625245",
+  "finalization_digest": "1eb692e44822b41e288485150d4ba36413a2ab8fbdc7cdca9d9705b6cfdaa020",
+  "timestamp": 1795554229
+}

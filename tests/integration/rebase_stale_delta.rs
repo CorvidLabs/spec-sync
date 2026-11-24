@@ -416,32 +416,8 @@ fn a_change_squash_merged_before_finalize_is_never_proposed_over_its_own_text() 
     );
 }
 
-/// Codex's third review of #1089, as ss-lead narrowed it, through the binary: a CI run reads an
-/// applied item as "no main edit", as before, even when Git cannot read main's text; outside CI
-/// with a default branch the same check refuses, naming the requirement.
-#[test]
-fn an_unreadable_main_text_refuses_an_applied_item_outside_ci_only() {
-    let project = Project::new();
-    let id = project.approved_change(REWORD_DELTA);
-    project.git(&["push", "-q", "origin", "main"]);
-    project.git(&["checkout", "-q", "-b", "change"]);
-    project.run(&["change", "check", &id]);
-    project.git(&["add", "--all"]);
-    project.git(&["commit", "-q", "-m", "materialize"]);
-    let blob = project
-        .git(&["rev-parse", "origin/main:specs/auth/requirements.md"])
-        .trim()
-        .to_string();
-    fs::remove_file(
-        project
-            .root
-            .join(".git/objects")
-            .join(&blob[..2])
-            .join(&blob[2..]),
-    )
-    .unwrap();
-
-    let ci = specsync()
+fn check_in_ci(project: &Project, id: &str) -> Output {
+    specsync()
         .env("CI", "true")
         .env("GITHUB_WORKSPACE", &project.root)
         .args([
@@ -449,21 +425,176 @@ fn an_unreadable_main_text_refuses_an_applied_item_outside_ci_only() {
             project.root.to_str().unwrap(),
             "change",
             "check",
-            &id,
+            id,
         ])
         .output()
-        .unwrap();
-    let local = project.invoke(&["change", "check", &id]);
+        .unwrap()
+}
 
-    assert!(
-        !combined(&ci).contains("cannot be read from Git"),
-        "{}",
-        combined(&ci)
+fn remove_requirements_blob(project: &Project, revision: &str) {
+    let object = format!("{revision}:specs/auth/requirements.md");
+    let oid = project.git(&["rev-parse", &object]);
+    let oid = oid.trim();
+    fs::remove_file(
+        project
+            .root
+            .join(".git/objects")
+            .join(&oid[..2])
+            .join(&oid[2..]),
+    )
+    .unwrap();
+}
+
+/// The independent requirement-loss guard needs the merge-base even for an already applied item.
+#[test]
+fn an_unreadable_loss_baseline_refuses_check_in_ci_and_locally() {
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["switch", "-q", "-c", "change"]);
+    project.run(&["change", "check", &id]);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "materialize"]);
+    remove_requirements_blob(&project, "origin/main");
+
+    let delta_path = format!(".specsync/changes/{id}/deltas/auth.md");
+    let delta_before = project.read(&delta_path);
+    for output in [
+        check_in_ci(&project, &id),
+        project.invoke(&["change", "check", &id]),
+    ] {
+        let text = combined(&output);
+        assert!(!output.status.success(), "{text}");
+        assert!(
+            text.contains("cannot tell whether this branch lost canonical requirements")
+                && text.contains("specs/auth/requirements.md")
+                && text.contains("git fetch origin"),
+            "{text}"
+        );
+        assert!(!text.contains("proposed rebase"), "{text}");
+        assert_eq!(project.read(&delta_path), delta_before);
+    }
+}
+
+/// CI skips proposal history only. The current default-branch reference can still be read while
+/// the older approval-time body an interactive proposal needs is unavailable.
+#[test]
+fn an_unreadable_proposal_base_only_refuses_an_applied_item_outside_ci() {
+    const REQUIREMENTS: &str = "specs/auth/requirements.md";
+    let project = Project::new();
+    let id = project.approved_change(REWORD_DELTA);
+    let approval_commit = project.git(&["rev-parse", "HEAD"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["switch", "-q", "-c", "change"]);
+    project.run(&["change", "check", &id]);
+    project.git(&["add", "--all"]);
+    project.git(&["commit", "-q", "-m", "materialize"]);
+
+    project.git(&["switch", "-q", "main"]);
+    project.write(
+        REQUIREMENTS,
+        &BASE_REQUIREMENTS.replace("after one day.", "after twelve hours."),
     );
-    assert!(!local.status.success(), "{}", combined(&local));
-    let text = combined(&local);
+    project.git(&["add", "--", REQUIREMENTS]);
+    project.git(&["commit", "-q", "-m", "main edits the requirement"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["switch", "-q", "change"]);
+    // Model resolving a merge to the already materialized requirement on the change's side.
+    project.git(&["merge", "-q", "--no-edit", "-s", "ours", "main"]);
+    assert_eq!(
+        project.git(&["merge-base", "HEAD", "origin/main"]),
+        project.git(&["rev-parse", "origin/main"])
+    );
+    remove_requirements_blob(&project, approval_commit.trim());
     assert!(
-        text.contains("REQ-auth-001") && text.contains("cannot be read from Git"),
+        project
+            .git(&["show", "origin/main:specs/auth/requirements.md"])
+            .contains("twelve hours")
+    );
+
+    let delta_path = format!(".specsync/changes/{id}/deltas/auth.md");
+    let delta_before = project.read(&delta_path);
+    let canonical_before = project.read(REQUIREMENTS);
+
+    let ci = check_in_ci(&project, &id);
+    assert!(ci.status.success(), "{}", combined(&ci));
+    let local = project.invoke(&["change", "check", &id]);
+    let text = combined(&local);
+    assert!(!local.status.success(), "{text}");
+    assert!(
+        text.contains("REQ-auth-001") && text.contains("main's text cannot be read from Git"),
         "{text}"
     );
+    assert_eq!(project.read(&delta_path), delta_before);
+    assert_eq!(project.read(REQUIREMENTS), canonical_before);
+}
+
+#[test]
+fn a_lost_canonical_requirement_blocks_a_valid_rebase_proposal_until_restored() {
+    const REQUIREMENTS: &str = "specs/auth/requirements.md";
+    const RETAINED: &str = "\n### REQ-auth-002\n\nThe system SHALL invalidate a revoked session.\n\nAcceptance Criteria\n- A revoked session cannot be reused.\n";
+
+    let project = Project::new();
+    project.write(REQUIREMENTS, &format!("{BASE_REQUIREMENTS}{RETAINED}"));
+    project.git(&["add", "--", REQUIREMENTS]);
+    project.git(&[
+        "commit",
+        "-q",
+        "-m",
+        "record the separate retained requirement",
+    ]);
+    project.git(&["push", "-q", "origin", "main"]);
+
+    let id = project.approved_change_then_main_edits(
+        REWORD_DELTA,
+        "after one day.",
+        "after twelve hours.",
+    );
+    let delta_path = format!(".specsync/changes/{id}/deltas/auth.md");
+    let ledger_path = format!(".specsync/changes/{id}/approvals.json");
+    let delta_before = project.read(&delta_path);
+    let ledger_before = project.read(&ledger_path);
+    let upstream_requirements = project.read(REQUIREMENTS);
+    let without_retained = upstream_requirements.strip_suffix(RETAINED).unwrap();
+
+    project.git(&["switch", "-q", "-c", "lose-an-unrelated-requirement"]);
+    project.write(REQUIREMENTS, without_retained);
+    project.git(&["add", "--", REQUIREMENTS]);
+    project.git(&["commit", "-q", "-m", "accidentally drop REQ-auth-002"]);
+
+    let output = project.invoke(&["change", "check", &id]);
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("lost canonical requirements") && text.contains("REQ-auth-002"),
+        "{text}"
+    );
+    assert!(!text.contains("now holds a proposed rebase"), "{text}");
+    assert_eq!(project.read(&delta_path), delta_before);
+    assert_eq!(project.read(&ledger_path), ledger_before);
+    assert_eq!(project.read(REQUIREMENTS), without_retained);
+
+    project.write(REQUIREMENTS, &upstream_requirements);
+    project.git(&["add", "--", REQUIREMENTS]);
+    project.git(&["commit", "-q", "-m", "restore REQ-auth-002"]);
+
+    let output = project.invoke(&["change", "check", &id]);
+    let text = combined(&output);
+    assert!(!output.status.success(), "{text}");
+    assert!(
+        text.contains("proposed rebase") && text.contains("REQ-auth-001"),
+        "{text}"
+    );
+    assert!(
+        text.contains(&format!("specsync change approve {id}")),
+        "{text}"
+    );
+    let proposed = project.read(&delta_path);
+    assert!(
+        proposed.contains("exactly one session") && proposed.contains("twelve hours"),
+        "{proposed}"
+    );
+    assert!(!proposed.contains("REQ-auth-002"), "{proposed}");
+    assert_eq!(project.read(&ledger_path), ledger_before);
+    assert_eq!(project.read(REQUIREMENTS), upstream_requirements);
 }

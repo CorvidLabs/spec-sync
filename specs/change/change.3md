@@ -812,3 +812,6 @@ A canonical requirements symlink can keep its Git blob while its target loses an
 
 @plane z=67 label="An interrupted archive still needs staged authority (#1108)"
 Moving an approved package into the archive leaves new paths outside the index until finalize stages them. Resolve the package on disk and check its removal records at those paths before another change relies on it. If Git reports a stat change, compare the captured bytes and regular file mode to the index without refreshing it. The selected change can finish its own interrupted finalization.
+
+@plane z=68 label="Distinguish loss history from proposal history (#1089)"
+The loss check reads every retained requirement at the merge-base. A stale-delta proposal can also need an older approval-time body. Keeping one Git object readable while removing the other makes the CI and interactive guarantees independently testable.

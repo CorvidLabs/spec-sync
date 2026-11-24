@@ -906,6 +906,9 @@ fn closing_the_blocker_late_lets_a_later_archive_pass() {
     let root = project(&temp);
     stale_blocker(&root);
     v1_accepted(&root, "Add notes", "add-notes", "NOTES.md");
+    // Committed, not merged: finalize, ship and archive close a change only with approvals Git
+    // history holds (REQ-change-166).
+    commit_all(&root, "Accept the notes change");
     let refused = run_err(&root, &["change", "archive", "add-notes"]);
     assert!(
         refused.contains("archive post-move preflight would invalidate")
@@ -1005,6 +1008,9 @@ fn late_close_refusals_write_nothing() {
 
     // Not on the remote default branch yet.
     v1_accepted(&root, "Add notes", "add-notes", "NOTES.md");
+    // Committed, not merged: finalize, ship and archive close a change only with approvals Git
+    // history holds (REQ-change-166).
+    commit_all(&root, "Accept the notes change");
     refuse(&as_refs(&late("add-notes", ACTOR, REASON)), "not merged");
 
     // Closed late once already.
@@ -1094,6 +1100,9 @@ fn late_close_takes_several_changes_all_or_nothing() {
     publish(&root);
     let unmerged = "add-notes";
     v1_accepted(&root, "Add notes", unmerged, "NOTES.md");
+    // Committed, not merged: finalize, ship and archive close a change only with approvals Git
+    // history holds (REQ-change-166).
+    commit_all(&root, "Accept the notes change");
 
     let before = tree(&root);
     let output = close_late(&root, &[BLOCKER, never_approved, unmerged]);

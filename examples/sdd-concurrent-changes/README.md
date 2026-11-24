@@ -2,8 +2,8 @@
 
 This example proves that a dependent change cannot complete scoped verification
 until its prerequisite is accepted or archived, then finalizes both changes in
-dependency order using the SpecSync 6.0 workflow (`check` → scoped human
-`review` → `finalize`).
+dependency order. Each successful `change check --commit` records the
+approval ledger in Git before scoped review and finalization.
 
 ```bash
 SPECSYNC_BIN="$PWD/target/release/specsync" ./examples/sdd-concurrent-changes/run.sh

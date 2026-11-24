@@ -5,12 +5,12 @@ aliases: [475-check-fix-json-stdout]
 objective: check --fix keeps stdout one JSON document in machine formats, with progress on stderr (#475)
 intent_scope: ""
 modules: [change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
 native_change: check-fix-keeps-stdout-one-json-document-in-machine-formats
-pr: ""
+pr: "https://github.com/CorvidLabs/spec-sync/pull/1151"
 criteria: [AGENT-2]
 requirements: []
 cases: []
@@ -23,13 +23,9 @@ observations:
   - 2026-11-19-475-verify-lane-at-f8b341c5
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of check-fix-keeps-stdout-one-json-document-in-machine-formats
-    holds: accept
-    drives: review
-    opened: 2026-11-13T17:51:21Z
+waiting_on_human: []
 run_consents: []
-next: Pushed on fix/cli-432-475-1012, no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that.
+next: "Merge PR #1151 when the archived revision passes the required checks and review is complete."
 ---
 # check --fix keeps stdout one JSON document in machine formats, with progress on stderr (#475)
 
@@ -46,6 +42,7 @@ check --fix keeps stdout one JSON document in machine formats, with progress on 
 
 - decided: authorization is Leif's own scope approval ('#475 clean JSON', coordinator chat 2026-11-13T04:03Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form
 - decided: no new lesson for change.3md, because the fix is a narrow correction an existing lesson already covers
+- 0xLeif said in the November 23 SpecSync 6.4.2 release conversation: I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114. Native review is recorded in .specsync/archive/changes/2026-11-23-check-fix-keeps-stdout-one-json-document-in-machine-formats/review.json. Withdraw the duplicated session gate after native finalization.
 
 ## What was verified
 
@@ -106,3 +103,12 @@ check --fix keeps stdout one JSON document in machine formats, with progress on 
   - gate: native:verifying
   - revision: f8b341c574e0b61113983999a8dad19506f9eb24
   - by: claude-code (hc t59)
+- 2026-11-24T00:12:19Z · gate-closed · accept → accept · Implementation review of check-fix-keeps-stdout-one-json-document-in-machine-formats ^t-e3d8b7
+  - native_change: check-fix-keeps-stdout-one-json-document-in-machine-formats
+  - revision: da57656d17af44e7945dbb4fa1c2267402838647
+  - by: unknown agent (hc t14v)
+- 2026-11-24T00:12:23Z · advance · accept → done · Native scoped review and finalization for PR #1151 are recorded in the archive. ^t-98da4c
+  - native_change: check-fix-keeps-stdout-one-json-document-in-machine-formats
+  - gate: native:archived
+  - revision: da57656d17af44e7945dbb4fa1c2267402838647
+  - by: unknown agent (hc t14v)

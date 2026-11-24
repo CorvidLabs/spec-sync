@@ -259,6 +259,112 @@ fn fix_with_json_output() {
     assert!(fixed.contains("`login`"), "--fix still writes: {fixed}");
 }
 
+#[test]
+fn failed_fix_reports_one_json_document_and_keeps_successful_progress_on_stderr() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let auth = root.join("specs/auth/auth.spec.md");
+    fs::write(&auth, valid_spec("auth", &["src/auth.ts"])).unwrap();
+    fs::create_dir_all(root.join("specs/bad")).unwrap();
+    let bad = root.join("specs/bad/bad.spec.md");
+    fs::write(&bad, [0xff]).unwrap();
+
+    let output = specsync()
+        .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout)
+        .expect("a failed fix must still emit one complete JSON document");
+    assert_eq!(result["passed"], false);
+    let errors = result["errors"].as_array().unwrap();
+    assert!(
+        errors.iter().any(|e| e.as_str().is_some_and(
+            |message| message.contains("bad.spec.md") && message.contains("could not be read")
+        )),
+        "{result}"
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("added 1 export"));
+    assert!(fs::read_to_string(auth).unwrap().contains("`login`"));
+    assert_eq!(fs::read(bad).unwrap(), [0xff]);
+}
+
+#[test]
+fn failed_fix_backup_reports_json_before_changing_a_spec() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "export function login() {}").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = root.join("specs/auth/auth.spec.md");
+    let before = valid_spec("auth", &["src/auth.ts"]);
+    fs::write(&spec, &before).unwrap();
+    fs::create_dir_all(root.join(".specsync")).unwrap();
+    fs::write(root.join(".specsync/backup-fix"), "occupied").unwrap();
+
+    let output = specsync()
+        .args([
+            "check",
+            "--fix",
+            "--backup",
+            "--json",
+            "--root",
+            root.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["passed"], false);
+    assert!(result["errors"][0].as_str().unwrap().contains("backup"));
+    assert_eq!(fs::read_to_string(spec).unwrap(), before);
+}
+
+#[cfg(unix)]
+#[test]
+fn failed_fix_does_not_report_a_read_only_header_as_repaired() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir_all(root.join("src")).unwrap();
+    fs::write(root.join("src/auth.ts"), "// No exports.").unwrap();
+    fs::create_dir_all(root.join("specs/auth")).unwrap();
+    let spec = root.join("specs/auth/auth.spec.md");
+    let before = valid_spec("auth", &["src/auth.ts"]).replace("## Purpose", "## Purpos");
+    fs::write(&spec, &before).unwrap();
+    fs::set_permissions(&spec, fs::Permissions::from_mode(0o444)).unwrap();
+    if fs::OpenOptions::new().write(true).open(&spec).is_ok() {
+        // A privileged runner cannot exercise the denied write.
+        return;
+    }
+
+    let output = specsync()
+        .args(["check", "--fix", "--json", "--root", root.to_str().unwrap()])
+        .output()
+        .unwrap();
+
+    assert_eq!(output.status.code(), Some(1));
+    let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(result["passed"], false);
+    assert!(
+        result["errors"][0]
+            .as_str()
+            .unwrap()
+            .contains("auth.spec.md")
+    );
+    assert!(!String::from_utf8_lossy(&output.stderr).contains(": renamed"));
+    assert_eq!(fs::read_to_string(spec).unwrap(), before);
+}
+
 // #475: `check --strict --force --fix --dry-run --json` printed `would add N export(s)` on stdout
 // before the JSON result, so a consumer parsing stdout failed.
 #[test]

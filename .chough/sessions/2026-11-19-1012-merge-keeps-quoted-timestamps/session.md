@@ -5,12 +5,12 @@ aliases: [1012-merge-keeps-quoted-timestamps]
 objective: A clean merge-driver union keeps a quoted YAML date quoted (#1012)
 intent_scope: MERGE
 modules: [merge]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
 native_change: a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted
-pr: ""
+pr: "https://github.com/CorvidLabs/spec-sync/pull/1151"
 criteria: [MERGE-5.a]
 requirements: []
 cases: []
@@ -21,13 +21,9 @@ observations:
   - 2026-11-19-1012-verify-lane-at-f8b341c5
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted
-    holds: accept
-    drives: review
-    opened: 2026-11-19T08:59:59Z
+waiting_on_human: []
 run_consents: []
-next: Pushed on fix/cli-432-475-1012, no PR until ss-lead says. Then Leif's review, relayed by hc t4c through ss-lead; record it with chough change ship and his words. Record no review before that.
+next: "Merge PR #1151 when the archived revision passes the required checks and review is complete."
 ---
 # A clean merge-driver union keeps a quoted YAML date quoted (#1012)
 
@@ -44,6 +40,7 @@ A clean merge-driver union keeps a quoted YAML date quoted (#1012)
 
 - decided: authorization is Leif's own decision ('#1012 quoted dates', coordinator chat 2026-11-13T03:57Z, relayed by claude-code-t370), recorded natively as 0xLeif in relay form on 2026-11-13 because that is when he gave it; this session only refreshes the change onto main
 - decided: this change had no Chough session because its 11-13 branch was cut before the Chough 0.6.0 migration (#1073) reached main; ss-builder (hc t59) opened this one on 2026-11-19 for the batch 10 refresh
+- 0xLeif said in the November 23 SpecSync 6.4.2 release conversation: I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114. Native review is recorded in .specsync/archive/changes/2026-11-23-a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted/review.json. Withdraw the duplicated session gate after native finalization.
 
 ## What was verified
 
@@ -86,3 +83,12 @@ A clean merge-driver union keeps a quoted YAML date quoted (#1012)
   - holds: accept
   - drives: review
   - by: claude-code (hc t59)
+- 2026-11-24T00:12:27Z · gate-closed · accept → accept · Implementation review of a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted ^t-b6b956
+  - native_change: a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted
+  - revision: da57656d17af44e7945dbb4fa1c2267402838647
+  - by: unknown agent (hc t14v)
+- 2026-11-24T00:12:31Z · advance · accept → done · Native scoped review and finalization for PR #1151 are recorded in the archive. ^t-bfb969
+  - native_change: a-clean-merge-driver-union-keeps-a-quoted-yaml-date-quoted
+  - gate: native:archived
+  - revision: da57656d17af44e7945dbb4fa1c2267402838647
+  - by: unknown agent (hc t14v)

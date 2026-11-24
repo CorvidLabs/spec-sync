@@ -2528,30 +2528,9 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "speckit" => root.join("specs"),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    reject_symlink_components(root, &source_changes)?;
-    match fs::symlink_metadata(&source_changes) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                source_changes.display()
-            ));
-        }
-        Ok(metadata) if metadata.is_dir() => {}
-        Ok(_) => {
-            return Err(format!(
-                "foreign changes path is not a directory: {}",
-                source_changes.display()
-            ));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
-        Err(error) => return Err(error.to_string()),
-    }
-    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
-    let mut entries = fs::read_dir(source_changes)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-    entries.sort_by_key(|entry| entry.file_name());
+    let Some(entries) = foreign_change_directories(root, &source_changes)? else {
+        return Ok(prepared);
+    };
     let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
         .into_iter()
         .map(|record| record.description)
@@ -2559,18 +2538,6 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
     let mut minted_ids: BTreeSet<String> = BTreeSet::new();
     for entry in entries {
         let entry_path = entry.path();
-        reject_symlink_components(root, &entry_path)?;
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-        if file_type.is_symlink() {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                entry_path.display()
-            ));
-        }
-        if !file_type.is_dir() || entry.file_name() == "archive" {
-            continue;
-        }
-        validate_foreign_tree(&entry_path)?;
         let is_active_change = match source {
             "openspec" => {
                 entry_path.join("proposal.md").exists()
@@ -2656,39 +2623,80 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
     Ok(prepared)
 }
 
+fn foreign_change_directories(
+    root: &Path,
+    source_changes: &Path,
+) -> Result<Option<Vec<fs::DirEntry>>, String> {
+    reject_symlink_components(root, source_changes)?;
+    match fs::symlink_metadata(source_changes) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                source_changes.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign changes path is not a directory: {}",
+                source_changes.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
+    let mut entries = fs::read_dir(source_changes)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut active = Vec::new();
+    for entry in entries {
+        let entry_path = entry.path();
+        reject_symlink_components(root, &entry_path)?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                entry_path.display()
+            ));
+        }
+        if !file_type.is_dir() || entry.file_name() == "archive" {
+            continue;
+        }
+        validate_foreign_tree(&entry_path)?;
+        active.push(entry);
+    }
+    Ok(Some(active))
+}
+
 fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
-    let candidates = match source {
-        "openspec" => vec![root.join("openspec/specs"), root.join("openspec/changes")],
-        "speckit" => vec![
-            root.join(".specify/memory/constitution.md"),
-            root.join("specs"),
-        ],
+    let (canonical, changes) = match source {
+        "openspec" => (root.join("openspec/specs"), root.join("openspec/changes")),
+        "speckit" => (root.join(".specify/memory/constitution.md"), root.join("specs")),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    for candidate in candidates {
-        reject_symlink_components(root, &candidate)?;
-        match fs::symlink_metadata(&candidate) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing symlinked foreign import path: {}",
-                    candidate.display()
-                ));
-            }
-            Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&candidate)?,
-            Ok(metadata)
-                if source == "speckit"
-                    && candidate.ends_with("constitution.md")
-                    && metadata.is_file() => {}
-            Ok(_) => {
-                return Err(format!(
-                    "foreign import path is not the expected regular file or directory: {}",
-                    candidate.display()
-                ));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.to_string()),
+    reject_symlink_components(root, &canonical)?;
+    match fs::symlink_metadata(&canonical) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                canonical.display()
+            ));
         }
+        Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&canonical)?,
+        Ok(metadata) if source == "speckit" && metadata.is_file() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign import path is not the expected regular file or directory: {}",
+                canonical.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
     }
+    foreign_change_directories(root, &changes)?;
     Ok(())
 }
 

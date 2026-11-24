@@ -835,6 +835,80 @@ fn adopt_dry_run_refuses_an_unsupported_source_as_the_real_run_does() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn adopt_dry_run_and_import_skip_archive_descendants_but_refuse_active_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    for (source, changes, entry_file) in [
+        ("openspec", "openspec/changes", "proposal.md"),
+        ("speckit", "specs", "spec.md"),
+    ] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let active = root.join(changes).join("active-passkeys");
+        let archive = root.join(changes).join("archive/previous-passkeys");
+        fs::create_dir_all(&active).unwrap();
+        fs::create_dir_all(&archive).unwrap();
+        fs::write(active.join(entry_file), "# Active passkeys\n").unwrap();
+        fs::write(archive.join(entry_file), "# Archived passkeys\n").unwrap();
+        let archived_link = archive.join("historical-link.md");
+        symlink(entry_file, &archived_link).unwrap();
+
+        let adopt = |dry_run| {
+            let mut command = specsync();
+            command.args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                source,
+            ]);
+            if dry_run {
+                command.arg("--dry-run");
+            }
+            command
+        };
+        let assert_no_import = || {
+            assert!(!root.join(".specsync/sdd.json").exists());
+            assert!(!root.join(".specsync/import-provenance.json").exists());
+            assert!(!root.join(".specsync/adoption-report.json").exists());
+            assert!(!root.join(".specsync/changes").exists());
+        };
+
+        adopt(true).assert().success();
+        assert_no_import();
+
+        let active_link = active.join("active-link.md");
+        symlink(entry_file, &active_link).unwrap();
+        for dry_run in [true, false] {
+            adopt(dry_run)
+                .assert()
+                .failure()
+                .stderr(predicate::str::contains(
+                    "refusing symlinked foreign import path",
+                ))
+                .stderr(predicate::str::contains("active-link.md"));
+            assert_no_import();
+        }
+        fs::remove_file(active_link).unwrap();
+
+        adopt(false).assert().success();
+        let mut imports = fs::read_dir(root.join(".specsync/changes")).unwrap();
+        let imported = imports.next().unwrap().unwrap().path();
+        assert!(imports.next().is_none());
+        assert_eq!(
+            fs::read_to_string(imported.join("imported").join(entry_file)).unwrap(),
+            "# Active passkeys\n"
+        );
+        assert_eq!(
+            fs::read_link(archived_link).unwrap(),
+            PathBuf::from(entry_file)
+        );
+    }
+}
+
 #[test]
 fn adopt_existing_4x_project_is_idempotent() {
     let temp = TempDir::new().unwrap();

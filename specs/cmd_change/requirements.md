@@ -642,6 +642,14 @@ Acceptance Criteria
 Acceptance Criteria
 - A FIFO given as the manifest is refused without waiting.
 
+### REQ-cmd-change-committed-ledger-001
+
+`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the file restored, `ready_to_finalize` is true again.
+
 ### REQ-cmd-change-archived-coverage-diagnostics-001
 
 For an archived change, `change status`, `change show`, and `change audit --archives` SHALL report a present invalid `coverage.json` as an advisory warning, naming the affected archive, receipt path and safe restore action. Status and show SHALL expose the diagnostic in an optional JSON field and render the same warning in text. Archive audit SHALL include it in its existing warning list. A genuinely absent receipt SHALL produce no diagnostic. Successful coverage rows, the independently authenticated terminal state, and the exit conventions for archive warnings SHALL remain unchanged. These commands SHALL NOT repair or remove the receipt.

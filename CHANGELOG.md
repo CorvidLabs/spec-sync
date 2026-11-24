@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `change finalize`, `change ship` and `change archive` archive only an approvals ledger that Git history holds. `approvals.json` must be committed at `HEAD` and equal to it (an accepted change may add the closing records its accepting step wrote), and every version committed along `HEAD`'s first-parent history must extend the one before it; a relay restored or removed by `change repair-relays` and the digest members `specsync migrate 5.0` adds do not count as a change. Each refusal names the file and the way out. A change whose whole workspace was deleted and created again under the same id is refused as it loads, as before, and that refusal now names the commit that removed the workspace and the two ways out. `change ship-status` lists it as a blocker. SpecSync 6.2.0 and older rewrote whole ledgers and could drop members they did not know; a committed rewrite like that is refused, so every machine that runs change commands on a repository should be on 6.3.0 or newer (REQ-change-166, REQ-cmd-change-committed-ledger-001, #428).
 - Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
 ### Fixed

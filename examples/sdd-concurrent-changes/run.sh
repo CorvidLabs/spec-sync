@@ -66,10 +66,10 @@ if "$bin" change check "$first" >/dev/null 2>&1; then
   exit 1
 fi
 
-"$bin" change check "$second" >/dev/null
+"$bin" change check "$second" --commit >/dev/null
 "$bin" change review "$second" --reviewer "Example Independent Reviewer" >/dev/null
 "$bin" change finalize "$second" >/dev/null
-"$bin" change check "$first" >/dev/null
+"$bin" change check "$first" --commit >/dev/null
 "$bin" change review "$first" --reviewer "Example Independent Reviewer" >/dev/null
 # Finalize commits each archive move.
 "$bin" change finalize "$first" >/dev/null

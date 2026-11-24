@@ -47,3 +47,6 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 
 @plane z=7 label="Return the check result when a repair stops early (#475)"
 Automation parses stdout on failure as well as success. Result rendering must cover read, write and backup refusals that happen before ordinary spec validation. A mixed run can report a successful repair on stderr while returning the failed spec in the JSON errors.
+
+@plane z=8 label="Report a failed repair in the format the caller selected"
+An empty CSV cannot tell an automation which fixes failed. Each failure needs a finding row, including when a path contains a comma. Markdown and GitHub output list the errors even when repair stops before validation measures coverage.

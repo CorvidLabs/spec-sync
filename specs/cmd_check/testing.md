@@ -77,3 +77,5 @@ Every link points inside the test's own temporary directory.
 | `.specsync/hashes.json` committed to Git, or shipped in an unpacked tree | Never read: nothing replayed, nothing said, the file keeps its bytes | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks`, `check_never_uses_a_hash_cache_an_unpacked_tree_ships` |
 
 The JSON repair regressions cover a successful file alongside an unreadable spec and a backup directory that cannot be created, and a read-only file whose headers need repair. They parse the complete stdout document, require a failing exit code, and check which files were repaired.
+
+`failed_fix_emits_each_unreadable_spec_in_the_requested_format` checks two failed reads in CSV, table, Markdown and GitHub output. A comma in one filename exercises CSV quoting.

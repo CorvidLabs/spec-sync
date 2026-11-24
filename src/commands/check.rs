@@ -90,16 +90,29 @@ fn append_suppressed_markdown(body: &mut String, details: &[serde_json::Value]) 
 
 /// Emit the check result when repair stops before normal validation starts.
 fn exit_failed_fix(format: types::OutputFormat, failures: &[String]) -> ! {
-    if matches!(format, types::OutputFormat::Json) {
-        let output = serde_json::json!({
-            "passed": false,
-            "errors": failures,
-            "warnings": [],
-            "notices": [],
-            "stale": [],
-            "specs_checked": 0,
-        });
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
+    use types::OutputFormat::*;
+    match format {
+        Text => {} // The repair already printed the underlying error to stderr.
+        Json => {
+            let output = serde_json::json!({
+                "passed": false,
+                "errors": failures,
+                "warnings": [],
+                "notices": [],
+                "stale": [],
+                "specs_checked": 0,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        Csv => print_findings_csv(&findings(failures, &[], &[])),
+        Table => print_findings_table(&findings(failures, &[], &[])),
+        Markdown | Github => {
+            // Validation has not run, so there are no coverage or pass counts to render.
+            println!("## SpecSync repair failed\n\n### Errors\n");
+            for failure in failures {
+                println!("- {failure}");
+            }
+        }
     }
     process::exit(1);
 }

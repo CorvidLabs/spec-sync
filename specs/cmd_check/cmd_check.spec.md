@@ -104,6 +104,7 @@ optional drift issues. SDD / change / archive history is not part of this comman
 | Condition | Behavior |
 |-----------|----------|
 | Auto-fix changes a spec but validation still fails | Reports remaining errors, does not loop |
+| A backup, read or write fails during repair | Exits nonzero, reports the path and cause on stderr, and emits the errors on stdout in the requested structured format |
 | Spec name filter matches nothing while specs exist | Prints "No specs matched" error (no contradictory "No spec files found" message) and exits 1 |
 | Hash cache file is corrupted | Falls back to full validation (cache miss) |
 | `.specsync/hashes.json` or `.specsync` in the work tree is a symbolic link, or not a regular file and a directory | Never looked at: same stdout and exit code as with no cache; nothing is read or written through it |

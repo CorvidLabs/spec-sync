@@ -295,6 +295,43 @@ fn failed_fix_reports_one_json_document_and_keeps_successful_progress_on_stderr(
 }
 
 #[test]
+fn failed_fix_emits_each_unreadable_spec_in_the_requested_format() {
+    let tmp = TempDir::new().unwrap();
+    let root = tmp.path();
+    write_config(root, "specs", &["src"]);
+    fs::create_dir(root.join("src")).unwrap();
+    fs::create_dir(root.join("specs")).unwrap();
+    let names = ["first.spec.md", "second,quoted.spec.md"];
+    for name in names {
+        fs::write(root.join("specs").join(name), [0xff]).unwrap();
+    }
+
+    for format in ["csv", "table", "markdown", "github"] {
+        let output = specsync()
+            .args(["check", "--fix", "--format", format, "--root"])
+            .arg(root)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{format}: {stdout}");
+        for name in names {
+            assert_eq!(stdout.matches(name).count(), 1, "{format}: {stdout}");
+        }
+        assert_eq!(stdout.matches("could not be read").count(), 2, "{stdout}");
+        match format {
+            "csv" => {
+                assert_eq!(stdout.lines().next(), Some("severity,spec,message"));
+                assert_eq!(stdout.lines().skip(1).count(), 2, "{stdout}");
+                assert!(stdout.lines().skip(1).all(|row| row.starts_with("error,")));
+                assert!(stdout.lines().any(|row| row.contains('"')), "{stdout}");
+            }
+            "table" => assert!(stdout.starts_with("SEVERITY"), "{stdout}"),
+            _ => assert!(stdout.contains("### Errors"), "{stdout}"),
+        }
+    }
+}
+
+#[test]
 fn failed_fix_backup_reports_json_before_changing_a_spec() {
     let tmp = TempDir::new().unwrap();
     let root = tmp.path();

@@ -7,11 +7,11 @@
   "title": "Pass safe.directory to SpecSync's isolated Git when the user's own Git trusts a repository owned by another user",
   "description": "Pass safe.directory to SpecSync's isolated Git when the user's own Git trusts a repository owned by another user",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "c076583c09ff9acbe529426922a3e225eed42f56",
   "created_at": 1795151582,
-  "updated_at": 1795478399,
+  "updated_at": 1795478428,
   "affected_specs": [
     "change"
   ],

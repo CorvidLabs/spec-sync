@@ -49,6 +49,13 @@
         "where": "a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md: choice 2 (#909: the trust setting goes through a private temporary file, not the command line)",
         "recorded_by": "claude-code-t4t"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795478422,
+      "digest": "8690b73d073f9dd1d85f99550083b2ff15aea3ec46f107b6b23212122f9af2ec",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

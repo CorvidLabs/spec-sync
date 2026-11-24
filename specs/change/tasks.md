@@ -126,6 +126,8 @@ spec: change.spec.md
 - [x] Skip fenced headings when locating or ending a canonical delta block (#1050, REQ-change-152).
 - [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
 
+- [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).
+
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
 - [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).

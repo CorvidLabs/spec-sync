@@ -7,10 +7,11 @@
   "title": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
   "description": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "24d553f6912b7594e8664e629eba5092afd6cbe2",
   "created_at": 1795559360,
-  "updated_at": 1795560787,
+  "updated_at": 1795562762,
   "affected_specs": [
     "cmd_check",
     "hash_cache",

@@ -1,0 +1,19 @@
+{
+  "timestamp": 1795562760,
+  "commit": "3863f6d8dd6dcf23ed8076c2a64997bfda0e1cd3",
+  "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+  "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+  "workspace_digest": "baa475e3fb1a59cdc3e470522dfa3b05e35060212f20ada8d4cef9305ad7dbe8",
+  "passed": true,
+  "commands": [
+    {
+      "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+      "success": true,
+      "exit_code": 0
+    }
+  ],
+  "requirement_ids": [
+    "REQ-cmd-check-023",
+    "REQ-hash-cache-011"
+  ]
+}

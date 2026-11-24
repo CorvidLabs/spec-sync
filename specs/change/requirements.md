@@ -168,6 +168,7 @@ Acceptance Criteria
 - A no-spec declaration cannot accompany a declared public-contract change.
 - OpenSpec and Spec Kit imports reject symlinked files and directories.
 - Rejected foreign imports leave no partial adoption policy, report, or imported content.
+- Preview and import both ignore descendants of the foreign changes directory named `archive` and reject symbolic links in active changes. Preview writes no files. Both commands apply the same UTF-8 and 8 MiB read limit to each Markdown file they would import, including the canonical inputs and Markdown in nested directories of an active change.
 - The exact schema-v1 self-adoption record is the sole migration exception to the
   no-spec/public-contract rule.
 - A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path
@@ -405,7 +406,7 @@ Acceptance Criteria
 ### REQ-change-032
 
 The verified lifecycle SHALL support human-authorized, append-only correction of explicitly
-supported accepted interview metadata without rewriting history or replaying canonical deltas.
+supported accepted interview metadata without rewriting history or replaying canonical deltas. Before writing new correction evidence, it SHALL validate the complete project change roster and refuse a roster validation failure.
 
 Acceptance Criteria
 
@@ -420,6 +421,7 @@ Acceptance Criteria
   definition approval, verification, and closing approval.
 - Corrected acceptance prepares no canonical semantic-delta application, and repeated corrections
   preserve all earlier evidence across portable checkouts and squash integration.
+- An unrelated change with corrupt committed history leaves healthy status readable, while `change correct` reports the history failure and leaves the accepted workspace untouched. The same correction succeeds when the roster is valid.
 
 ### REQ-change-033
 

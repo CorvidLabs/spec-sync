@@ -76,3 +76,9 @@ Every link points inside the test's own temporary directory.
 | `.specsync/backup-fix` linked outside, or a backup file linked outside | Nothing is written there and the spec is unchanged | `tests/integration/project_writes.rs`: `check_fix_backup_copies_nothing_through_a_linked_backup_directory`, `check_fix_backup_never_copies_over_a_linked_backup_file` |
 | No link | The backup is written where it was and the fix goes on | `tests/integration/project_writes.rs`: `check_fix_backup_still_backs_up_a_project_with_no_link` |
 | `.specsync/hashes.json` committed to Git, or shipped in an unpacked tree | Never read: nothing replayed, nothing said, the file keeps its bytes | `tests/integration/repository_inputs.rs`: `check_never_uses_a_hash_cache_git_tracks`, `check_never_uses_a_hash_cache_an_unpacked_tree_ships` |
+
+The JSON repair regressions cover a successful file alongside an unreadable spec and a backup directory that cannot be created, and a read-only file whose headers need repair. They parse the complete stdout document, require a failing exit code, and check which files were repaired.
+
+`failed_fix_emits_each_unreadable_spec_in_the_requested_format` checks two failed reads in CSV, table, Markdown and GitHub output. A comma in one filename exercises CSV quoting.
+
+`failed_fix_backup_reports_json_before_changing_a_spec` primes the cache, changes the requirements and triggers a backup failure. JSON retains the original staleness record. CSV, table, Markdown and GitHub each report the warning alongside the backup error.

@@ -131,6 +131,9 @@ mod spec_history;
 #[path = "integration/vanished_requirements.rs"]
 mod vanished_requirements;
 
+#[path = "integration/terminal_evidence_isolation.rs"]
+mod terminal_evidence_isolation;
+
 #[cfg(unix)]
 #[path = "integration/project_links.rs"]
 mod project_links;

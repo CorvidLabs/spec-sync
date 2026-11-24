@@ -855,5 +855,20 @@ After moving an archived package back to the active workspace, publish the reope
 @plane z=80 label="Read coverage from the committed archive generation (#1132)"
 A covering change can still validate after somebody edits the receipt to name it. Check the receipt against its own archive generation before validating any coverers. A staged or working-tree edit, a later committed replacement, or a receipt copied from a superseded generation carries no coverage and stays advisory. Reopen preserves those bytes. A shallow boundary cannot prove that an existing package was introduced there. Status and audit still decide the archive's terminal evidence independently.
 
-@plane z=81 label="Archiving the last change leaves a branch to check (#1105)"
+@plane z=81 label="Bounded reads during terminal evidence recovery (#1104)"
+When the full roster fails validation, the per-change scan reads archive directories, state files and retirement receipts through the same confined helpers. Each individual read failure retains its path and the owning change.
+
+@plane z=82 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
+An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.
+
+@plane z=83 label="Keep correction writes on the full roster (#1114)"
+A healthy status can isolate a sibling’s broken history. Accepted interview correction writes new lifecycle evidence and must validate the complete roster before it writes. Keep the original roster error and every workspace byte on refusal.
+
+@plane z=84 label="Preview the same foreign directories adoption imports (#432)"
+Preview and adoption share the changes-directory scan. Both leave a real top-level archive directory in place without walking inside it, and reject symlinks on the active import paths. Keep the directory entry checks ahead of the archive exclusion so a link named `archive` is still refused.
+
+@plane z=85 label="Preview reads the actual foreign Markdown (#432)"
+Adoption preview traverses the same active and canonical inputs through the same bounded UTF-8 reader as adoption. Discard each prepared preview payload immediately. Keep Markdown under an active change eligible even when one of its nested directories is named archive.
+
+@plane z=86 label="Archiving the last change leaves a branch to check (#1105)"
 When the active roster is empty, audit compares the branch with its default reference. Strict drift checking on an SDD-enabled project uses that same read-only comparison. It follows approved removals when an ID is missing and leaves general archive validation to the lifecycle commands.

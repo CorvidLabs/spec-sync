@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-accepted-interview-correction-fail-closed-on-broken-change-records",
+  "implementation_commit": "d1a41ea7d6e9cad067148b48a7cba838d36de684",
+  "implementation_tree": "ee3420b3da32c327fb600af3cfa34d896b2d316b",
+  "contract_digest": "0b14471566d72f39b6d93bb4c8c10e52ac0a12f520463e7c08825db1c09aea16",
+  "workspace_digest": "d7d1e8a4b76f7ccce090fc7c5acc3c9c763ad778f67b762a69ea999c738a7c9a",
+  "closing_digest": "5a0ba4df92d14b3f16272fb33134b25e111865bef768d379cef4e896ff704af2",
+  "review_digest": "b5a73c3ebcb807a352bb45b08c7fc0eef3520ea49990bb1c456e42c946393c18",
+  "finalization_digest": "e989e9ea205f0861f54e169973b6049e47d5550e96376fa7bcda5c104310bb73",
+  "timestamp": 1795494435
+}

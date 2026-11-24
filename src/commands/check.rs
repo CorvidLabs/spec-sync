@@ -88,6 +88,46 @@ fn append_suppressed_markdown(body: &mut String, details: &[serde_json::Value]) 
     }
 }
 
+/// Emit the check result when repair stops before normal validation starts.
+fn exit_failed_fix(
+    format: types::OutputFormat,
+    failures: &[String],
+    stale_entries: &[serde_json::Value],
+) -> ! {
+    use types::OutputFormat::*;
+    let warnings = warnings_with_staleness(Vec::new(), stale_entries);
+    match format {
+        Text => {} // The repair already printed the underlying error to stderr.
+        Json => {
+            let output = serde_json::json!({
+                "passed": false,
+                "errors": failures,
+                "warnings": [],
+                "notices": [],
+                "stale": stale_entries,
+                "specs_checked": 0,
+            });
+            println!("{}", serde_json::to_string_pretty(&output).unwrap());
+        }
+        Csv => print_findings_csv(&findings(failures, &warnings, &[])),
+        Table => print_findings_table(&findings(failures, &warnings, &[])),
+        Markdown | Github => {
+            // Validation has not run, so there are no coverage or pass counts to render.
+            println!("## SpecSync repair failed\n\n### Errors\n");
+            for failure in failures {
+                println!("- {failure}");
+            }
+            if !warnings.is_empty() {
+                println!("\n### Warnings\n");
+                for warning in warnings {
+                    println!("- {warning}");
+                }
+            }
+        }
+    }
+    process::exit(1);
+}
+
 fn checked_coverage_or_exit(
     root: &Path,
     spec_files: &[PathBuf],
@@ -585,25 +625,25 @@ pub fn cmd_check(
             // stops before it changes a spec (REQ-cmd-check-020).
             let backup_dir = root.join(".specsync/backup-fix");
             if let Err(e) = crate::util::create_project_dir(root, &backup_dir) {
-                eprintln!(
-                    "{} Failed to create backup directory {}: {e}",
-                    "✗".red(),
+                let message = format!(
+                    "Failed to create backup directory {}: {e}",
                     backup_dir.display()
                 );
+                eprintln!("{} {message}", "✗".red());
                 eprintln!("  Aborting --fix to avoid data loss. Fix the backup path and retry.");
-                process::exit(1);
+                exit_failed_fix(format, &[message], &stale_entries);
             }
             let mut backed_up = 0usize;
             for spec_file in &specs_to_validate {
                 let rel = match spec_file.strip_prefix(root) {
                     Ok(r) => r,
                     Err(_) => {
-                        eprintln!(
-                            "{} Cannot backup {}: path is not under project root",
-                            "✗".red(),
+                        let message = format!(
+                            "Cannot backup {}: path is not under project root",
                             spec_file.display()
                         );
-                        process::exit(1);
+                        eprintln!("{} {message}", "✗".red());
+                        exit_failed_fix(format, &[message], &stale_entries);
                     }
                 };
                 let dest = backup_dir.join(rel);
@@ -614,13 +654,10 @@ pub fn cmd_check(
                 )
                 .and_then(|bytes| crate::util::write_project_file(root, &dest, &bytes));
                 if let Err(e) = copied {
-                    eprintln!(
-                        "{} Failed to backup {}: {e}",
-                        "✗".red(),
-                        spec_file.display()
-                    );
+                    let message = format!("Failed to backup {}: {e}", spec_file.display());
+                    eprintln!("{} {message}", "✗".red());
                     eprintln!("  Aborting --fix to avoid data loss.");
-                    process::exit(1);
+                    exit_failed_fix(format, &[message], &stale_entries);
                 }
                 backed_up += 1;
             }
@@ -634,7 +671,13 @@ pub fn cmd_check(
             }
         }
 
-        let outcome = auto_fix_specs(root, &specs_to_validate, &config, dry_run);
+        let outcome = auto_fix_specs(
+            root,
+            &specs_to_validate,
+            &config,
+            dry_run,
+            matches!(format, Text),
+        );
         if outcome.fixed > 0 && matches!(format, Text) {
             let verb = if dry_run {
                 "Would auto-add"
@@ -658,7 +701,7 @@ pub fn cmd_check(
                 "error:".red().bold(),
                 outcome.failures.len()
             );
-            process::exit(1);
+            exit_failed_fix(format, &outcome.failures, &stale_entries);
         }
     }
 
@@ -1386,11 +1429,15 @@ struct AutoFixOutcome {
     failures: Vec<String>,
 }
 
+/// `text_output` is whether the run prints text. Each spec's progress line goes to stdout for
+/// text and to stderr for every other format, so a machine format's stdout stays the one
+/// document it promises (#475).
 fn auto_fix_specs(
     root: &Path,
     spec_files: &[PathBuf],
     config: &types::SpecSyncConfig,
     dry_run: bool,
+    text_output: bool,
 ) -> AutoFixOutcome {
     use crate::exports::get_exported_symbols_full;
     use crate::parser::{get_all_api_table_symbols, get_spec_symbols, parse_frontmatter};
@@ -1398,6 +1445,13 @@ fn auto_fix_specs(
     let mut fixed_count = 0;
     let mut failures: Vec<String> = Vec::new();
     let sub_re = regex::Regex::new(r"(?m)^### ").unwrap();
+    let report = |line: String| {
+        if text_output {
+            println!("{line}");
+        } else {
+            eprintln!("{line}");
+        }
+    };
 
     for spec_file in spec_files {
         let content = match crate::util::read_project_string(
@@ -1418,30 +1472,33 @@ fn auto_fix_specs(
             }
         };
 
-        // First pass: fix near-miss required section headers (## level)
         let mut content = content;
-        if fix_near_miss_required_headers(&mut content, &config.required_sections) {
+        let required_headers =
+            fix_near_miss_required_headers(&mut content, &config.required_sections);
+        let export_headers = fix_near_miss_headers(&mut content);
+        if required_headers || export_headers {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            let verb = if dry_run { "would rename" } else { "renamed" };
-            println!(
-                "  {} {rel}: {verb} near-miss required section header(s) to canonical form",
-                "✓".green()
-            );
-            if !dry_run {
-                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
+            if !dry_run
+                && let Err(error) =
+                    crate::util::write_project_file(root, spec_file, content.as_bytes())
+            {
+                failures.push(format!(
+                    "{rel}: could not write the repaired headers: {error}"
+                ));
+                continue;
             }
-        }
-
-        // Second pass: fix near-miss export subsection headers (### level)
-        if fix_near_miss_headers(&mut content) {
-            let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             let verb = if dry_run { "would rename" } else { "renamed" };
-            println!(
-                "  {} {rel}: {verb} near-miss export header(s) to canonical form",
-                "✓".green()
-            );
-            if !dry_run {
-                let _ = crate::util::write_project_file(root, spec_file, content.as_bytes());
+            if required_headers {
+                report(format!(
+                    "  {} {rel}: {verb} near-miss required section header(s) to canonical form",
+                    "✓".green()
+                ));
+            }
+            if export_headers {
+                report(format!(
+                    "  {} {rel}: {verb} near-miss export header(s) to canonical form",
+                    "✓".green()
+                ));
             }
         }
 
@@ -1674,21 +1731,21 @@ fn auto_fix_specs(
         if dry_run {
             fixed_count += 1;
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
-            println!(
+            report(format!(
                 "  {} {rel}: would add {} export(s)",
                 "✓".green(),
                 undocumented.len()
-            );
+            ));
         } else {
             let rel = spec_file.strip_prefix(root).unwrap_or(spec_file).display();
             match crate::util::write_project_file(root, spec_file, new_content.as_bytes()) {
                 Ok(()) => {
                     fixed_count += 1;
-                    println!(
+                    report(format!(
                         "  {} {rel}: added {} export(s)",
                         "✓".green(),
                         undocumented.len()
-                    );
+                    ));
                 }
                 // The one outcome `--fix` must never hide. Discarding this error
                 // meant a read-only spec produced exit 0 and a clean report,

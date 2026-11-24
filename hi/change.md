@@ -39,6 +39,8 @@ CHANGE-15, CHANGE-15.a, CHANGE-15.b and CHANGE-15.c were drafted by an agent for
 
 CHANGE-15.d was drafted by the agent for PR #1100 (#1091), after Leif chose on 2026-11-19 at about 14:14Z to add an optional `fix` field to the dry run, filled by the code that writes the command into each message. He approved it with the wording of that field, shown to him as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:32Z: "all as recommended, builder runs the send-back". It is the agent's wording, which he chose with those words; he did not write it. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
 
+CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for issue #428, from Leif's choice on 2026-11-13 at about 04:04Z, "Every committed version": finalize, ship and archive refuse a change whose `approvals.json` is uncommitted or differs from `HEAD`, or where any committed version fails to extend the one before it. Leif approved the definition that carries them, with these four sentences marked as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:17Z: "Approve as written". They are the agent's wording, which he chose with those words; he did not write them. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
 CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync agent (hc t4t) for issue #1081 (a change in CorvidLabs/starling silently deleted 28 requirements) and approved by Leif in a Claude Code chat with his planning session hc t4c on 2026-11-19 at about 14:17Z, relayed through ss-lead hc t58: "Approve as written", on the frozen definition in ss-lead/gates/1081-definition.md, where these sentences were marked as the agent's draft.
 
 ## Criteria
@@ -99,6 +101,11 @@ CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync
   - **CHANGE-15.b**  One run tells me the first problem from each check, and which checks it could not run yet.
   - **CHANGE-15.c**  Another tool can read the answer, one entry per refusal.
   - **CHANGE-15.d**  When a refusal names a command that fixes it, another tool gets that command on its own, and is told when it still has a blank to fill in.
+- **CHANGE-16**  A change is archived only with approvals that Git history holds.
+  - **CHANGE-16.a**  An approval edited after its commit, or never committed, stops the archive, and I am told how to put it back.
+  - **CHANGE-16.b**  A commit that rewrites or drops an earlier approval, reopening or send-back stops the archive, and I am told which commit did it.
+  - **CHANGE-16.c**  What the tool itself writes to that file never stops it: a reopen, a send-back and fresh approval, a repaired relay, a migration's backfill.
+
 - **CHANGE-17**  A change never deletes a requirement nobody agreed to remove.
   - **CHANGE-17.a**  Checking, verifying or shipping a change on a branch that lost a requirement without an approved removal stops, and names every lost requirement.
   - **CHANGE-17.b**  The project health check (audit) reports the same loss.

@@ -4409,7 +4409,9 @@ fn a_send_back_needs_a_fresh_review_even_when_the_scope_comes_back_unchanged() {
         "the scope needs another look",
     ]);
     run(&["change", "approve", &id, "--actor", "Scope owner"]);
-    run(&["change", "check", &id]);
+    // Committed with the check, as the lifecycle does: finalize archives only approvals that Git
+    // history holds (REQ-change-166).
+    run(&["change", "check", &id, "--commit"]);
 
     let status: Value = serde_json::from_str(&run(&["--json", "change", "status", &id])).unwrap();
     assert_eq!(status["summary"]["approval_valid"], true, "{status}");

@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+  "slug": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+  "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+  "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+  "kind": "feature",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "cf28b4c5052afb72ce01454a353d2e99c83b3222",
+  "created_at": 1795098307,
+  "updated_at": 1795478932,
+  "affected_specs": [
+    "change",
+    "cmd_change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/validate_loaded_change.rs",
+    "src/change_tests.rs",
+    "src/change_tests/committed_approvals.rs",
+    "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+    "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+    "src/change_tests/recorded_review_recovery.rs",
+    "src/commands/change.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "specs/cmd_change/",
+    "site/src/content/docs/",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+    "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a ledger deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know. A whole workspace deleted and created again is refused before that, by the workflow-version history.",
+    "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed in an approval, as `change repair-relays` does, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know. A relay restored or removed in the approval a reopening embeds still finalizes too.",
+    "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+    "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it.",
+    "The usual flow, approve, `check --commit`, review and finalize, archives as before."
+  ],
+  "selected_artifacts": [
+    "context",
+    "requirements",
+    "plan",
+    "tasks",
+    "testing",
+    "docs",
+    "design",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+    "public_contract": "yes"
+  }
+}

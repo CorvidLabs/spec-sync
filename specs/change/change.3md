@@ -801,7 +801,6 @@ A stale MODIFIED delta used to cost a hand rebase and a fresh human approval eve
 
 Use the delta parser’s item ranges when writing a proposal. The semantic grammar accepts case-insensitive item markers and keeps ordinary subheadings inside their item. Refinding the item with a generic Markdown heading scan can refuse a valid heading or leave part of the old body in place. Preserve the heading, separators, and sibling items verbatim.
 
-
 @plane z=63 label="Preserve Git names and record the refusal (#1108)"
 Use the bounded raw Git reader for paths and historical blobs. A leading space belongs to a path, and Markdown uses indentation to tell a code example from a fence. Remove only Git's terminating newline from the project prefix. On acceptance, check for a lost requirement before the workspace digest can reduce its deletion to a generic stale-evidence error. Record the refusal under the lifecycle lock when it stops acceptance, an active finalize retry, or a real ship preflight. Audit, status, and dry-run readers use the same check without appending attempts.
 
@@ -820,23 +819,32 @@ Moving an approved package into the archive leaves new paths outside the index u
 @plane z=68 label="Distinguish loss history from proposal history (#1089)"
 The loss check reads every retained requirement at the merge-base. A stale-delta proposal can also need an older approval-time body. Keeping one Git object readable while removing the other makes the CI and interactive guarantees independently testable.
 
-@plane z=69 label="Approval currency for shared inputs (#657)"
+@plane z=69 label="Fenced headings in canonical delta blocks (#1050)"
+Canonical delta matching uses the parser's byte-preserving fenced-code blanker. A heading in a fenced example can neither start nor end the target block. Use the resulting offsets to read, compare, and rewrite the original Markdown so the real block keeps its existing heading and neighboring examples keep their bytes.
+
+@plane z=70 label="Share the fence rules for canonical deltas (#1144)"
+The first fence-aware matcher used a copy with fenced lines blanked. The review found that the general blanker and the requirement reader classify backticks in a fence info string differently. Canonical delta matching now uses the requirement reader's CommonMark recognizer for both target types and tracks byte offsets into the original file. Cover both already-applied checks whenever changing block discovery, since replay uses the same range.
+
+@plane z=71 label="Recognizing a reopened archive after a remote rename"
+A reopen moves the package out of the archive. The remote default can later rename its copy. Check whether this exact state blob occupied an archive package’s state.json in HEAD history. The same bytes in a backup or nested notes directory do not establish that the branch held the archive.
+
+@plane z=72 label="Approval currency for shared inputs (#657)"
 A later change can cover a shared input only while its approved scope still validates. The sequence ledger uses the same restriction on provisional successors as other delivery inputs. A historical transition recorded as unproven keeps its warning under provisional coverage.
 
-@plane z=70 label="Archive refusals for deleted inputs (#688)"
+@plane z=73 label="Archive refusals for deleted inputs (#688)"
 The input validator carries the signed path and failed owners into the archive refusal. This lets archive identify the later delivery that deleted a file even when the original error names only its exact owner or its disappearance.
 
-@plane z=71 label="Explicit succession after temporary coverage (#657)"
+@plane z=74 label="Explicit succession after temporary coverage (#657)"
 The coverage receipt records which change was working on a path. To clear its warning after acceptance, check the recorded change against the predecessor’s signed input and succession obligation. The archive’s own evidence stays historical. A path can have several signed owners. Each owner needs coverage, and the recorded change must account for at least one. Recheck its approval while it remains active. When that change covers all owners directly, the status can be decided without opening unrelated archives. When successors split an input’s owners, evaluate each successor in its own state. An accepted owner can supply explicit succession while the other owner still has current provisional approval.
 
-@plane z=72 label="Retire one archive generation’s coverage receipt"
+@plane z=75 label="Retire one archive generation’s coverage receipt"
 After moving an archived package back to the active workspace, publish the reopen state and retire its old generated coverage receipt through one journal. Only the unchanged committed receipt can be retired automatically. A refused publish restores the original when the receipt is missing and preserves a replacement at its path. The next archive computes its own coverage. A present invalid receipt is an advisory diagnostic and never determines terminal archive authentication.
 
-@plane z=73 label="Bounded reads during terminal evidence recovery (#1104)"
+@plane z=76 label="Read coverage from the committed archive generation (#1132)"
+A covering change can still validate after somebody edits the receipt to name it. Check the receipt against its own archive generation before validating any coverers. A staged or working-tree edit, a later committed replacement, or a receipt copied from a superseded generation carries no coverage and stays advisory. Reopen preserves those bytes. A shallow boundary cannot prove that an existing package was introduced there. Status and audit still decide the archive's terminal evidence independently.
+
+@plane z=77 label="Bounded reads during terminal evidence recovery (#1104)"
 When the full roster fails validation, the per-change scan reads archive directories, state files and retirement receipts through the same confined helpers. Each individual read failure retains its path and the owning change.
 
-@plane z=74 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
+@plane z=78 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
 An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.
-
-@plane z=75 label="Read coverage from the committed archive generation (#1132)"
-A covering change can still validate after somebody edits the receipt to name it. Check the receipt against its own archive generation before validating any coverers. A staged or working-tree edit, a later committed replacement, or a receipt copied from a superseded generation carries no coverage and stays advisory. Reopen preserves those bytes. A shallow boundary cannot prove that an existing package was introduced there. Status and audit still decide the archive's terminal evidence independently.

@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "close-fenced-delta-replay-review-findings",
+  "slug": "close-fenced-delta-replay-review-findings",
+  "title": "Close fenced delta replay review findings",
+  "description": "Close fenced delta replay review findings",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "4df769d3130d17c39ead061077400b784bce2d13",
+  "created_at": 1795406583,
+  "updated_at": 1795480493,
+  "affected_specs": [
+    "change",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/change/collect_requirement_ids.rs",
+    "src/change_tests/fenced_requirement_example_delta.rs",
+    "src/validator/requirement_ids.rs",
+    "specs/validator/validator.spec.md",
+    "specs/change/change.3md",
+    "specs/change/tasks.md",
+    "specs/change/testing.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "The materializer adopts the existing requirement reader fence rules and tests the existing replay contract. The reader behavior and normative requirements stay the same.",
+  "acceptance_criteria": [
+    "The existing requirement reader and the canonical materializer apply the same fence rules. A malformed backtick opener leaves both requirement and spec section headings visible. Valid fenced examples leave the intended block boundaries intact.",
+    "Already-applied checks accept a removal when only a fenced example remains and a modification when the canonical block already carries the new body."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Keep one fence recognizer, preserve original byte ranges and headings, and retain approved archive evidence.",
+    "public_contract": "no"
+  }
+}

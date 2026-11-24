@@ -94,3 +94,5 @@ Per-module role sign-offs were not collected. Release approval is governed by di
 - [x] Archive-first CI: match the `Archive` check exactly in `is_trust_relevant_check_name` and record REQ-github-023
 
 - [x] Add maintained Mermaid parsing and source-backed lifecycle correspondence checks with negative controls; correct reference documentation against audited command/source evidence (REQ-github-027, DOCS-4/DOCS-5/DOCS-5.a).
+
+- [x] Give CI and Trust Archive jobs the default branch history before the local gate runs (#965).

@@ -40,6 +40,7 @@ include!("change_tests/historical_reconciliation.rs");
 include!("change_tests/approval_dry_run.rs");
 
 include!("change_tests/fast_archived_reads.rs");
+include!("change_tests/literal_guidance.rs");
 include!("change_tests/upstream_archive.rs");
 
 include!("change_tests/fast_finalize.rs");
@@ -57,6 +58,7 @@ include!("change_tests/doctor_collision.rs");
 include!("change_tests/recovery_retirement.rs");
 include!("change_tests/transaction_journal_error.rs");
 include!("change_tests/titled_requirement_header_delta.rs");
+include!("change_tests/fenced_requirement_example_delta.rs");
 include!("change_tests/bounded_failure_output.rs");
 include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");

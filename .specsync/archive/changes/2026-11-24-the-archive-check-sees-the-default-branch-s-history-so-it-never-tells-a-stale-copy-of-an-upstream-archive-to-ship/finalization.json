@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-archive-check-sees-the-default-branch-s-history-so-it-never-tells-a-stale-copy-of-an-upstream-archive-to-ship",
+  "implementation_commit": "122d5bf29cb90ff4c5c11c2059faebbcf51e6fed",
+  "implementation_tree": "961291c63c6fc1e77001efbea6ce122cd9f4f6c5",
+  "contract_digest": "567e0ad963365bd7352115413d68524a4c86fb2bdf86a3041366cdc1be890814",
+  "workspace_digest": "efed4492e5a9d5d8ae62457103055bfeff60870ec9d586d83b3d026c45cd2396",
+  "closing_digest": "f91f1cf42d89b30fe298f1fa35ecd00c1dbcd32c7a571ae4252ac0f475d0ee17",
+  "review_digest": "32e0f90b29e709e1949b1686f353606f5638dc15624507e5502c62782ffb1f3b",
+  "finalization_digest": "3dc47589eae26d1f99116cec537ccca88136703b644077cfb82bdbd8a6bc97ac",
+  "timestamp": 1795479903
+}

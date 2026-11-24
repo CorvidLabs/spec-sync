@@ -251,6 +251,35 @@ fn an_unreadable_cutoff_archive_tree_is_an_error_not_an_absent_change() {
     );
 }
 
+// #990 (SPEED-1.a.3, REQ-change-145): the fallback probe for a cutoff without an archive root
+// passes the archive root as a literal top-level pathspec. A project in a directory whose name
+// begins with pathspec magic, such as `:(exclude)app`, must still get an answer rather than "could
+// not be read". The project is built as `app` and renamed in a commit, so only the probe meets the
+// magic name.
+#[test]
+fn a_cutoff_without_an_archive_root_is_not_unreadable_for_a_pathspec_magic_project_directory() {
+    let (temp, app) = subdirectory_project_named("app");
+    let record = completed_no_spec_record(&app);
+    let repository = temp.path();
+    fs::rename(repository.join("app"), repository.join(":(exclude)app")).unwrap();
+    quiet_git(repository, &["add", "--all"]);
+    quiet_git(repository, &["commit", "-q", "-m", "move the project under a magic name"]);
+    let root = repository.join(":(exclude)app");
+    let cutoff = quiet_git(repository, &["rev-parse", "HEAD"]);
+    let probe = std::process::Command::new("git")
+        .args(["cat-file", "-e", &format!("{cutoff}::(exclude)app/{ARCHIVE_PATH}")])
+        .current_dir(repository)
+        .output()
+        .unwrap();
+    assert!(!probe.status.success(), "the cutoff must have no archive root");
+
+    let answer = workflow_v1_record_present_in_cutoff_tree(&root, &record, &cutoff);
+    assert!(
+        answer.is_ok(),
+        "a cutoff without an archive root answered {answer:?}"
+    );
+}
+
 // #940 (SPEED-1.a.2, REQ-change-146): `find_change_dir` identifies an archive by the id its
 // state declares, not by its directory name. A workflow-v1 archive moved before the cutoff to a
 // directory that does not end in `-<id>` was accepted by the history walk, so the cutoff-tree
@@ -1939,6 +1968,25 @@ fn an_overflowing_limit_inside_an_outer_deadline_means_no_deadline() {
         );
     }
     assert!(read_deadline_passed(), "the outer deadline comes back when the inner guard drops");
+}
+
+// #1074. The reachable-history probe for the workflow-v2 baseline passes the baseline as a literal
+// top-level pathspec. In a project directory named like pathspec magic, `:(exclude)app/...` read as
+// an exclude, matched every other commit, and reported a baseline that was never committed as
+// deleted.
+#[test]
+fn a_never_committed_baseline_is_not_read_as_deleted_in_a_pathspec_magic_project_directory() {
+    let (temp, _root) = subdirectory_project_named(":(exclude)app");
+    let root = temp.path().join(":(exclude)app");
+    assert_eq!(
+        workflow_v2_baseline_exists_in_reachable_history(&root),
+        Ok(false),
+        "no commit ever added the baseline"
+    );
+    assert!(
+        read_workflow_v2_baseline(&root).is_ok_and(|baseline| baseline.is_none()),
+        "a missing, never-committed baseline is absent, not deleted"
+    );
 }
 
 /// Verifies REQ-change-164. A tarball of a working copy carries its `.git`, so passing verdicts

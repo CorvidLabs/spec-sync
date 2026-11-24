@@ -123,6 +123,10 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+- [x] Skip fenced headings when locating or ending a canonical delta block (#1050, REQ-change-152).
+- [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
+
+- [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).
 - [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
 - [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).

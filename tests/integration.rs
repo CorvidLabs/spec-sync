@@ -157,6 +157,9 @@ mod repository_inputs;
 #[path = "integration/hardening_641.rs"]
 mod hardening_641;
 
+#[path = "integration/ship_status_reopen_and_resume.rs"]
+mod ship_status_reopen_and_resume;
+
 #[path = "integration/rebase_stale_delta.rs"]
 mod rebase_stale_delta;
 

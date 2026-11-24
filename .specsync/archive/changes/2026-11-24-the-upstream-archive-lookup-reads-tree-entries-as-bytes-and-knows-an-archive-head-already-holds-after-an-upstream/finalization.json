@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-upstream-archive-lookup-reads-tree-entries-as-bytes-and-knows-an-archive-head-already-holds-after-an-upstream",
+  "implementation_commit": "eb48442400078c690fe1db01806ce7ab7835e6cb",
+  "implementation_tree": "f25903a7f0d2b8ee9983ab7282ffcaa81c92fe23",
+  "contract_digest": "09582d29a6220ef2f3c82fecfc7dcbfbb44873fd9eba873e1a2244f38ddb80e6",
+  "workspace_digest": "efed4492e5a9d5d8ae62457103055bfeff60870ec9d586d83b3d026c45cd2396",
+  "closing_digest": "3d4921cd5faede433bd4c4f32b04d45c40ffb4869fa2530325400bfbc58ef3bc",
+  "review_digest": "a9880ca75b302fbc1c4c910d0e68633220da6b0ef461920dff2e0a4cf5faaec7",
+  "finalization_digest": "469b634b557653a4cc6a1bd2d10d44bd000a9d9fead85266c1810258082936f5",
+  "timestamp": 1795479946
+}

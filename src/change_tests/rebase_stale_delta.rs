@@ -835,29 +835,73 @@ fn a_word_one_side_deleted_that_the_other_uses_elsewhere_still_merges() {
     assert_eq!(merge_words("a w b c", "a b c", "a b w c"), None);
 }
 
-/// Codex's third review of #1089 (P1 at main_side's caller), as ss-lead narrowed it: with a default
-/// branch, an applied item whose main text Git cannot read is refused, never read as "main did
-/// not edit it". Without a default branch an applied item materializes as before.
-#[test]
-fn an_applied_item_whose_main_text_git_cannot_read_is_refused_only_with_a_default_branch() {
-    let temp = TempDir::new().unwrap();
-    let root = temp.path();
+fn materialized_proposal_fixture(root: &Path) -> ChangeRecord {
     let record = approved_repository_with_origin(root, REBASE_DELTA);
     let git = git_in(root);
-    git(&["checkout", "-q", "-b", "change"]);
+    git(&["switch", "-q", "-c", "change"]);
     materialize_change_deltas(root, &record.id).unwrap();
     git(&["add", "--all"]);
     git(&["commit", "-qm", "materialize"]);
+    record
+}
+
+/// The loss guard still needs the reference file for an already materialized change.
+#[test]
+fn an_applied_item_with_an_unreadable_loss_baseline_cannot_be_checked() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = materialized_proposal_fixture(root);
     let blob = rev(root, "origin/main:specs/auth/requirements.md");
-    fs::remove_file(root.join(".git/objects").join(&blob[..2]).join(&blob[2..])).unwrap();
+    remove_loose_object(root, &blob);
     let ledger = ledger_bytes(root, &record);
+    let delta = fs::read(delta_path(root, &record, "auth")).unwrap();
 
     let error = materialize_change_deltas(root, &record.id).unwrap_err();
 
-    assert!(error.contains("REQ-auth-001") && error.contains("cannot be read from Git"), "{error}");
+    assert!(
+        error.contains("cannot tell whether this branch lost canonical requirements")
+            && error.contains("specs/auth/requirements.md")
+            && error.contains("git fetch origin"),
+        "{error}"
+    );
     assert_eq!(ledger_bytes(root, &record), ledger);
+    assert_eq!(fs::read(delta_path(root, &record, "auth")).unwrap(), delta);
+}
 
-    // No default branch: the applied item is not main's edit to merge, exactly as before.
+/// A readable merge base is sufficient for the loss check. An older approval-time body is
+/// still needed by the proposal guard in an interactive run.
+#[test]
+fn an_applied_item_with_an_unreadable_proposal_base_cannot_be_proposed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = materialized_proposal_fixture(root);
+    let approval_blob = rev(root, "origin/main:specs/auth/requirements.md");
+    let git = git_in(root);
+    git(&["switch", "-q", "main"]);
+    edit_requirements(root, "after one day.", "after twelve hours.");
+    git(&["commit", "-qam", "main edits REQ-auth-001"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["switch", "-q", "change"]);
+    git(&["merge", "-q", "-s", "ours", "--no-edit", "origin/main"]);
+    remove_loose_object(root, &approval_blob);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+    let ledger = ledger_bytes(root, &record);
+    let delta = fs::read(delta_path(root, &record, "auth")).unwrap();
+    let requirements = fs::read(requirements_path(root)).unwrap();
+
+    let error = materialize_change_deltas(root, &record.id).unwrap_err();
+
+    assert!(
+        error.contains("REQ-auth-001") && error.contains("main's text cannot be read from Git"),
+        "{error}"
+    );
+    assert_eq!(ledger_bytes(root, &record), ledger);
+    assert_eq!(fs::read(delta_path(root, &record, "auth")).unwrap(), delta);
+    assert_eq!(fs::read(requirements_path(root)).unwrap(), requirements);
+}
+
+#[test]
+fn an_applied_item_without_a_default_branch_keeps_its_delta() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let record = approved_repository_with_origin(root, REBASE_DELTA);

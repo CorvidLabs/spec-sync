@@ -38,3 +38,6 @@ The validation snapshot replays a stored verdict when its inputs are unchanged. 
 - Treat every path under the project as input its author chose, including the ones this tool writes itself. Open the directory without following a link, work through that handle, create the new file exclusively and rename it over the old name. A path check followed by a path write leaves the window the check was for.
 - Refuse a linked cache, do not repair it. Renaming a regular file over the link would be safe, and it would hide a planted link and change a tracked file without a word.
 - Test a writer through every command that calls it. `check` ends at source discovery on a linked `.specsync`, so only `rehash` reached that write.
+
+@plane z=7 label="A new finding needs its input in the cached verdict (#1163)"
+#1060 taught `check` to report a lesson file it cannot parse, and the hash cache did not know the file. A plain `check` after a clean run skipped the spec as unchanged and replayed the clean verdict, so the new warning showed only under `--force` or `--strict`. When a validator starts reading a file, add that file to the spec's cached inputs in the same change: its name, its bytes and, where the finding depends on it, its kind. Test it with two plain runs around the edit, not with `--force`.

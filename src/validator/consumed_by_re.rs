@@ -2271,14 +2271,28 @@ fn validate_spec_content_internal(
         result.errors.extend(history_errors);
         // #1060 (REQ-cmd-check-023): a lesson file that does not parse is reported, never silently
         // ignored. Lifecycle reads still fall back to `context.md` and never fail (REQ-change-106).
+        // The file is the one the lifecycle reads: `<module>.3md` named for the spec's module,
+        // whatever the spec file is called. A module that is not one plain file name names no
+        // file here, and the spec file's own name stands in, as it does without a module.
+        let named = fm.module.as_deref().filter(|name| {
+            let mut parts = Path::new(name).components();
+            matches!(
+                (parts.next(), parts.next()),
+                (Some(std::path::Component::Normal(_)), None)
+            )
+        });
         if let Some(dir) = spec_path.parent()
-            && let Some(module) = spec_path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .and_then(|name| name.strip_suffix(".spec.md"))
+            && let Some(module) = named.or_else(|| {
+                spec_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(|name| name.strip_suffix(".spec.md"))
+            })
         {
             let layers = dir.join(format!("{module}.3md"));
-            if layers.is_file() {
+            // Any entry of that name, not only a regular file: the bounded read refuses a
+            // directory, and the refusal is the report. The entry itself is not followed.
+            if fs::symlink_metadata(&layers).is_ok() {
                 let shown = |path: &Path| {
                     path.strip_prefix(root)
                         .unwrap_or(path)

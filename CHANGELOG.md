@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `specsync check` warns on a module's `<module>.3md` lesson file that does not parse or that it cannot read, such as one over the 8 MiB read bound, naming the file, the error and that `context.md` is used instead, so `check --strict` fails on it; lifecycle commands still fall back and never fail. The change briefing falls back to `context.md` without naming the file it skipped; naming it there is not part of this change (#1060).
+- `specsync check` warns on a module's `<module>.3md` lesson file that does not parse or that it cannot read, such as one over the 8 MiB read bound, naming the file, the error and that `context.md` is used instead, so `check --strict` fails on it, as does a strict lifecycle check (`change check --strict`); reading a module's lessons still falls back to `context.md` and never fails a lifecycle command. The file checked is the one named for the spec's module, an entry of that name that is not a regular file is reported too, and a plain `check` reports it after an earlier clean run because every `.3md` beside a spec is now an input of its cached verdict. The change briefing falls back to `context.md` without naming the file it skipped; naming it there is not part of this change (#1060).
 
 ### Fixed
 

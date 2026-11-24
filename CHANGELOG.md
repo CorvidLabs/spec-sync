@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [6.4.2]
+## [6.4.2] - 2026-11-24
 
 ### Added
 
@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The lost-requirements check reads, at the commit it compares with, only the requirements files that were canonical there: a branch that registers a spec beside, or moves `specs_dir` onto, a `requirements.md` that already existed is no longer refused for that file's old ids (REQ-change-175, #1112).
 - `change audit` reports a branch's lost requirements for an active change whose approval or delta does not validate, beside that change's own error, and `change ship-status` no longer lists the loss as a blocker for an archived or retired change, which cannot take its way out (REQ-change-176, REQ-cmd-change-045, #1113, #1116).
 - A requirements directory or file the lost-requirements check cannot read, for example for lack of permission, is named ("cannot tell whether this branch lost canonical requirements: cannot read <path>: <error>; make it readable, then run `specsync change check <id>` again") instead of the requirements it may hold being reported lost (REQ-change-177, #1117).
+- After the last change is archived, `specsync change audit` and `specsync check --strict` report a canonical requirement that a branch lost without an approved `## REMOVED` delta. Each names the requirement, its original file and the `git show` command that displays the block. A branch that disables or deletes `.specsync/sdd.json` is still compared while its comparison base has SDD enabled (REQ-change-archived-requirement-loss-001, REQ-cmd-check-004, #1105).
 
 ## [6.4.1] - 2026-11-21
 

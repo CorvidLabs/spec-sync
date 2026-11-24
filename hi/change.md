@@ -43,6 +43,8 @@ CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for
 
 CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync agent (hc t4t) for issue #1081 (a change in CorvidLabs/starling silently deleted 28 requirements) and approved by Leif in a Claude Code chat with his planning session hc t4c on 2026-11-19 at about 14:17Z, relayed through ss-lead hc t58: "Approve as written", on the frozen definition in ss-lead/gates/1081-definition.md, where these sentences were marked as the agent's draft.
 
+CHANGE-17.d records the SpecSync maintainer’s answer in the #1105 interview when asked which commands should report the unexplained loss of a canonical requirement after the last change was archived. The criterion preserves the maintainer’s exact answer.
+
 ## Criteria
 
 - **CHANGE-1**  I can open a change from a plain sentence describing what I mean to do.
@@ -110,6 +112,7 @@ CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync
   - **CHANGE-17.a**  Checking, verifying or shipping a change on a branch that lost a requirement without an approved removal stops, and names every lost requirement.
   - **CHANGE-17.b**  The project health check (audit) reports the same loss.
   - **CHANGE-17.c**  The message tells me how to put each requirement back, or how to remove it on purpose.
+  - **CHANGE-17.d**  Both `change audit` and `check --strict`, so projects running either command catch the loss
 
 ## Retired
 

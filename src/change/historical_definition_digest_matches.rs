@@ -5576,6 +5576,23 @@ fn policy_at_comparison_base(root: &Path) -> Result<Option<SddPolicy>, String> {
         .map_err(|error| format!("invalid trusted SDD policy `{object}`: {error}"))
 }
 
+/// Whether SDD governs this branch for the project-level comparison `check --strict` shares with
+/// `change audit` (REQ-cmd-check-004, REQ-change-archived-requirement-loss-001): the policy is
+/// enabled in the working tree, or at the trusted comparison base `change audit` reads it from.
+/// A branch does not leave the comparison by disabling or deleting its own policy (Codex on
+/// #1149).
+///
+/// A base policy that cannot be read answers `false`. The comparison needs the same default ref,
+/// so nothing it could have compared is skipped, and a project that never enabled SDD keeps its
+/// result in a checkout without that ref. `change audit` reports the unreadable base itself.
+pub(crate) fn sdd_enabled_here_or_at_comparison_base(root: &Path) -> bool {
+    if load_policy(root).is_some_and(|policy| policy.enabled) {
+        return true;
+    }
+    crate::git_utils::is_git_repo(root)
+        && policy_at_comparison_base(root).is_ok_and(|policy| policy.is_some_and(|policy| policy.enabled))
+}
+
 /// Full lifecycle integrity including archived terminal evidence.
 ///
 /// Product defaults (`change check`, `change audit`, `specsync check`) use
@@ -5934,6 +5951,13 @@ fn check_project_with_command_output(
             errors: vec![error],
             ..SddCheckReport::default()
         };
+    }
+    if records.is_empty() {
+        match project_lost_requirements(root, "specsync change audit") {
+            Ok(Some(note)) => report.warnings.push(note),
+            Ok(None) => {}
+            Err(error) => report.errors.push(error),
+        }
     }
     // Issue #825: an invalid `verification_ignored_paths` list is an invalid policy, and an entry
     // overlapping an active change's declared paths refuses that change (REQ-change-115).

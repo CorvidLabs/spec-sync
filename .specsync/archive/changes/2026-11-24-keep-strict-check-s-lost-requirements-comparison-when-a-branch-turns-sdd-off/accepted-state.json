@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
+  "slug": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
+  "title": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
+  "description": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
+  "kind": "bug_fix",
+  "state": "accepted",
+  "canonical_applied": true,
+  "base_commit": "2e2ddab1af06a6b8e877a3efd6fb40801786a2fc",
+  "created_at": 1795495567,
+  "updated_at": 1795531456,
+  "affected_specs": [
+    "cmd_check",
+    "change"
+  ],
+  "affected_paths": [
+    "src/commands/check.rs",
+    "src/change/historical_definition_digest_matches.rs",
+    "tests/integration/vanished_requirements.rs",
+    "specs/cmd_check/",
+    "specs/change/"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "On a branch whose trusted comparison base has SDD enabled, `check --strict` refuses an unexplained loss of a canonical requirement and names it when the branch sets `enabled` to false or deletes `.specsync/sdd.json`, committed or not, as `change audit --strict` does. A project whose comparison base never enabled SDD, or has it disabled there, keeps drift-only strict check."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Read the policy the way `change audit` already does, from the trusted comparison base, and bring nothing else of the lifecycle audit into `check` (REQ-cmd-check-004). Keep plain `check`, and a project whose comparison base never enabled SDD or has it disabled, on the drift-only path. Leave the selection, removal accounting and bounded reads of REQ-change-169 as they are.",
+    "public_contract": "yes"
+  }
+}

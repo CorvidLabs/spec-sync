@@ -124,6 +124,25 @@
         "REQ-change-reopened-coverage-receipt-001",
         "REQ-cmd-change-archived-coverage-diagnostics-001"
       ]
+    },
+    {
+      "timestamp": 1795479812,
+      "commit": "fe52a29070c271de054114ed8ded5c92f55db592",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a459a193f5fdbc5cc7063f9d1440084267cc759c9769136053b3df3481fa70de",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
     }
   ]
 }

@@ -383,6 +383,8 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
 - `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.
 
+The upstream archive tests exercise a reopened package after a remote rename, matching and unrelated non-UTF-8 directory names, and copies of a remote-only record under backup and nested paths. Only a package’s own state.json establishes local archive history. The two non-UTF-8 package tests also run with `core.quotePath=false`, where Git can write raw path bytes to its commit summary.
+
 ## Lost-requirement refusals (REQ-change-169)
 
 - The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.

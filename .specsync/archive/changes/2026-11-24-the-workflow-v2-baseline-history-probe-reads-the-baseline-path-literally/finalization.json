@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-workflow-v2-baseline-history-probe-reads-the-baseline-path-literally",
+  "implementation_commit": "a016fc772ce37bceb7befa72378c503cb6070845",
+  "implementation_tree": "f6269cabf2973e0a5db8bbf276a3678e65f2782b",
+  "contract_digest": "917db1e001a0d1a04179f1e1c295b5155e5044dbdc21b38b625e03e6b33fb213",
+  "workspace_digest": "38868ad8526a3b885c24888b8efc5382b112885e1a22610a8294b4f367ff4dd6",
+  "closing_digest": "5e976a38663f068ff242214372284112dee7ef79549bb3df22a8470cebffa4ab",
+  "review_digest": "5518017dc5b097f82569d9f089d482fac59a7041fbfe6ef51111fa54c120c21d",
+  "finalization_digest": "187f1dbd8ec2e36f7c481ad48265a16b5e2fa26e89a38b2d33a28fa7a6ed20bf",
+  "timestamp": 1795481692
+}

@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-cutoff-archive-root-probe-reads-the-archive-root-as-a-literal-path",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "6eab8fb4b71503348a3d1113d9ed50a791714907",
+      "contract_digest": "46c91152d70ac77f00d285cfc71cab0178335c83d4cbef07d08b5581ede63b49",
+      "execution_digest": "90bf7ea5b4bca766f2669d1d9457c189dd2107ab7bd43c301c91e097e28904b8",
+      "workspace_digest": "38868ad8526a3b885c24888b8efc5382b112885e1a22610a8294b4f367ff4dd6",
+      "timestamp": 1795481600,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "Maintainer response in the SpecSync 6.4.2 release conversation on 2026-11-23, after inspection of the remaining PRs and the linked evidence.",
+        "recorded_by": "Codex"
+      }
+    }
+  ]
+}

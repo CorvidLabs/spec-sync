@@ -52,6 +52,13 @@
         "where": "Codex SpecSync working thread, 2026-11-23 America/Denver, responding to the three presented scopes including #1105 draft e2ec233b; relayed by the lead coordinator",
         "recorded_by": "Codex"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795491248,
+      "digest": "ec89698064d3fb7c726093fc4953b5cc53eb0d2b6e6b8bcd5b46cb441bd5f4ed",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

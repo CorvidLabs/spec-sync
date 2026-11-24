@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule",
+  "implementation_commit": "a5b8752e0e73da54800312c00cc2d0e5295c86ce",
+  "implementation_tree": "deb84a3542531dbd6f9f3e64870b184eb02d46e4",
+  "contract_digest": "63870c7547c563c495a4910d35a16ac58ca7aa8d7a0f73f1f21c209cf39325a1",
+  "workspace_digest": "54e8ac90f6f268ffed4ff2caa9311bcad9e35c78a34c3b1d55ebfcf684634114",
+  "closing_digest": "f934b8cb4a1df1c753d060513355f4a4ad4ed81595fcc65aeaf5e40f2f9feec5",
+  "review_digest": "c1e1daee810530aa2e0487881ca1e597e779f0abd3ed3632ee517a88e22e4571",
+  "finalization_digest": "f371317dc31f20a5b039fc081423b47c9480d992b0f36c8b20c0d0d3cfb5ab78",
+  "timestamp": 1795477951
+}

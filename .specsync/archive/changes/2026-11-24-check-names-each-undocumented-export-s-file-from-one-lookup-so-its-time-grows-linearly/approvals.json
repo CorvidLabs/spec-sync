@@ -41,6 +41,13 @@
         "where": "coordinator chat (Claude Code, hc t370), 2026-11-13T14:03Z; relayed first-hand by claude-code-t370 to claude-code-t38p",
         "recorded_by": "claude-code-t38p (Claude Opus 5.5, hc t38p)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795553934,
+      "digest": "1157d362d8a78e338d0ccfe0b84b3263feffc578770802a1b03d6413315088f7",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

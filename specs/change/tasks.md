@@ -131,3 +131,5 @@ spec: change.spec.md
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
 
 - [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).
+
+- [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).

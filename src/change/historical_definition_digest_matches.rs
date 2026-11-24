@@ -5601,12 +5601,11 @@ fn check_project_with_command_output(
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
-            } else if approval.is_ok()
-                && delta_files.is_ok()
-                && let Err(error) = ensure_no_lost_requirements(root, record)
-            {
-                // The refusal `change check` gives a branch that lost a canonical requirement
-                // (#1081, REQ-change-169).
+            }
+            // The refusal `change check` gives a branch that lost a canonical requirement
+            // (#1081, REQ-change-169), asked whatever this change's own checks say: an approval
+            // or delta that cannot be read accounts for no removal (REQ-change-176, #1116).
+            if let Err(error) = ensure_no_lost_requirements(root, record) {
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }

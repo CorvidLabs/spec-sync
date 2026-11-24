@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a",
+  "implementation_commit": "482847b4352f4241abb13c040b8bf723b1f855c5",
+  "implementation_tree": "c49b526213553dab9fe81f3775cec02bd2182792",
+  "contract_digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+  "workspace_digest": "cf2f3e06e1e2f7c934dd73c9d73b51d5d6890121f9ef3ece192e12aa4b96c3fa",
+  "closing_digest": "3e652a1eebcddbc69b7d24a1f9d51f1537bdf358156cf55e57d9862a12df8e94",
+  "review_digest": "7539d4f17dd3ec1dd050cec0feb97cd6308b1044a95e9eca9cfefc2f6dfa9b44",
+  "finalization_digest": "e60f2511731ba0526eb640d38a8c5f20b4ebe423cca438c2505d64bb3cde0238",
+  "timestamp": 1795483145
+}

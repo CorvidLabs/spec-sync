@@ -98,6 +98,13 @@
         "where": "Criterion 2: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to this exact text of criterion 2 on 2026-11-19; these are not his words about this text. tests/integration.rs: his one-time yes, \"yes to all 3\", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)",
         "recorded_by": "claude-code-t59"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795480680,
+      "digest": "1f706efaf09d7f4615154b1f88ae0821e9677a0a1e2bd734070b3bd8f6dfac2a",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

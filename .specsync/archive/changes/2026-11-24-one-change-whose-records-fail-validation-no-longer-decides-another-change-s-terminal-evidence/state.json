@@ -7,11 +7,11 @@
   "title": "One change whose records fail validation no longer decides another change's terminal evidence",
   "description": "one change whose records fail validation no longer decides another change's terminal evidence",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "2cc0897fc00eee7db2b07f5134ba05639af39018",
   "created_at": 1795108933,
-  "updated_at": 1795478589,
+  "updated_at": 1795480685,
   "affected_specs": [
     "change"
   ],

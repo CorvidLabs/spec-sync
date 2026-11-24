@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "close-fenced-delta-replay-review-findings",
+  "implementation_commit": "f036322e293118ef2b02f04cf86293ba73bc2ff2",
+  "implementation_tree": "ab4dad5304a798d3a968cabcf4e2f563290dbcbf",
+  "contract_digest": "21dc348ab2f44294e8df5f6503c57e220c559557aebbf37278c76b5e0049e6a1",
+  "workspace_digest": "76ef0a57b40321b96cf2a45622c0f307f699369c8b7ca090f6a07aeb72695f85",
+  "closing_digest": "b33d3dfb1d2cb54f371ce55d478fdf72e4bdfe5c584f1206ab43c5741b86435f",
+  "review_digest": "8a5f57820272ec7b00f98acda163dcee4fc79d2455c46bbfaf4c047341c5f341",
+  "finalization_digest": "02468460f087db85c14bd7ae6568cb32ac11786f7a29dc14e6c213ddfc94cadd",
+  "timestamp": 1795480489
+}

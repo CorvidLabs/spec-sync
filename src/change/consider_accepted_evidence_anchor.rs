@@ -550,6 +550,7 @@ fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String>
     }
     let dir = tempfile::Builder::new()
         .prefix("specsync-safe-directory-")
+        // not a project file write: the canonical temporary parent is outside the work tree and Git directories.
         .tempdir_in(&parent)
         .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
     let canonical_dir = fs::canonicalize(dir.path()).map_err(|error| error.to_string())?;

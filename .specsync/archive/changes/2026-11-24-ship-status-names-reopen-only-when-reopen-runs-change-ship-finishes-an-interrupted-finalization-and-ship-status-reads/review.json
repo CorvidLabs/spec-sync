@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "ship-status-names-reopen-only-when-reopen-runs-change-ship-finishes-an-interrupted-finalization-and-ship-status-reads",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6ccac2b26d7cd2b4b1b1a576ce26dfc79a4fa572",
+  "contract_digest": "d11433f745603d45a0775bbe5178cd24ffd04d1dc8624b7f82ec2d7572b6176d",
+  "execution_digest": "0404613f1c28c40ccaecd392edde3fa93fe799b50733e5e1d14ba311150fbaa8",
+  "workspace_digest": "c2d55a8a8c1a84ccf6da9bb4459525c968edb7dfdce83d324568995a63a4588e",
+  "timestamp": 1795479694,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+    "where": "0xLeif, SpecSync 6.4.2 coordination session, November 23 2026 Mountain time, relayed by Codex coordinator for PR #1154",
+    "recorded_by": "codex"
+  }
+}

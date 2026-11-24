@@ -1358,16 +1358,39 @@ fn print_change_text_answers(record: &ChangeRecord) {
     println!("  Answers: {answer_summary}");
 }
 
+#[cfg(test)]
+thread_local! {
+    /// How many times this thread evaluated the sequence-ledger freeze (#938).
+    static SEQUENCE_FREEZE_EVALUATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// The project-wide sequence-ledger freeze, counted under test (#938).
+fn sequence_ledger_freeze(root: &Path) -> Option<String> {
+    #[cfg(test)]
+    SEQUENCE_FREEZE_EVALUATIONS.with(|count| count.set(count.get() + 1));
+    change::sequence_ledger_freeze_next_action(root)
+}
+
 /// Human next-step string from interview/state, lightweight artifact completeness, and approval
 /// currency. Nothing digest-bearing reaches the string (CodeQL cleartext-logging): artifacts are
 /// read through `artifacts_complete_for_guidance`, and approval currency arrives as the boolean
 /// `approval_current_for_guidance` returns.
 fn text_mode_next_action(root: &Path, record: &ChangeRecord) -> String {
+    text_mode_next_action_with_freeze(root, record, sequence_ledger_freeze(root))
+}
+
+/// `text_mode_next_action` with the sequence-ledger freeze already evaluated, so a report that
+/// needs it twice reads it once (#938).
+fn text_mode_next_action_with_freeze(
+    root: &Path,
+    record: &ChangeRecord,
+    sequence_freeze: Option<String>,
+) -> String {
     let id = record.id.as_str();
     // A project-wide sequence-ledger freeze blocks every verb, so it comes first, in the same
     // order as JSON status: before the `verification_ignored_paths` repair and the upstream
     // archive (REQ-change-138, REQ-cmd-change-034, #908, #937).
-    if let Some(remediation) = change::sequence_ledger_freeze_next_action(root) {
+    if let Some(remediation) = sequence_freeze {
         return remediation;
     }
     // The same refusal every later verb would give, named before any state-local step
@@ -1471,7 +1494,10 @@ fn ship_status_report_with_lost_requirements(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<(serde_json::Value, Option<String>), String> {
-    let lifecycle_next = text_mode_next_action(root, record);
+    // Evaluated once for the report: the blockers, `ship_next` and the lifecycle next action all
+    // read this value (#938).
+    let sequence_freeze = sequence_ledger_freeze(root);
+    let lifecycle_next = text_mode_next_action_with_freeze(root, record, sequence_freeze.clone());
     let tip = classify_head_tip(root)?;
 
     // Resolve the workspace wherever the change actually lives. Both reads below used
@@ -1556,7 +1582,6 @@ fn ship_status_report_with_lost_requirements(
     }
     // A project-wide sequence-ledger freeze outranks the upstream archive: rebasing does not
     // clear it, so it is the first blocker and the next step, as in `change status` (#908).
-    let sequence_freeze = change::sequence_ledger_freeze_next_action(root);
     if let Some(remediation) = &sequence_freeze {
         blockers.push(remediation.clone());
     }
@@ -1715,6 +1740,26 @@ fn ship_status_report_with_lost_requirements(
         warnings.extend(multi_active_ordering_warnings(&sibling_active_ids));
     }
 
+    // Accepted and archived records need a verdict on their own evidence, as `change reopen`
+    // judges it (#922). A roster error is a blocker, not evidence of currency or staleness.
+    let (own_evidence, evidence_blocker) = match matches!(
+        record.state,
+        ChangeState::Accepted | ChangeState::Archived
+    )
+    .then(|| change::own_accepted_evidence(root, record))
+    {
+        Some(Ok(evidence)) => (Some(evidence), None),
+        Some(Err(reason)) => {
+            let step = format!(
+                "cannot inspect accepted evidence: {reason}. Then run `specsync change ship-status {}`",
+                record.id
+            );
+            blockers.push(step.clone());
+            (None, Some(step))
+        }
+        None => (None, None),
+    };
+
     // #689: readiness is a CONTENT question, not a history one. The rest of this module settled
     // that (see `verification_is_current`); ship-status was the caller that never got the change,
     // so a squash-merged repo could never reach `ready_to_finalize`.
@@ -1724,11 +1769,30 @@ fn ship_status_report_with_lost_requirements(
     // caller that violated it).
     let verification_current =
         change::recorded_verification_is_current(root, record) && verification_work.is_ok();
-    let ready_to_finalize = record.state == ChangeState::Verifying
-        && verification_present
-        && verification_current
-        && review_status.current()
-        && blockers.is_empty();
+    let ready_to_finalize = blockers.is_empty()
+        && match record.state {
+            ChangeState::Verifying => {
+                verification_present && verification_current && review_status.current()
+            }
+            // #933: resuming finalization needs both current delivery inputs and a matching
+            // recorded finalization (REQ-cmd-change-031).
+            ChangeState::Accepted => {
+                own_evidence == Some(change::OwnAcceptedEvidence::Current)
+                    && change::finalization_would_resume(root, record).is_ok()
+            }
+            _ => false,
+        };
+
+    let verification_display = evidence_dir
+        .join("verification.json")
+        .strip_prefix(root)
+        .map(|path| path.display().to_string())
+        .unwrap_or_else(|_| "verification.json".to_string());
+    let own_evidence_step = evidence_blocker.or_else(|| {
+        own_evidence.as_ref().and_then(|evidence| {
+            own_evidence_step(record, evidence, &verification_display, &lifecycle_next)
+        })
+    });
 
     let stages = ship_stages(
         record,
@@ -1738,6 +1802,8 @@ fn ship_status_report_with_lost_requirements(
         verification_current,
         review_status,
         ready_to_finalize,
+        own_evidence.as_ref(),
+        own_evidence_step.as_deref(),
     );
 
     let current_stage = stages
@@ -1764,7 +1830,16 @@ fn ship_status_report_with_lost_requirements(
     {
         // The first blocker names its own way out (REQ-change-166).
         refusal.clone()
-    } else if verification_work.is_err() {
+    } else if let Some(step) = own_evidence_step
+        .as_ref()
+        .filter(|_| open_tasks_step.is_none())
+    {
+        // Open tasks come first; the lifecycle next action below names them (REQ-cmd-change-031).
+        step.clone()
+    } else if verification_work.is_err()
+        && !matches!(record.state, ChangeState::Accepted | ChangeState::Archived)
+    {
+        // `change check` refuses an accepted or archived change (#922, REQ-cmd-change-033).
         format!("run `specsync change check {} --commit`", record.id)
     } else if ready_to_finalize {
         format!("run `specsync change ship {}`", record.id)
@@ -2351,6 +2426,33 @@ fn product_stage_action(record: &ChangeRecord) -> String {
     }
 }
 
+/// The step an accepted or archived change's own accepted evidence asks for, when it asks one:
+/// reopen when it is stale, the restore of `verification.json` when that cannot be read, and the
+/// lifecycle next action, which names the restore, when its history is corrupt (#922).
+fn own_evidence_step(
+    record: &ChangeRecord,
+    evidence: &change::OwnAcceptedEvidence,
+    verification_display: &str,
+    lifecycle_next: &str,
+) -> Option<String> {
+    match evidence {
+        change::OwnAcceptedEvidence::Current => None,
+        change::OwnAcceptedEvidence::Corrupt => Some(lifecycle_next.to_string()),
+        change::OwnAcceptedEvidence::Stale => Some(product_stage_action(record)),
+        change::OwnAcceptedEvidence::ReopenUnavailable(reason) => Some(format!(
+            "reopen is unavailable: {reason}; use a checkout that retains the original implementation history"
+        )),
+        change::OwnAcceptedEvidence::ReopenBlocked(reason) => {
+            Some(format!("reopen is unavailable: {reason}"))
+        }
+        change::OwnAcceptedEvidence::Unreadable(_) => Some(format!(
+            "`{verification_display}` cannot be read; restore it from Git history, then run `specsync change ship-status {}`",
+            record.id
+        )),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn ship_stages(
     record: &ChangeRecord,
     tip: &HeadTip,
@@ -2359,6 +2461,8 @@ fn ship_stages(
     verification_current: bool,
     review: ShipReviewStatus,
     ready_to_finalize: bool,
+    own_evidence: Option<&change::OwnAcceptedEvidence>,
+    own_evidence_step: Option<&str>,
 ) -> Vec<serde_json::Value> {
     let id = record.id.as_str();
     let verified = verification_present && verification_current && verification_commit.is_some();
@@ -2368,12 +2472,13 @@ fn ship_stages(
     // review, finalize, or merge gate applies to a record that was retired
     // without implementation acceptance.
     let retired = record.state == ChangeState::Retired;
+    // An accepted or archived change is done here when its own accepted evidence is current, as
+    // `change reopen` judges it (#922).
     let product_done = retired
-        || (verified
-            && matches!(
-                record.state,
-                ChangeState::Verifying | ChangeState::Accepted | ChangeState::Archived
-            ));
+        || match own_evidence {
+            Some(evidence) => *evidence == change::OwnAcceptedEvidence::Current,
+            None => verified && record.state == ChangeState::Verifying,
+        };
     stages.push(serde_json::json!({
         "id": "product_tip",
         "title": "Product tip (local verification)",
@@ -2383,6 +2488,8 @@ fn ship_stages(
             product_stage_action(record)
         } else if product_done {
             "product verification evidence is current for this content".to_string()
+        } else if let Some(step) = own_evidence_step {
+            step.to_string()
         } else {
             product_stage_action(record)
         },
@@ -4129,6 +4236,8 @@ if the floor call is removed from this function"
                 false,
                 ShipReviewStatus::Missing,
                 false,
+                None,
+                None,
             );
             let product = stages
                 .iter()
@@ -5881,6 +5990,342 @@ if the floor call is removed from this function"
         let report = ship_status_report(root, &record).expect("ship status");
         assert_eq!(report["ready_to_finalize"], false);
         assert_eq!(report["stages"][0]["status"], "current", "{report}");
+    }
+
+    /// An archived fixture: the reviewed change finalized on a feature branch, archive committed.
+    fn archived_change_fixture(root: &Path) -> String {
+        git_project_fixture(root);
+        git_in(root, &["switch", "-c", "feature"]);
+        let id = reviewed_change_fixture(root);
+        change::finalize_change(root, &id).expect("finalize");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "archive"]);
+        id
+    }
+
+    /// A workflow-v2 change accepted in its workspace by a plain `accept_change`, committed: no
+    /// `finalization.json`, so `change finalize` would not resume it.
+    fn accepted_change_fixture(root: &Path) -> String {
+        git_project_fixture(root);
+        let id = approved_change_fixture(root);
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "record verification"]);
+        // Acceptance binds verification to HEAD, so verify the committed tree once more.
+        change::check_change(root, Some(&id)).expect("check the committed tree");
+        change::accept_change(root, &id, None, None).expect("accept");
+        git_in(root, &["add", "--all"]);
+        git_in(root, &["commit", "-q", "-m", "accept"]);
+        id
+    }
+
+    /// Edits `README.md`, the fixture change's own delivery input, and commits it.
+    fn edit_the_changes_own_input(root: &Path) {
+        fs::write(
+            root.join("README.md"),
+            "# fixture\n\nEdited after acceptance.\n",
+        )
+        .unwrap();
+        git_in(root, &["add", "README.md"]);
+        git_in(root, &["commit", "-q", "-m", "edit the change's own input"]);
+    }
+
+    /// #922: told to reopen in the product-tip stage and in `ship_next`, never to run `change
+    /// check`.
+    fn assert_told_to_reopen(report: &serde_json::Value, id: &str) {
+        let reopen = format!("specsync change reopen {id}");
+        let product = &report["stages"][0];
+        assert_eq!(product["id"], "product_tip");
+        assert_eq!(product["status"], "current", "{report}");
+        assert!(
+            product["action"]
+                .as_str()
+                .unwrap_or_default()
+                .contains(&reopen),
+            "{report}"
+        );
+        let next = report["ship_next"].as_str().unwrap_or_default();
+        assert!(
+            next.contains(&reopen) && !next.contains("specsync change check"),
+            "{report}"
+        );
+    }
+
+    /// #922 (REQ-cmd-change-033): an archived change whose own accepted evidence is still current
+    /// is not told to reopen because an unrelated project file moved after it. `change reopen`
+    /// compares the change-scoped inputs, finds them unchanged and refuses.
+    #[test]
+    fn an_archived_change_is_not_told_to_reopen_for_unrelated_project_drift() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = archived_change_fixture(root);
+        fs::write(root.join("NOTES.md"), "unrelated\n").unwrap();
+        git_in(root, &["add", "NOTES.md"]);
+        git_in(root, &["commit", "-q", "-m", "an unrelated file"]);
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        let product = &report["stages"][0];
+        assert_eq!(product["id"], "product_tip");
+        assert!(
+            !product["action"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("change reopen"),
+            "{report}"
+        );
+        assert_eq!(product["status"], "done", "{report}");
+        assert!(
+            !report["ship_next"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("change reopen"),
+            "{report}"
+        );
+        drop(_scope);
+        let refused = change::reopen_change(root, &id, "Owner".into(), "unrelated".into())
+            .expect_err("reopen agrees: nothing of the change's own is stale");
+        assert!(refused.contains("delivery inputs are current"), "{refused}");
+    }
+
+    /// #922, second case: an archived package whose `verification.json` no longer parses makes
+    /// `change reopen` fail at `load_verification`, so the product stage names a restore instead.
+    #[test]
+    fn an_archived_change_with_unreadable_verification_is_not_told_to_reopen() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = archived_change_fixture(root);
+        let archive = change::find_change_dir(root, &id).expect("archive");
+        fs::write(archive.join("verification.json"), "not json\n").unwrap();
+        git_in(root, &["add", "--all"]);
+        git_in(
+            root,
+            &["commit", "-q", "-m", "damage the archived verification"],
+        );
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        let action = report["stages"][0]["action"].as_str().unwrap_or_default();
+        assert!(!action.contains("change reopen"), "{report}");
+        assert!(action.contains("verification.json"), "{report}");
+        let next = report["ship_next"].as_str().unwrap_or_default();
+        assert!(
+            !next.contains("specsync change reopen") && next.contains("verification.json"),
+            "{report}"
+        );
+        drop(_scope);
+        assert!(
+            change::reopen_change(root, &id, "Owner".into(), "unreadable".into()).is_err(),
+            "reopen agrees: it cannot load the evidence"
+        );
+    }
+
+    /// #922: an archived change whose own accepted input changed is told to reopen in the stage
+    /// and in `ship_next`, never to run `change check`, and `change reopen` accepts it.
+    #[test]
+    fn a_stale_archived_change_is_told_to_reopen_never_to_check() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = archived_change_fixture(root);
+        edit_the_changes_own_input(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_told_to_reopen(&report, &id);
+        drop(_scope);
+        change::reopen_change(root, &id, "Owner".into(), "README.md changed".into())
+            .expect("reopen agrees: the change's own evidence is stale");
+    }
+
+    /// #922: the same for an accepted change still in its workspace. On workflow v2 a change is
+    /// accepted only by a finalization, here one that stopped before the archive move.
+    #[test]
+    fn a_stale_accepted_change_is_told_to_reopen_never_to_check() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = interrupted_finalization_fixture(root);
+        edit_the_changes_own_input(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let _scope = change::begin_change_read_scope(root);
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_told_to_reopen(&report, &id);
+        drop(_scope);
+        change::reopen_change(root, &id, "Owner".into(), "README.md changed".into())
+            .expect("reopen agrees: the change's own evidence is stale");
+    }
+
+    /// A reviewed change selecting `tasks.md`, whose finalization stopped between acceptance and
+    /// the archive move (#933).
+    fn interrupted_finalization_fixture(root: &Path) -> String {
+        git_project_fixture(root);
+        let record = change::create_change(
+            root,
+            CreateChangeRequest {
+                description: "Finish an interrupted finalization".into(),
+                kind: ChangeKind::Documentation,
+                affected_specs: Vec::new(),
+                affected_paths: vec!["README.md".into()],
+                requested_artifacts: vec![ArtifactKind::Tasks],
+                no_spec_change: true,
+                rationale: Some("Command test fixture".into()),
+            },
+        )
+        .expect("create draft");
+        let id = record.id.clone();
+        approve_and_implement_fixture(root, &id);
+        let tasks = root.join(".specsync/changes").join(&id).join("tasks.md");
+        fs::write(&tasks, "# Tasks\n\n- [x] Finish the work.\n").unwrap();
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "implement"]);
+        change::check_change(root, Some(&id)).expect("check");
+        git_in(root, &["add", "."]);
+        git_in(root, &["commit", "-q", "-m", "record verification"]);
+        change::record_scoped_review_with_verdict(
+            root,
+            &id,
+            "Independent".into(),
+            change::ScopedReviewVerdict::Pass,
+        )
+        .expect("review");
+        let stopped = change::finalize_change_stopping_after_acceptance(root, &id)
+            .expect_err("the finalization stops after acceptance");
+        assert!(stopped.contains("stopped after acceptance"), "{stopped}");
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Accepted);
+        assert!(
+            root.join(".specsync/changes")
+                .join(&id)
+                .join("finalization.json")
+                .is_file()
+        );
+        id
+    }
+
+    fn ship_json(root: &Path, id: &str) -> Result<(), String> {
+        run_ship(
+            root,
+            Some(id),
+            false,
+            false,
+            false,
+            900,
+            OutputFormat::Json,
+            false,
+        )
+    }
+
+    /// #933 (REQ-cmd-change-031): after a finalization that stopped between acceptance and the
+    /// archive move, ship-status reports the accepted change ready and `change ship` archives it.
+    #[test]
+    fn change_ship_finishes_an_interrupted_finalization() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = interrupted_finalization_fixture(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["ready_to_finalize"], true, "{report}");
+        assert!(
+            report["ship_next"]
+                .as_str()
+                .unwrap_or_default()
+                .contains(&format!("specsync change ship {id}")),
+            "{report}"
+        );
+        ship_json(root, &id).expect("change ship archives it");
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+    }
+
+    /// #933: with a task reopened in that state, `change ship` refuses naming the task and itself,
+    /// and once the task is ticked that named command archives the change.
+    #[test]
+    fn a_task_reopened_after_an_interrupted_finalization_is_named_then_ship_archives() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = interrupted_finalization_fixture(root);
+        let tasks = root.join(".specsync/changes").join(&id).join("tasks.md");
+        fs::write(&tasks, "# Tasks\n\n- [ ] Finish the work.\n").unwrap();
+        let refused = ship_json(root, &id).expect_err("ship refuses the open task");
+        assert!(
+            refused.contains("Finish the work")
+                && refused.contains(&format!("specsync change ship {id}")),
+            "{refused}"
+        );
+        fs::write(&tasks, "# Tasks\n\n- [x] Finish the work.\n").unwrap();
+        ship_json(root, &id).expect("the named command archives it");
+        let record = change::load_change(root, &id).expect("reload");
+        assert_eq!(record.state, ChangeState::Archived);
+    }
+
+    /// #933: an accepted change that `change finalize` would refuse to resume is not ready.
+    #[test]
+    fn an_accepted_change_finalize_would_not_resume_is_not_ready() {
+        let temp = TempDir::new().expect("temp project");
+        let root = temp.path();
+        let id = accepted_change_fixture(root);
+        let record = change::load_change(root, &id).expect("reload");
+        let report = ship_status_report(root, &record).expect("ship status");
+        assert_eq!(report["ready_to_finalize"], false, "{report}");
+        assert!(
+            change::finalize_change(root, &id).is_err(),
+            "finalize agrees: there is no finalization to resume"
+        );
+    }
+
+    /// #938: ship-status evaluates the sequence-ledger freeze once for each report, and its
+    /// blockers, `ship_next` and lifecycle next action read that one value, with and without a
+    /// freeze.
+    #[test]
+    fn ship_status_evaluates_the_sequence_ledger_freeze_once_per_report() {
+        for frozen in [false, true] {
+            let temp = TempDir::new().expect("temp project");
+            let root = temp.path();
+            git_project_fixture(root);
+            let id = reviewed_change_fixture(root);
+            if frozen {
+                let path = root.join(".specsync/change-sequence.json");
+                let mut ledger: serde_json::Value = fs::read_to_string(&path)
+                    .ok()
+                    .and_then(|text| serde_json::from_str(&text).ok())
+                    .unwrap_or_else(|| serde_json::json!({"schema_version": 1, "sequence": 0}));
+                ledger["acknowledged_collisions"] = serde_json::json!(
+                    [{"sequence": 1, "ids": ["CHG-0001-first", "CHG-0001-second"]}]
+                );
+                fs::write(&path, serde_json::to_vec_pretty(&ledger).unwrap()).unwrap();
+            }
+            let record = change::load_change(root, &id).expect("reload");
+            let freeze = change::sequence_ledger_freeze_next_action(root);
+            assert_eq!(freeze.is_some(), frozen);
+            let lifecycle = text_mode_next_action(root, &record);
+            SEQUENCE_FREEZE_EVALUATIONS.with(|count| count.set(0));
+            let report = ship_status_report(root, &record).expect("ship status");
+            assert_eq!(
+                SEQUENCE_FREEZE_EVALUATIONS.with(std::cell::Cell::get),
+                1,
+                "frozen: {frozen}"
+            );
+            assert_eq!(report["lifecycle_next"], lifecycle.as_str(), "{report}");
+            match &freeze {
+                Some(remediation) => {
+                    assert_eq!(report["ship_next"], remediation.as_str(), "{report}");
+                    assert!(
+                        report["blockers"]
+                            .as_array()
+                            .is_some_and(|blockers| blockers
+                                .iter()
+                                .any(|blocker| blocker == remediation.as_str())),
+                        "{report}"
+                    );
+                    assert_eq!(lifecycle, *remediation);
+                }
+                None => assert!(
+                    !report["blockers"].to_string().contains("sequence"),
+                    "{report}"
+                ),
+            }
+        }
     }
 
     #[test]

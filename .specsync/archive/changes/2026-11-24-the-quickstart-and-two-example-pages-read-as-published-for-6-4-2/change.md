@@ -1,6 +1,6 @@
 ---
 id: the-quickstart-and-two-example-pages-read-as-published-for-6-4-2
-state: verifying
+state: archived
 type: documentation
 base_commit: 9caed41498939ad7fdf6d74c2dd1c4eab3413bf0
 ---

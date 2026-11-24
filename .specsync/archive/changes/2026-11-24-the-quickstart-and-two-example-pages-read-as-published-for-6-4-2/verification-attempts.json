@@ -64,6 +64,58 @@
         }
       ],
       "requirement_ids": []
+    },
+    {
+      "timestamp": 1795560475,
+      "commit": "bcb852fccd11478c30862466378f17a218218753",
+      "contract_digest": "83c97d8a67a15095c12bb56d63034a1d643dd90549334b75b3e21915da3b2f4c",
+      "execution_digest": "c5a55c7ccc3636525207fc50b15f80834808a109217d9c23f1a5c2f782635894",
+      "workspace_digest": "2c206a2ea70cb3e9a970b2c6e6058def335f0398b011434805a3213a03b84899",
+      "acceptance_input_digest": "62c98d3bb107af5b4d3f9725d0ba48d9c18484bd00b6f0f25664ecaebb49a1dd",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "site/src/content/docs/quickstart.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bf08b6e63ce56c87a689476c51f4eb21ab82e5286954f3276f0d519b2b64147b",
+            "entry_digest": "ab8332bd7c1c75f8fea7af4b0a954babe4336e6db8f8150605c6fc76e11ade45",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/ci-gate.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d4ca6b3224553873abef218f86227152c3db8c632ab199bdfc4b35b54987f434",
+            "entry_digest": "9c9d9f09196cf70fad75e1c47e37f997f1aff9b37f8425fc89259e3c5aad566c",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "site/src/content/examples/polyglot.mdx",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "18ffb375a712ded2fed2f3e0788303e85d5473f8582d069f96483697134108fd",
+            "entry_digest": "fdcaad625f373019ac30c789d1e1ceb8968f0ad4ac08b8d03140229133a4fd58",
+            "owners": [
+              "@exact:delivery"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check (no spec in scope)",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": []
     }
   ]
 }

@@ -77,6 +77,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The second was yes or no to fixing the three stale 'until then, pin 6.4.1' sentences on the quickstart page and the two example pages, as a second three-line change in the same pull request. The message before it had shown the three edits in a table and said a yes would be recorded as both the scope approval and the implementation review of that change.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795560496,
+      "digest": "b9d0ab8429d5beba40a198b364e7978213c3d8c38616b832bb1d8a8a746bd3d2",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

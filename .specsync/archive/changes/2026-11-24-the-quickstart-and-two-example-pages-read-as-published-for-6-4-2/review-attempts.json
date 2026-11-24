@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-quickstart-and-two-example-pages-read-as-published-for-6-4-2",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "bcb852fccd11478c30862466378f17a218218753",
+      "contract_digest": "83c97d8a67a15095c12bb56d63034a1d643dd90549334b75b3e21915da3b2f4c",
+      "execution_digest": "c5a55c7ccc3636525207fc50b15f80834808a109217d9c23f1a5c2f782635894",
+      "workspace_digest": "2c206a2ea70cb3e9a970b2c6e6058def335f0398b011434805a3213a03b84899",
+      "timestamp": 1795560480,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve all three",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The second was yes or no to fixing the three stale 'until then, pin 6.4.1' sentences on the quickstart page and the two example pages, as a second three-line change in the same pull request. The message before it had shown the three edits in a table and said a yes would be recorded as both the scope approval and the implementation review of that change; the edits made are exactly those.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

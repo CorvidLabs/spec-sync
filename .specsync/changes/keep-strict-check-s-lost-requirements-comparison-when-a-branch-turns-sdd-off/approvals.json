@@ -1,4 +1,56 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795529248,
+      "digest": "756e09877eee5c7cbb2e7f23068a217460eb1b4652a26cd61c64b46548fb29d8",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off\": \"Approve both deltas (Recommended)\" (Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes.' It followed his answer 'Fix as a successor change (Recommended)' to the question on the Codex P1 on #1149.). Relayed and recorded by claude-code-t14v at 2026-11-24T14:07:26Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
+        "title": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
+        "description": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_check"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "specs/cmd_check/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/commands/check.rs",
+          "tests/integration/vanished_requirements.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "On a branch whose trusted comparison base has SDD enabled, `check --strict` refuses an unexplained loss of a canonical requirement and names it when the branch sets `enabled` to false or deletes `.specsync/sdd.json`, committed or not, as `change audit --strict` does. A project whose comparison base never enabled SDD, or has it disabled there, keeps drift-only strict check."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Read the policy the way `change audit` already does, from the trusted comparison base, and bring nothing else of the lifecycle audit into `check` (REQ-cmd-check-004). Keep plain `check`, and a project whose comparison base never enabled SDD or has it disabled, on the drift-only path. Leave the selection, removal accounting and bounded reads of REQ-change-169 as they are.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "3f8bf42e82add34107d1746056da576324ea88ad94b364f26dae52c879b34c85",
+        "cmd_check": "0474a848fe9af77a53fd1ce550c52403a6abee6ab985045672c2613fc98e45b9"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-archived-requirement-loss-001": "5ce49011cd76092cd72f368d82dabf1e25e530c0186fb91f3cacd7387221903d",
+        "cmd_check: REQUIREMENT REQ-cmd-check-004": "2cc7c7ab486ba7e343e4784161a5f00c61fe47aec5b9d3500e826930bac20be7"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve both deltas (Recommended)",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes.' It followed his answer 'Fix as a successor change (Recommended)' to the question on the Codex P1 on #1149.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ],
   "reopenings": []
 }

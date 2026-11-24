@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
   "slug": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
   "title": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
   "description": "Keep strict check's lost-requirements comparison when a branch turns SDD off",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "2e2ddab1af06a6b8e877a3efd6fb40801786a2fc",
   "created_at": 1795495567,
-  "updated_at": 1795495616,
+  "updated_at": 1795529248,
   "affected_specs": [
     "cmd_check",
     "change"

@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "workflow_version": 2,
+  "workflow_version": 3,
   "workflow_origin_version": 2,
   "id": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
   "slug": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
   "title": "Keep archived foreign change directories outside adoption validation and import",
   "description": "Keep archived foreign change directories outside adoption validation and import",
   "kind": "bug_fix",
-  "state": "draft",
+  "state": "approved",
   "base_commit": "892df7f5e00e941edf6d00d9d8368080347b0281",
   "created_at": 1795479668,
-  "updated_at": 1795479782,
+  "updated_at": 1795481259,
   "affected_specs": [
     "change"
   ],

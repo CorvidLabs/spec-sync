@@ -1,4 +1,50 @@
 {
-  "approvals": [],
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795481259,
+      "digest": "54abeda4ee982a0a77a584daa25cadcc0065cb6fab40f2c0b4e98163be86a72f",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
+        "title": "Keep archived foreign change directories outside adoption validation and import",
+        "description": "Keep archived foreign change directories outside adoption validation and import",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "src/change/validate_loaded_change.rs",
+          "tests/integration/change.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "For both OpenSpec and Spec Kit, preview and import ignore a symlink inside the real top-level archive directory and reject a symlink in an active change. Preview and refusal leave the destination unchanged. Real adoption imports only active content."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "REQ-change-014 requires safe foreign import, an untouched destination on refusal, and archives preserved in place. Keep previews metadata-only and never follow a foreign symlink.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "b7a3b644ae83669fef34aa5677be8870d9eb4050fd66644cc4e752367cd0ec82"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-014": "6e5d10d16fdba4b7858f2c8d275979e5f1b18d09b73a220972d4f036a5052b50"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected #1151’s new scope and fixes. Approve the scope and archive when native verification passes.",
+        "where": "Maintainer response in the SpecSync 6.4.2 release conversation, 2026-11-24 UTC, after inspecting the new scope and fixes at 01752687 in PR #1151.",
+        "recorded_by": "Codex"
+      }
+    }
+  ],
   "reopenings": []
 }

@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "2cda672f91ebf35e56e4a2cdf56860759523372d",
+  "contract_digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+  "execution_digest": "3fbbb9d4e7531e19815a8157ab41014bec8890df215474d847831f7c717dc21a",
+  "workspace_digest": "d4590e6f25abfe3db632b4986c5359576d8e935a5d37892e5098dfaa11d4d8c4",
+  "timestamp": 1795479598,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+    "where": "Maintainer response in the SpecSync 6.4.2 release conversation on 2026-11-23, after inspection of the remaining PRs and the linked evidence.",
+    "recorded_by": "Codex"
+  }
+}

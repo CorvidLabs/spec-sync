@@ -47,6 +47,13 @@
         "where": "This Codex conversation, responding to the separately presented #1144 replay and fence-recognizer follow-up scope, relayed by the coordinating Codex agent",
         "recorded_by": "Codex delta_block"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795480488,
+      "digest": "b33d3dfb1d2cb54f371ce55d478fdf72e4bdfe5c584f1206ab43c5741b86435f",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

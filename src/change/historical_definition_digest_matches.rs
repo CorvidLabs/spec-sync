@@ -6217,6 +6217,12 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
     ));
     actions.push("preserve existing companion files without making them mandatory".into());
     if dry_run {
+        // Preview uses the same read-only checks and bounded reads as adoption (#432).
+        // Discard each prepared file as it is produced.
+        if let Some(source) = detected.as_deref() {
+            validate_foreign_import(root, source)?;
+            prepare_foreign_import(root, source, |_, _| {})?;
+        }
         return Ok(actions);
     }
     let _lock = acquire_project_lock(root)?;
@@ -6269,7 +6275,7 @@ pub fn adopt(root: &Path, dry_run: bool, source: Option<&str>) -> Result<Vec<Str
         prepared.push((root.join(POLICY_PATH), policy_content));
     }
     if let Some(source) = detected.as_deref() {
-        prepared.extend(prepare_foreign_import(root, source)?);
+        prepare_foreign_import(root, source, |path, content| prepared.push((path, content)))?;
     }
     prepared.push((
         root.join(".specsync/adoption-report.json"),

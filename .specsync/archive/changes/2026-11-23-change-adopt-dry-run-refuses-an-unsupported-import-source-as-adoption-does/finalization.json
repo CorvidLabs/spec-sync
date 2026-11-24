@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "change-adopt-dry-run-refuses-an-unsupported-import-source-as-adoption-does",
+  "implementation_commit": "830ee703ea658a310c0224c439be5a0f6d39941b",
+  "implementation_tree": "18e9d69136d2848b99ae5131bc7a16d60e1ca80e",
+  "contract_digest": "333bb12c6580f102ff99c82b9bba93e21ec5c1c3156b9704fb29779121965da6",
+  "workspace_digest": "dc318f5337172b4b91a069a7025cd7f4e5b5a01c26eeabb8fc4151d350fc9db1",
+  "closing_digest": "cea27512650ff05987ecc39a1323fe9be0ed05d040585f853ceb80ef421e2be3",
+  "review_digest": "3ac0d7502462d47d7224891d6d899a8ef4270575e17f71caa3134f57d0fdb4d0",
+  "finalization_digest": "acd7d936188f0f7e424893e4c23088c34d7022b33433eeb2e0b5efcde7ec3e27",
+  "timestamp": 1795478217
+}

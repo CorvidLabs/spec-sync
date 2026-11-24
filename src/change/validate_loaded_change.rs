@@ -2673,8 +2673,11 @@ fn detect_foreign_source(root: &Path) -> Option<String> {
     None
 }
 
-fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, String)>, String> {
-    let mut prepared = Vec::new();
+fn prepare_foreign_import(
+    root: &Path,
+    source: &str,
+    mut collect_file: impl FnMut(PathBuf, String),
+) -> Result<(), String> {
     let provenance = root.join(".specsync/import-provenance.json");
     let value = serde_json::json!({
         "source": source,
@@ -2682,7 +2685,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "scope": "active_plus_canonical",
         "archives": "preserved_in_place"
     });
-    prepared.push((provenance, json_content(&value)?));
+    collect_file(provenance, json_content(&value)?);
     let import_root = root.join(".specsync/imports").join(source);
     match source {
         "openspec" => {
@@ -2700,7 +2703,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                         root,
                         &canonical,
                         &import_root.join("canonical"),
-                        &mut prepared,
+                        &mut collect_file,
                     )?;
                 }
                 Ok(_) => {
@@ -2726,7 +2729,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                 Ok(metadata) if metadata.is_file() => {
                     let content = crate::util::read_project_string(root, &constitution, crate::util::MAX_SPEC_FILE_BYTES)
                         .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
-                    prepared.push((import_root.join("constitution.md"), content));
+                    collect_file(import_root.join("constitution.md"), content);
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -2745,30 +2748,9 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "speckit" => root.join("specs"),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    reject_symlink_components(root, &source_changes)?;
-    match fs::symlink_metadata(&source_changes) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                source_changes.display()
-            ));
-        }
-        Ok(metadata) if metadata.is_dir() => {}
-        Ok(_) => {
-            return Err(format!(
-                "foreign changes path is not a directory: {}",
-                source_changes.display()
-            ));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
-        Err(error) => return Err(error.to_string()),
-    }
-    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
-    let mut entries = fs::read_dir(source_changes)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-    entries.sort_by_key(|entry| entry.file_name());
+    let Some(entries) = foreign_change_directories(root, &source_changes)? else {
+        return Ok(());
+    };
     let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
         .into_iter()
         .map(|record| record.description)
@@ -2776,18 +2758,6 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
     let mut minted_ids: BTreeSet<String> = BTreeSet::new();
     for entry in entries {
         let entry_path = entry.path();
-        reject_symlink_components(root, &entry_path)?;
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-        if file_type.is_symlink() {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                entry_path.display()
-            ));
-        }
-        if !file_type.is_dir() || entry.file_name() == "archive" {
-            continue;
-        }
-        validate_foreign_tree(&entry_path)?;
         let is_active_change = match source {
             "openspec" => {
                 entry_path.join("proposal.md").exists()
@@ -2851,61 +2821,93 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
             answers: BTreeMap::new(),
         };
         let record_dir = change_dir(root, &record.id);
-        prepared.push((record_dir.join("state.json"), json_content(&record)?));
-        prepared.push((
-            record_dir.join("change.md"),
-            change_markdown_content(&record),
-        ));
-        prepared.push((
-            record_dir.join("approvals.json"),
-            json_content(&ApprovalLedger::default())?,
-        ));
+        collect_file(record_dir.join("state.json"), json_content(&record)?);
+        collect_file(record_dir.join("change.md"), change_markdown_content(&record));
+        collect_file(record_dir.join("approvals.json"), json_content(&ApprovalLedger::default())?);
         for artifact in &record.selected_artifacts {
-            prepared.push((
-                record_dir.join(artifact.file_name()),
-                artifact_template(root, artifact, &record),
-            ));
+            collect_file(record_dir.join(artifact.file_name()), artifact_template(root, artifact, &record));
         }
         let destination = change_dir(root, &record.id).join("imported");
-        prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
+        prepare_markdown_files(root, &entry_path, &destination, &mut collect_file)?;
         known_descriptions.insert(description);
     }
-    Ok(prepared)
+    Ok(())
+}
+
+fn foreign_change_directories(
+    root: &Path,
+    source_changes: &Path,
+) -> Result<Option<Vec<fs::DirEntry>>, String> {
+    reject_symlink_components(root, source_changes)?;
+    match fs::symlink_metadata(source_changes) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                source_changes.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign changes path is not a directory: {}",
+                source_changes.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
+    let mut entries = fs::read_dir(source_changes)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut active = Vec::new();
+    for entry in entries {
+        let entry_path = entry.path();
+        reject_symlink_components(root, &entry_path)?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                entry_path.display()
+            ));
+        }
+        if !file_type.is_dir() || entry.file_name() == "archive" {
+            continue;
+        }
+        validate_foreign_tree(&entry_path)?;
+        active.push(entry);
+    }
+    Ok(Some(active))
 }
 
 fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
-    let candidates = match source {
-        "openspec" => vec![root.join("openspec/specs"), root.join("openspec/changes")],
-        "speckit" => vec![
-            root.join(".specify/memory/constitution.md"),
-            root.join("specs"),
-        ],
+    let (canonical, changes) = match source {
+        "openspec" => (root.join("openspec/specs"), root.join("openspec/changes")),
+        "speckit" => (root.join(".specify/memory/constitution.md"), root.join("specs")),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    for candidate in candidates {
-        reject_symlink_components(root, &candidate)?;
-        match fs::symlink_metadata(&candidate) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing symlinked foreign import path: {}",
-                    candidate.display()
-                ));
-            }
-            Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&candidate)?,
-            Ok(metadata)
-                if source == "speckit"
-                    && candidate.ends_with("constitution.md")
-                    && metadata.is_file() => {}
-            Ok(_) => {
-                return Err(format!(
-                    "foreign import path is not the expected regular file or directory: {}",
-                    candidate.display()
-                ));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.to_string()),
+    reject_symlink_components(root, &canonical)?;
+    match fs::symlink_metadata(&canonical) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                canonical.display()
+            ));
         }
+        Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&canonical)?,
+        Ok(metadata) if source == "speckit" && metadata.is_file() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign import path is not the expected regular file or directory: {}",
+                canonical.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
     }
+    foreign_change_directories(root, &changes)?;
     Ok(())
 }
 
@@ -2913,7 +2915,7 @@ fn prepare_markdown_files(
     project_root: &Path,
     source: &Path,
     destination: &Path,
-    prepared: &mut Vec<(PathBuf, String)>,
+    collect_file: &mut impl FnMut(PathBuf, String),
 ) -> Result<(), String> {
     reject_symlink_components(project_root, source)?;
     let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
@@ -2943,14 +2945,14 @@ fn prepare_markdown_files(
                 project_root,
                 &path,
                 &destination.join(entry.file_name()),
-                prepared,
+                collect_file,
             )?;
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
             let content = crate::util::read_project_string(project_root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                 .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
-            prepared.push((destination.join(entry.file_name()), content));
+            collect_file(destination.join(entry.file_name()), content);
         }
     }
     Ok(())

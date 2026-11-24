@@ -863,3 +863,9 @@ An archived summary and its legacy baseline lookup share one roster per read sco
 
 @plane z=83 label="Keep correction writes on the full roster (#1114)"
 A healthy status can isolate a sibling’s broken history. Accepted interview correction writes new lifecycle evidence and must validate the complete roster before it writes. Keep the original roster error and every workspace byte on refusal.
+
+@plane z=84 label="Preview the same foreign directories adoption imports (#432)"
+Preview and adoption share the changes-directory scan. Both leave a real top-level archive directory in place without walking inside it, and reject symlinks on the active import paths. Keep the directory entry checks ahead of the archive exclusion so a link named `archive` is still refused.
+
+@plane z=85 label="Preview reads the actual foreign Markdown (#432)"
+Adoption preview traverses the same active and canonical inputs through the same bounded UTF-8 reader as adoption. Discard each prepared preview payload immediately. Keep Markdown under an active change eligible even when one of its nested directories is named archive.

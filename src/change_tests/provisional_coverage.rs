@@ -628,11 +628,17 @@ fn reopened_covered_archive_recomputes_coverage_at_finalization() {
     assert!(archived_provisional_coverage(root, &archived).unwrap().is_empty());
     let stale_receipt = rearchived.join(PROVISIONAL_COVERAGE_FILE);
     fs::write(&stale_receipt, &prior_bytes).unwrap();
+    assert!(archived_provisional_coverage(root, &archived).is_err());
     quiet_git(root, &["add", "--", &portable_project_path(root, &stale_receipt)]);
     quiet_git(root, &["commit", "-m", "copy the older receipt into this archive generation"]);
     let summary = summarize_change(root, &load_change(root, &record.id).unwrap());
     assert!(summary.provisional_coverage.is_empty());
     assert!(summary.provisional_coverage_warning.unwrap().contains(PROVISIONAL_COVERAGE_FILE));
+    assert_eq!(summary.terminal_evidence.unwrap().validity, TerminalEvidenceValidity::AuthenticatedHistory);
+
+    fs::write(root.join("src/auth.rs"), "// Edited after the second archive.\n").unwrap();
+    quiet_git(root, &["add", "--", "src/auth.rs"]);
+    quiet_git(root, &["commit", "-m", "change a signed input so a second reopen is warranted"]);
     let active = change_dir(root, &record.id);
     reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence again".into()).unwrap();
     assert_eq!(fs::read(active.join(PROVISIONAL_COVERAGE_FILE)).unwrap(), prior_bytes);

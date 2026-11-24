@@ -2285,7 +2285,13 @@ fn validate_spec_content_internal(
                         .to_string_lossy()
                         .replace('\\', "/")
                 };
-                let problem = match fs::read_to_string(&layers) {
+                // Read as the lifecycle reads it: a link out of the project, a file that is not
+                // regular and a file over the bound are refused, and reported like any read error.
+                let problem = match crate::util::read_project_string(
+                    root,
+                    &layers,
+                    crate::util::MAX_SPEC_FILE_BYTES,
+                ) {
                     Ok(text) => threemd::parse(&text).err().map(|error| error.to_string()),
                     Err(error) => Some(error.to_string()),
                 };

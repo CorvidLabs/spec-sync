@@ -829,6 +829,14 @@ fn only_coverage_from_the_committed_archive_generation_has_standing() {
     quiet_git(root, &["commit", "-m", "replace coverage after closing the archive"]);
     assert_advisory_only();
 
+    // Git presents the shallow boundary as a root commit. It cannot prove when the archive
+    // was created, even though the current receipt and ledger both match its tree.
+    let shallow = TempDir::new().unwrap();
+    quiet_git(root, &["clone", "--depth=1", "--no-local", root.to_str().unwrap(), shallow.path().to_str().unwrap()]);
+    let predecessor_in_history = load_change(root, &predecessor.id).unwrap();
+    let shallow_warning = archived_provisional_coverage(shallow.path(), &predecessor_in_history).unwrap_err();
+    assert!(shallow_warning.contains("complete, unmodified Git history"), "{shallow_warning}");
+
     quiet_git(root, &["restore", "--source", &introduction, "--", &relative]);
     quiet_git(root, &["add", "--", &relative]);
     quiet_git(root, &["commit", "-m", "restore original receipt"]);

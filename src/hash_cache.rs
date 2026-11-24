@@ -1432,6 +1432,50 @@ mod tests {
         assert!(!replays(&edited), "a removed fragment re-validates");
     }
 
+    /// Verifies REQ-hash-cache-011 (review of #1163). `check` reports a lesson file it cannot
+    /// read or parse, so a snapshot is replayed only while every `.3md` entry beside the spec is
+    /// as it was: adding, editing or removing one, or putting a directory in its place,
+    /// re-validates the spec.
+    #[test]
+    fn a_snapshot_is_not_replayed_over_a_changed_lesson_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let replays = |snapshot: &CachedValidationSnapshot| {
+            let mut cache = HashCache::default();
+            cache
+                .snapshots
+                .insert("specs/auth/auth.spec.md".into(), snapshot.clone());
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some()
+        };
+        let lesson = root.join("specs/auth/auth.3md");
+        let layers = |planes: &str| format!("---\n3md: 1.0\naxis: layers\n---\n\n{planes}");
+
+        let before = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&before), "nothing changed, so the snapshot replays");
+        fs::write(&lesson, layers("@plane z=0 label=\"Context\"\nContext.\n")).unwrap();
+        assert!(!replays(&before), "an added lesson file re-validates");
+
+        let added = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&added));
+        fs::write(
+            &lesson,
+            layers("@plane z=0 label=\"One\"\nA.\n\n@plane z=0 label=\"Two\"\nB.\n"),
+        )
+        .unwrap();
+        assert!(!replays(&added), "an edited lesson file re-validates");
+
+        let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        fs::remove_file(&lesson).unwrap();
+        assert!(!replays(&edited), "a removed lesson file re-validates");
+
+        let removed = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        fs::create_dir(&lesson).unwrap();
+        assert!(!replays(&removed), "a directory of that name re-validates");
+    }
+
     /// A project beside an `outside` directory, both inside one temporary directory, so a link
     /// that leaves the project still reaches nothing but this fixture (REQ-hash-cache-007).
     #[cfg(unix)]

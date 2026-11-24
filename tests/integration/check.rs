@@ -2531,3 +2531,160 @@ fn a_3md_over_the_read_bound_is_reported_and_not_read() {
         shown(&strict)
     );
 }
+
+/// The two lesson files the follow-up tests write: one that parses, one with two planes at a `z`.
+fn lesson_3md(parses: bool) -> String {
+    let planes = if parses {
+        "@plane z=0 label=\"Context\"\nContext.\n\n@plane z=1 label=\"Lesson\"\nA lesson.\n"
+    } else {
+        "@plane z=0 label=\"Context\"\nContext.\n\n@plane z=1 label=\"One\"\nA.\n\n@plane z=1 label=\"Two\"\nB.\n"
+    };
+    format!("---\n3md: 1.0\naxis: layers\n---\n\n{planes}")
+}
+
+/// `check` with the given flags on `root`, and everything it printed.
+fn check_output(root: &std::path::Path, flags: &[&str]) -> (bool, String) {
+    let output = specsync()
+        .arg("check")
+        .args(flags)
+        .arg("--root")
+        .arg(root)
+        .output()
+        .unwrap();
+    (
+        output.status.success(),
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        ),
+    )
+}
+
+/// Review of #1163 (REQ-cmd-check-023, REQ-hash-cache-011): the lesson file is an input of the
+/// spec's cached verdict. A `check` with no flags reports a lesson file added broken after a
+/// clean run, stops reporting it once it parses, and reports it again when it is broken again.
+/// The cache used to replay the verdict it had.
+#[test]
+fn a_cached_check_reports_a_3md_broken_since_the_last_run() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    let spec = complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+    let lesson = root.join("specs/auth/auth.3md");
+
+    let (ok, clean) = check_output(&root, &[]);
+    assert!(ok && !clean.contains("auth.3md"), "{clean}");
+
+    fs::write(&lesson, lesson_3md(false)).unwrap();
+    let (_, added_broken) = check_output(&root, &[]);
+    assert!(
+        added_broken.contains("specs/auth/auth.3md does not parse as 3md"),
+        "a lesson file added broken after a clean run must be reported: {added_broken}"
+    );
+
+    fs::write(&lesson, lesson_3md(true)).unwrap();
+    let (ok, repaired) = check_output(&root, &[]);
+    assert!(ok && !repaired.contains("auth.3md"), "{repaired}");
+
+    fs::write(&lesson, lesson_3md(false)).unwrap();
+    let (_, broken_again) = check_output(&root, &[]);
+    assert!(
+        broken_again.contains("specs/auth/auth.3md does not parse as 3md"),
+        "a lesson file broken since the last run must be reported: {broken_again}"
+    );
+}
+
+/// Review of #1163 (REQ-cmd-check-023): the lesson file `check` reads is the one the lifecycle
+/// reads, `<module>.3md` named for the spec's module. For a spec file not named for its module,
+/// a `.3md` named for the spec file is not the module's lesson file and is not read.
+#[test]
+fn the_3md_checked_is_named_for_the_module_not_the_spec_file() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    let spec = complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+    );
+    fs::remove_file(root.join("specs/auth/auth.spec.md")).unwrap();
+    fs::write(root.join("specs/auth/main.spec.md"), spec).unwrap();
+    let (ok, without) = check_output(&root, &["--strict", "--force"]);
+    assert!(ok, "{without}");
+
+    fs::write(root.join("specs/auth/main.3md"), lesson_3md(false)).unwrap();
+    let (ok, other_name) = check_output(&root, &["--strict", "--force"]);
+    assert!(
+        ok && !other_name.contains("main.3md"),
+        "a .3md named for the spec file is not the module's lesson file: {other_name}"
+    );
+    fs::remove_file(root.join("specs/auth/main.3md")).unwrap();
+
+    fs::write(root.join("specs/auth/auth.3md"), lesson_3md(false)).unwrap();
+    let (ok, module_name) = check_output(&root, &["--strict", "--force"]);
+    assert!(
+        module_name.contains("specs/auth/auth.3md does not parse as 3md"),
+        "{module_name}"
+    );
+    assert!(!ok, "check --strict must fail on the module's broken 3md");
+}
+
+/// Review of #1163 (REQ-cmd-check-023): an entry named `<module>.3md` that is not a regular file
+/// is reported as a lesson file that cannot be read. A directory of that name used to be skipped.
+#[test]
+fn a_directory_named_as_the_3md_is_reported() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    let spec = complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+    );
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+    let (ok, without) = check_output(&root, &["--strict", "--force"]);
+    assert!(ok, "{without}");
+
+    fs::create_dir(root.join("specs/auth/auth.3md")).unwrap();
+    let (_, reported) = check_output(&root, &["--force"]);
+    assert!(reported.contains("specs/auth/auth.3md"), "{reported}");
+    assert!(reported.contains("is not a regular file"), "{reported}");
+    assert!(reported.contains("context.md"), "{reported}");
+    let (ok, strict) = check_output(&root, &["--strict", "--force"]);
+    assert!(
+        !ok,
+        "check --strict must fail on a 3md that is a directory: {strict}"
+    );
+}
+
+/// Review of #1163 (REQ-cmd-check-023): a frontmatter module that is not one plain file name
+/// names no lesson file. `check` does not follow it out of the spec's folder; the spec file's
+/// own name stands in.
+#[test]
+fn a_module_with_a_path_in_it_does_not_point_the_3md_check_elsewhere() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    let spec = complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+        "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+    );
+    let spec = spec.replacen("module: auth\n", "module: ../elsewhere\n", 1);
+    assert!(spec.contains("module: ../elsewhere\n"));
+    fs::write(root.join("specs/auth/auth.spec.md"), spec).unwrap();
+    // A broken file where the module's path would lead, and none where the spec file's name does.
+    fs::write(root.join("specs/elsewhere.3md"), lesson_3md(false)).unwrap();
+    let (_, elsewhere) = check_output(&root, &["--force"]);
+    assert!(!elsewhere.contains("elsewhere.3md"), "{elsewhere}");
+
+    fs::write(root.join("specs/auth/auth.3md"), lesson_3md(false)).unwrap();
+    let (_, beside) = check_output(&root, &["--force"]);
+    assert!(
+        beside.contains("specs/auth/auth.3md does not parse as 3md"),
+        "{beside}"
+    );
+    assert!(!beside.contains("elsewhere.3md"), "{beside}");
+}

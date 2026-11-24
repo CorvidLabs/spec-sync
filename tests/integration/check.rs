@@ -2460,3 +2460,74 @@ fn an_unparseable_3md_is_a_check_warning_and_fails_strict() {
         shown(&strict)
     );
 }
+
+/// #1060 (REQ-cmd-check-023, REQ-util-003): `check` reads a `<module>.3md` through the bounded
+/// project read, as the lifecycle does. A lesson file over the bound is refused and reported like
+/// any other lesson file that cannot be read, so `check --strict` fails on it. A plain read takes
+/// in the whole file and reports nothing, while the lifecycle silently falls back to `context.md`.
+#[test]
+fn a_3md_over_the_read_bound_is_reported_and_not_read() {
+    let tmp = TempDir::new().unwrap();
+    let root = setup_minimal_project(&tmp);
+    // The fixture documents both exports, so the module passes `--strict` before any `.3md`.
+    fs::write(
+        root.join("specs/auth/auth.spec.md"),
+        complete_coverage_spec("auth", &["src/auth/service.ts"]).replace(
+            "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n",
+            "| Function | Parameters | Returns | Description |\n|----------|-----------|---------|-------------|\n| `login` | none | void | Signs in |\n| `logout` | none | void | Signs out |\n",
+        ),
+    )
+    .unwrap();
+    let check = |strict: bool| {
+        let mut command = specsync();
+        command.arg("check");
+        if strict {
+            command.arg("--strict");
+        }
+        command
+            .arg("--force")
+            .arg("--root")
+            .arg(&root)
+            .output()
+            .unwrap()
+    };
+    let shown = |output: &std::process::Output| {
+        format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    };
+    let without = check(true);
+    assert!(without.status.success(), "{}", shown(&without));
+
+    // A parsing lesson file, then grown one byte past the bound without writing the bytes.
+    let path = root.join("specs/auth/auth.3md");
+    fs::write(
+        &path,
+        "---\n3md: 1.0\naxis: layers\n---\n\n@plane z=0 label=\"Context\"\nContext.\n\n@plane z=1 label=\"Lesson\"\nA lesson.\n",
+    )
+    .unwrap();
+    let parses = check(true);
+    assert!(parses.status.success(), "{}", shown(&parses));
+    fs::OpenOptions::new()
+        .write(true)
+        .open(&path)
+        .unwrap()
+        .set_len(8 * 1024 * 1024 + 1)
+        .unwrap();
+
+    let reported = check(false);
+    let text = shown(&reported);
+    assert!(
+        text.contains("specs/auth/auth.3md is larger than 8388608 bytes"),
+        "{text}"
+    );
+    assert!(text.contains("context.md"), "{text}");
+    let strict = check(true);
+    assert!(
+        !strict.status.success(),
+        "check --strict must fail on a 3md over the read bound: {}",
+        shown(&strict)
+    );
+}

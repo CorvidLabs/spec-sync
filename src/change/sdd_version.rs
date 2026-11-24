@@ -2206,6 +2206,9 @@ fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy 
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
+    // Acquiring the lock may create it and replay an interrupted write. A shallow
+    // checkout with incomplete baseline history must refuse before either happens.
+    ensure_baseline_history_for_change_new(root)?;
     let _lock = acquire_project_lock(root)?;
     validate_change_sequences(root)?;
     let CreateChangeRequest {
@@ -2258,6 +2261,8 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             None => 2,
         }
     };
+    // Recheck the baseline after synchronization and any permitted journal recovery.
+    ensure_baseline_history_for_change_new(root)?;
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
@@ -3466,9 +3471,9 @@ fn load_change_for_definition_mutation(
 ) -> Result<(ChangeRecord, Vec<CorrectionRecord>), String> {
     let record = load_change(root, id)?;
     let ledger = load_correction_ledger(root, &record)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     validate_correction_records(&record, &ledger.corrections)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     ensure_change_files_writable(root, &record)?;
     Ok((record, ledger.corrections))
 }

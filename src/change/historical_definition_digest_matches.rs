@@ -344,8 +344,7 @@ fn validate_trusted_correction_history(
     }
     references.sort();
     references.dedup();
-    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
-        .is_some_and(|value| value == "true");
+    let shallow = clone_is_shallow(root);
     // A correction-free shallow tip is indistinguishable from a correction
     // that was accepted and rolled back below the shallow boundary. Require
     // history through the recorded base before trusting either case; only a
@@ -1754,6 +1753,47 @@ fn finalization_digest(finalization: &FinalizationRecord) -> String {
     digest.finish()
 }
 
+const FINALIZATION_IMPLEMENTATION_MISSING: &str =
+    "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it";
+
+/// Check the recorded implementation independently of the surviving archive-tree fallback.
+fn finalization_implementation_is_available(
+    root: &Path,
+    finalization: &FinalizationRecord,
+) -> Result<bool, String> {
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    if resolved != finalization.implementation_commit {
+        return Err("finalization implementation commit is not canonical".into());
+    }
+    let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+    let tree = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &tree_expression,
+        ],
+    )
+    .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+    if tree != finalization.implementation_tree {
+        return Err("finalization implementation tree does not match its commit".into());
+    }
+    Ok(true)
+}
+
 fn validate_finalization_evidence(
     root: &Path,
     record: &ChangeRecord,
@@ -1780,45 +1820,13 @@ fn validate_finalization_evidence_with_review_binding(
     {
         return Err("same-PR finalization does not bind the accepted verification evidence".into());
     }
-    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
-    let resolved = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &implementation_expression,
-        ],
-    );
-    let implementation_commit_available = if let Some(resolved) = resolved {
-        if resolved != finalization.implementation_commit {
-            return Err("finalization implementation commit is not canonical".into());
-        }
-        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
-        let tree = git_output(
-            root,
-            &[
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                &tree_expression,
-            ],
-        )
-        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
-        if tree != finalization.implementation_tree {
-            return Err("finalization implementation tree does not match its commit".into());
-        }
-        true
-    } else if record.state == ChangeState::Archived
-        && archived_finalization_tree_is_recorded(root, record)?
+    let implementation_commit_available = finalization_implementation_is_available(root, &finalization)?;
+    if !implementation_commit_available
+        && (record.state != ChangeState::Archived
+            || !archived_finalization_tree_is_recorded(root, record)?)
     {
-        false
-    } else {
-        return Err(
-            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
-                .into(),
-        );
-    };
+        return Err(FINALIZATION_IMPLEMENTATION_MISSING.into());
+    }
     let review = load_scoped_review(root, record)?;
     if review.schema_version != 2
         || review.change_id != record.id
@@ -2155,6 +2163,8 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
         return Ok(cached);
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let object = format!("{commit}:{path}");
     // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
     // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
@@ -2164,7 +2174,10 @@ fn scoped_review_file_at_commit(
     // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
     if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {
         return Err(format!(
-            "scoped-review Git object `{object}` is listed but could not be read"
+            "scoped-review Git object `{object}` is listed but could not be read{}",
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ));
     }
     let result = output.status.success().then_some(output.stdout);
@@ -2185,11 +2198,16 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = memoized_immutable_text(root, args) {
         return cached;
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
-            "scoped-review Git query failed: git {}",
-            args.join(" ")
+            "scoped-review Git query failed: git {}{}",
+            args.join(" "),
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ))
     } else {
         String::from_utf8(output.stdout)
@@ -2959,6 +2977,44 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+/// Whether `change finalize` would resume this accepted change: the checks it makes before it
+/// resumes an interrupted finalization, without writing (#933). Open tasks are asked apart, as
+/// ship-status and `change ship` already do.
+pub(crate) fn finalization_would_resume(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    require_state(record, &[ChangeState::Accepted], "resume the finalization")?;
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    if record.workflow_version < 2 {
+        return Err(format!("{} uses the legacy workflow", record.id));
+    }
+    if !record.canonical_applied {
+        return Err("canonical deltas are not materialized".into());
+    }
+    let verification = load_verification(root, record)?;
+    validate_finalization_evidence(root, record, &verification)
+        .map(|_| ())
+        .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))
+}
+
+#[cfg(test)]
+thread_local! {
+    static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: `finalize_change`, stopped after acceptance and before the archive move, as an
+/// interrupted finalization leaves the change (#933).
+#[cfg(test)]
+pub(crate) fn finalize_change_stopping_after_acceptance(
+    root: &Path,
+    id: &str,
+) -> Result<PathBuf, String> {
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(true));
+    let result = finalize_change(root, id);
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(false));
+    result
+}
+
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
@@ -3014,6 +3070,12 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         let verification = load_verification(root, &record)?;
         ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+        #[cfg(test)]
+        if STOP_FINALIZE_AFTER_ACCEPTANCE.with(std::cell::Cell::get) {
+            return Err(
+                "test: the finalization stopped after acceptance, before the archive move".into(),
+            );
+        }
     } else {
         // REQ-change-166 (#428): a resumed finalization archives only approvals that Git history
         // holds; the uncommitted `finalization` approval is the accepting step's own record.

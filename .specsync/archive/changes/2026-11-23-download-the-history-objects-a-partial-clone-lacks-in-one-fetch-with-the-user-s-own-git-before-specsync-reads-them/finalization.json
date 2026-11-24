@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+  "implementation_commit": "18738bcb9ac6d1b71347f792715c945e2b3e2c7c",
+  "implementation_tree": "d5b984cd508d90b57f903c359550e01abbad4f25",
+  "contract_digest": "d431c54ebd52a62ca79ea36ebcbfcfb47d237fa2f5de487e5777e209ca505f6c",
+  "workspace_digest": "a2af879dbbede53b0c423ac59b53959e9d800360a90140c0fcdfd02226f5bd2d",
+  "closing_digest": "554b3cbe7ea14904cc5ca06c3f8c4f270d68f1a46874cb9fd68b1af477c7428f",
+  "review_digest": "09763a1996f356052855cbdaebadc8c955cfaa297da553dc7d3d98a70779e607",
+  "finalization_digest": "fab13e646d01a4f9bfa92e3007f9d6474fc53c5e74562cddf5ece158b8aa4245",
+  "timestamp": 1795478293
+}

@@ -45,6 +45,13 @@
         "where": "SpecSync 6.4.2 release conversation on 2026-11-24 UTC, relayed verbatim by the lead agent (/root) for the writer fix and scope of PR #1114.",
         "recorded_by": "codex-delta-block"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795494435,
+      "digest": "5a0ba4df92d14b3f16272fb33134b25e111865bef768d379cef4e896ff704af2",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

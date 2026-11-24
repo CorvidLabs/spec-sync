@@ -1,6 +1,6 @@
 ---
 id: keep-accepted-interview-correction-fail-closed-on-broken-change-records
-state: verifying
+state: archived
 type: bug_fix
 base_commit: 16a43b93a83a9487dacc38109af993e3d38cd8a1
 ---

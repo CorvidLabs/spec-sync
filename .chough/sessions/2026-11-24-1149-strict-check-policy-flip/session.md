@@ -19,6 +19,7 @@ files: []
 observations:
   - 2026-11-24-1149-policy-flip-red-at-a8b31fe8
   - 2026-11-24-1149-policy-flip-green-with-the-fix
+  - 2026-11-24-1149-native-verify-at-303f1d85
 bugs: []
 blockers: []
 waiting_on_human:
@@ -27,7 +28,7 @@ waiting_on_human:
     drives: review
     opened: 2026-11-24T14:12:15Z
 run_consents: []
-next: Commit, run change check --commit and the full native Verify lane, then ship on 0xLeif's recorded decision
+next: Ship on 0xLeif's recorded decision, then integrate with main, push and merge
 ---
 # check --strict keeps the lost-requirements comparison of #1149 when a branch disables or deletes the SDD policy its comparison base has enabled, as change audit does (Codex P1 on #1149, CHANGE-17.d)
 
@@ -39,6 +40,7 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
 
 - Drafted the native change: interview answered, six artifacts written, MODIFIED deltas for cmd_check (REQ-cmd-check-004) and change (REQ-change-archived-requirement-loss-001); chough change ready reports nothing missing and approve --dry-run would approve
 - Added the failing CLI cases and the disabled-at-base control, then the fix: check --strict asks the change module whether SDD governs the branch (working tree, then the trusted comparison base audit reads). Updated both contracts, testing companions, task lists and the cmd_check lesson.
+- Scoped verification committed at 303f1d85; the full native Verify lane passed there (3,336 unit, 812 integration)
 
 ## Decisions and why
 
@@ -49,6 +51,7 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
 
 - 2026-11-24-1149-policy-flip-red-at-a8b31fe8
 - [With the fix on the working tree over 2e2ddab1 (REQ-cmd-check-004, REQ-change-archived-requirement-loss-001): strict_check_keeps_the_comparison_when_the_branch_turns_sdd_off failed before the fix at check --strict and passes now; the disabled-at-base control passes both times. All 27 tests of the vanished_requirements integration module pass. Through the binary, the two policy-flip cases now exit 1 and name the loss in both check --strict and change audit --strict, uncommitted and committed, and the three controls are unchanged.](evidence/2026-11-24-1149-policy-flip-green-with-the-fix.md)
+- [Full ten-step native Verify lane at the scoped commit 303f1d85: 3,336 unit tests passed with 2 ignored, all 812 integration tests passed, the release build, strict spec check and the release-contract steps passed, in 30m 16s. The release binary matches its source fingerprint. On that binary through the real CLI, both policy-flip cases exit 1 and name the loss in check --strict and change audit --strict, uncommitted and committed; the three controls are unchanged; and in a pull-request CI environment with no base ref a project that never enabled SDD, or has it disabled, passes strict check with no new error.](evidence/2026-11-24-1149-native-verify-at-303f1d85.md)
 
 ## Open threads
 

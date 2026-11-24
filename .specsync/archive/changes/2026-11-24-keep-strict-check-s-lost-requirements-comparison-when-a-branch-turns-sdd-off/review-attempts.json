@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "303f1d85e291687fcb6ca1e5489046d23ca718ce",
+      "contract_digest": "756e09877eee5c7cbb2e7f23068a217460eb1b4652a26cd61c64b46548fb29d8",
+      "execution_digest": "e2212b3b1546796f7a1febe54d0605dd4c5cdac97012f0c6be8eb4411ce91038",
+      "workspace_digest": "a5048c321127bceb3a4bf0a7489798d3dfeac5fd0c56b22737e3417d6210a53a",
+      "timestamp": 1795531439,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve both deltas (Recommended)",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes. I record this answer as your relayed decision at the scope gate and the review gate.' The full native Verify lane passed at 303f1d85 on 2026-11-24 at 14:43 UTC.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

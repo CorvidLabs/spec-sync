@@ -50,6 +50,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes.' It followed his answer 'Fix as a successor change (Recommended)' to the question on the Codex P1 on #1149.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795531456,
+      "digest": "118f9f411d18f4fcc10b39db03c753cebefb8993f524c8efa26e892b0a8e531d",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

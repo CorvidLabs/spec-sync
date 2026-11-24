@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off",
+  "implementation_commit": "303f1d85e291687fcb6ca1e5489046d23ca718ce",
+  "implementation_tree": "05660056909e0f6ffd89596514c0230cb3acfce7",
+  "contract_digest": "756e09877eee5c7cbb2e7f23068a217460eb1b4652a26cd61c64b46548fb29d8",
+  "workspace_digest": "a5048c321127bceb3a4bf0a7489798d3dfeac5fd0c56b22737e3417d6210a53a",
+  "closing_digest": "118f9f411d18f4fcc10b39db03c753cebefb8993f524c8efa26e892b0a8e531d",
+  "review_digest": "2cd5c7d30b4fb88c77eb66dd11efca47a18067b8c4d41c383970ad5068ea650d",
+  "finalization_digest": "9af8977dec63a70e4feb946a0b922913a66ea66c72050d8f8bb5d1cec76d7820",
+  "timestamp": 1795531456
+}

@@ -51,3 +51,9 @@ Automation parses stdout on failure as well as success. Result rendering must co
 @plane z=8 label="Report a failed repair in the format the caller selected"
 An empty CSV cannot tell an automation which fixes failed. Each failure needs a finding row, including when a path contains a comma. Markdown and GitHub output list the errors even when repair stops before validation measures coverage.
 Requirements drift is already known when repair starts. Preserve that observation if a later read, write or backup fails.
+
+@plane z=9 label="Keep strict history findings outside the drift cache (#1105)"
+Strict check for an SDD-enabled Git project compares canonical requirement IDs with the default-branch merge base. The findings are project-wide, so a cached spec result or no current specs cannot hide them. Plain check stays a drift check.
+
+@plane z=10 label="Read SDD enablement where audit reads it (#1149)"
+Strict check decided from the working-tree policy alone whether to compare requirement IDs. A branch that disabled or deleted `.specsync/sdd.json` passed strict check while `change audit` refused it. Ask the change module whether SDD governs the branch: it reads the working tree, then the trusted comparison base audit uses. Leave an unreadable base on the drift-only path, because a project that never enabled SDD runs strict check in checkouts without the default ref.

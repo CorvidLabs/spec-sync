@@ -869,3 +869,6 @@ Preview and adoption share the changes-directory scan. Both leave a real top-lev
 
 @plane z=85 label="Preview reads the actual foreign Markdown (#432)"
 Adoption preview traverses the same active and canonical inputs through the same bounded UTF-8 reader as adoption. Discard each prepared preview payload immediately. Keep Markdown under an active change eligible even when one of its nested directories is named archive.
+
+@plane z=86 label="Archiving the last change leaves a branch to check (#1105)"
+When the active roster is empty, audit compares the branch with its default reference. Strict drift checking on an SDD-enabled project uses that same read-only comparison. It follows approved removals when an ID is missing and leaves general archive validation to the lifecycle commands.

@@ -344,8 +344,7 @@ fn validate_trusted_correction_history(
     }
     references.sort();
     references.dedup();
-    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
-        .is_some_and(|value| value == "true");
+    let shallow = clone_is_shallow(root);
     // A correction-free shallow tip is indistinguishable from a correction
     // that was accepted and rolled back below the shallow boundary. Require
     // history through the recorded base before trusting either case; only a
@@ -2166,6 +2165,8 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
         return Ok(cached);
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let object = format!("{commit}:{path}");
     // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
     // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
@@ -2175,7 +2176,10 @@ fn scoped_review_file_at_commit(
     // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
     if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {
         return Err(format!(
-            "scoped-review Git object `{object}` is listed but could not be read"
+            "scoped-review Git object `{object}` is listed but could not be read{}",
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ));
     }
     let result = output.status.success().then_some(output.stdout);
@@ -2196,11 +2200,16 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = memoized_immutable_text(root, args) {
         return cached;
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
-            "scoped-review Git query failed: git {}",
-            args.join(" ")
+            "scoped-review Git query failed: git {}{}",
+            args.join(" "),
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ))
     } else {
         String::from_utf8(output.stdout)
@@ -5983,12 +5992,11 @@ fn check_project_with_command_output(
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
-            } else if approval.is_ok()
-                && delta_files.is_ok()
-                && let Err(error) = ensure_no_lost_requirements(root, record)
-            {
-                // The refusal `change check` gives a branch that lost a canonical requirement
-                // (#1081, REQ-change-169).
+            }
+            // The refusal `change check` gives a branch that lost a canonical requirement
+            // (#1081, REQ-change-169), asked whatever this change's own checks say: an approval
+            // or delta that cannot be read accounts for no removal (REQ-change-176, #1116).
+            if let Err(error) = ensure_no_lost_requirements(root, record) {
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }

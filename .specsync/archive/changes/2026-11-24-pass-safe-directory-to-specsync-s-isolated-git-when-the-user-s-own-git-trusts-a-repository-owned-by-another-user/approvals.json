@@ -1,0 +1,62 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795151670,
+      "digest": "4de492ed2972249e5084e21ddde1b407db20002de38e0a2f298d127e9d563b13",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user\": \"Yes, temp file (Recommended)\" (a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md: choice 2 (#909: the trust setting goes through a private temporary file, not the command line)). Relayed and recorded by claude-code-t4t at 2026-11-20T05:14:29Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user",
+        "title": "Pass safe.directory to SpecSync's isolated Git when the user's own Git trusts a repository owned by another user",
+        "description": "Pass safe.directory to SpecSync's isolated Git when the user's own Git trusts a repository owned by another user",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/git_environments.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) A repository owned by another user, which the user's global configuration lists in safe.directory, passes change audit, change status and change check as for its owner, including from a linked worktree. (2) Without that entry it is refused naming dubious ownership, the path and git config --global --add safe.directory. (3) A repository owned by the user keeps the global configuration off, as before. (4) safe.directory = * passes the repository's own top level, never *. (5) The file is owner-only, outside the project and its Git directory, and gone when the command ends."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Reads stay isolated: GIT_CONFIG_NOSYSTEM and the other strips stay; the global file holds only the safe.directory entry; the probe runs only after the isolated Git refuses for dubious ownership; never safe.directory=* or a repository-scoped value",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1e2b22e7b95b712c47f85f3cf656036c1cc12eb942c2ce8a57bc2c4dace2703a"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Yes, temp file (Recommended)",
+        "where": "a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md: choice 2 (#909: the trust setting goes through a private temporary file, not the command line)",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795478422,
+      "digest": "8690b73d073f9dd1d85f99550083b2ff15aea3ec46f107b6b23212122f9af2ec",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

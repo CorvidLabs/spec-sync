@@ -140,3 +140,7 @@ spec: change.spec.md
 - [x] Check each owner’s current coverage as split successors move from implementation to acceptance (#657).
 - [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
+
+- [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).
+
+- [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).

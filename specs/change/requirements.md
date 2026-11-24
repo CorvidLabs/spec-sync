@@ -2351,6 +2351,68 @@ Acceptance Criteria
 - A requirement longer than 4,000 words on any side is refused, naming that limit and the way on (rewrite the body onto main's text by hand, then approve).
 - A `## MODIFIED` spec section, a `## REMOVED` item and a workflow-v1 change keep today's refusal, and nothing is proposed.
 
+### REQ-change-173
+
+When a check of the project's lifecycle history refuses in a shallow clone (`git rev-parse --is-shallow-repository` is `true`), SpecSync SHALL say the clone is shallow and name `git fetch --unshallow origin` instead of reporting the history or the correction ledger as invalid, and `change new` SHALL make that check before it writes anything, so a refused `change new` leaves no change behind.
+
+Acceptance Criteria
+- In a depth-1 clone and a depth-50 clone of an adopted project, `change new`, `change status`, `change check` and `change audit` refuse, saying the clone is shallow and naming `git fetch --unshallow origin`; after that fetch, the same commands behave as in a full clone.
+- A refused `change new` leaves no `.specsync/changes/<id>/`.
+- In a full clone, a baseline whose cutoff is not an ancestor keeps today's message, and a corrupt correction ledger keeps its own.
+- The tester's two shapes (a depth-1 clone with no origin ref; a shallow clone with `origin/main` but not the merge-base) name the fetch.
+
+### REQ-change-171
+
+When SpecSync's isolated Git refuses the repository for dubious ownership and the user's own Git, run once with the user's environment and configuration, accepts it, SpecSync SHALL pass `safe.directory` to its isolated Git calls naming exactly the work tree top level that probe reports, through a global configuration file that holds nothing else, and SHALL never pass `*` or a value read from the repository's configuration. That file SHALL be created exclusively, with owner-only permissions, in a new private directory under the system temporary directory, never inside the project or its Git directory and never through a symlink, and SHALL be removed when the process ends; when it cannot be, SpecSync SHALL refuse as for an untrusted repository. When the user's Git refuses the repository too, SpecSync SHALL refuse, naming dubious ownership, the path and `git config --global --add safe.directory <path>`.
+
+Acceptance Criteria
+- A repository owned by another user, which the user's global configuration lists in `safe.directory`, passes `change audit`, `change status` and `change check` as it would for its owner, including from a linked worktree.
+- The same repository without that entry is refused, naming dubious ownership, the path and the `git config --global --add safe.directory` command, not "unable to inspect changed paths" or "Git repository detection failed".
+- A repository owned by the user runs every isolated Git call with the global configuration switched off, as before.
+- A user configuration of `safe.directory = *` passes the repository's own top level, never `*`.
+- It holds on Git 2.36 and on 2.39.
+- The file is owner-only, outside the project and its Git directory, and gone when the command ends. A temporary directory that cannot take it, or that lies inside the project, makes the command refuse with the dubious-ownership message and the reason, writing nothing in the project.
+
+### REQ-change-172
+
+When SpecSync reads an object of the repository's history in a partial clone and the object is not present, it SHALL first download every missing object that read needs in one fetch from the repository's promisor remote, run with the user's own Git environment and configuration and without prompting, and then read it as before. When that download fails, it SHALL refuse, saying the clone is partial and naming one `git fetch` command that downloads those objects.
+
+Acceptance Criteria
+- In a blobless clone of a repository whose promisor remote answers only with the user's configuration, `change review` of a change created in an earlier commit succeeds, and the objects it read are present afterwards.
+- The download is one fetch, whatever the number of objects.
+- When the remote cannot be reached, the refusal says the clone is partial and names a `git fetch … <oid> …` command that, run as printed, lets the same command succeed.
+- A full clone makes no fetch.
+- The fetch is one call bounded at 60 seconds. It never prompts: with no terminal, a credential that needs typing fails it, and the command then refuses as in option 2. Before it runs, one line on standard error says how many objects it downloads and from which remote.
+- `change status`, `change audit` and `change ship-status` in a partial clone fetch the same way. A full clone never fetches.
+
+### REQ-change-175
+
+The lost-requirements check of REQ-change-169 SHALL read at the reference commit only the requirements files that were canonical there: under the specs directory the reference's configuration named, or beside a spec its registry held. A requirements file the branch makes canonical, by changing `specs_dir` or registering a spec, SHALL count where a requirement is looked for in the working tree, but its contents at the reference SHALL NOT be read as canonical requirements (#1112).
+
+Acceptance Criteria
+- A branch that registers a spec beside a `requirements.md` that was already there, and rewrites that file under new ids, is not refused for the ids the file held before.
+- A branch that changes `specs_dir` to a directory that already held a `requirements.md` is not refused for that file's old ids.
+- A canonical requirement the branch moves into a newly canonical file is found there, and one the branch drops is still reported.
+
+### REQ-change-176
+
+`change audit` SHALL report the refusal of REQ-change-169 for each active change whether or not that change's own approval, delta files and approved delta bodies validate, beside any error of the change's own (#1116).
+
+Acceptance Criteria
+- An active change whose delta does not parse, on a branch that lost a requirement, gets both the delta's error and the lost requirement from `change audit`.
+- The same holds for an invalid approval and for a delta body edited after approval.
+- A change on a branch that lost nothing gets only its own error, as before.
+
+### REQ-change-177
+
+When the lost-requirements check of REQ-change-169 would report a requirement lost and a requirements directory or file it reads in the working tree could not be read, for a reason other than not existing, it SHALL instead refuse saying it cannot tell whether the branch lost canonical requirements, naming each path it could not read with the error, and that the way out is to make them readable and run `change check` again. A path that does not exist SHALL be read as empty, as before, and an unreadable path SHALL change nothing when no requirement would be reported lost (#1117).
+
+Acceptance Criteria
+- A requirement moved into a directory the check cannot list is not reported lost. `change check` and `change ship-status` say they cannot tell, naming the directory and the error.
+- Once the directory is readable again, the check passes.
+- A requirements file that cannot be read is named the same way.
+- On a branch that lost nothing, an unreadable directory changes nothing.
+
 ### REQ-change-reopened-coverage-receipt-001
 
 When a stale Archived change is successfully reopened, SpecSync SHALL retire its valid generated `coverage.json` for that archive generation in the same durable file transaction as the reopened state and ledger. A failed file publication SHALL restore the prior receipt bytes with the other original files, and a refused reopen SHALL preserve the original archive. Re-finalization SHALL compute coverage for the new generation. A file left by the user in an Accepted or active workspace, an invalid receipt, or bytes changed during publication SHALL NOT be treated as an eligible generated receipt. A genuinely absent file SHALL be distinguished from a present unreadable or invalid receipt. Neither its contents nor a diagnostic about it SHALL determine authenticated terminal archive evidence.

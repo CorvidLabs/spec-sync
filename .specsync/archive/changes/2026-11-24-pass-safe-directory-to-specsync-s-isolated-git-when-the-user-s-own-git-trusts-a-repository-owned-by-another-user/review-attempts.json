@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "9699af6dc1face8606764cd33c380ce791ddee2d",
+      "contract_digest": "4de492ed2972249e5084e21ddde1b407db20002de38e0a2f298d127e9d563b13",
+      "execution_digest": "84fb913cb067814ee884ab040e8589d9bccaaab9f704f8a209cd2c3c76e17e8e",
+      "workspace_digest": "a2af879dbbede53b0c423ac59b53959e9d800360a90140c0fcdfd02226f5bd2d",
+      "timestamp": 1795478404,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "SpecSync 6.4.2 maintainer release conversation, 2026-11-23 UTC, relayed by the release coordinator",
+        "recorded_by": "agent:codex:audit-delta"
+      }
+    }
+  ]
+}

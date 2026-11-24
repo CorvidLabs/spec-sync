@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+  "slug": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+  "title": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+  "description": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "bdbcbd8e3ee70b89cd4934e69f8e8739073fc79e",
+  "created_at": 1795151803,
+  "updated_at": 1795478299,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/historical_definition_digest_matches.rs",
+    "src/change/read_cache.rs",
+    "src/change_tests.rs",
+    "src/change_tests/git_environments.rs",
+    "tests/integration.rs",
+    "tests/integration/",
+    "specs/change/",
+    "site/src/content/docs/",
+    "CHANGELOG.md",
+    "src/change/validate_loaded_change.rs",
+    "src/change/consider_accepted_evidence_anchor.rs",
+    "src/change/vanished_requirements.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "(1) In a blobless clone whose promisor remote answers only with the user's configuration, change review of a change created in an earlier commit succeeds, and the objects it read are present afterwards. (2) The download is one fetch, whatever the number of objects. (3) When the remote cannot be reached, the refusal says the clone is partial and names a git fetch command with the object ids that, run as printed, lets the same command succeed. (4) A full clone makes no fetch. (5) The fetch is one call bounded at 60 seconds and never prompts; one line on standard error says how many objects and from which remote. (6) change status, change audit and change ship-status in a partial clone fetch the same way."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs",
+    "research",
+    "plan"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "Reads stay isolated: the one fetch runs with the user's environment and configuration to the repository's own promisor remote, GIT_TERMINAL_PROMPT=0, no terminal, bounded at 60 s (inside Chough's 120 s); a full clone spawns no fetch; when the download fails, option 2's refusal names the command",
+    "public_contract": "yes"
+  }
+}

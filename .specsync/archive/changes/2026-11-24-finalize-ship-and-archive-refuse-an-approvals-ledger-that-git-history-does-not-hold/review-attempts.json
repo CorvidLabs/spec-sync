@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f28652b32ab5eb45517012aaac1d0ebe80b52680",
+      "contract_digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "execution_digest": "be131db98cad350cedc012ee05fb2a27417a2404422be3df3855ce9279859db7",
+      "workspace_digest": "bc5aef60109908f9b408e41d44c6d440614642d84f00f7aa2c48c09a9975c241",
+      "timestamp": 1795478907,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "Maintainer response in the SpecSync 6.4.2 release conversation on 2026-11-23, after inspection of the remaining PRs and the linked evidence.",
+        "recorded_by": "Codex"
+      }
+    }
+  ]
+}

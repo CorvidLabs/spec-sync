@@ -20,6 +20,7 @@ observations:
   - 2026-11-19-1071-red-control-on-main-3bebe8b0
   - 2026-11-19-1071-verify-lane-at-c2b19a91
   - 2026-11-19-1071-verify-lane-at-76a66032
+  - 2026-11-24-at-cb679a13-1071-1076-1060-and-574-merged-onto-main-a275ab44
 bugs: []
 blockers: []
 waiting_on_human:
@@ -52,6 +53,7 @@ Delta validation reads a living requirement's block as the materializer does, so
 - [Red-first control: on main 3bebe8b0 with only the new tests, added_requirement_block_end::an_unchanged_added_requirement_followed_by_a_section_is_not_a_conflict fails: the unchanged ADDED requirement is refused as 'cannot add existing block'. The control a_changed_added_requirement_followed_by_a_section_is_still_a_conflict passes there, as it should. This is the defect #1071 reports, fixed by this change; not a new bug.](evidence/2026-11-19-1071-red-control-on-main-3bebe8b0.md)
 - [At c2b19a91 (#1071, #1076, #1050, #1060 and #574 merged onto main 3bebe8b0, each change re-checked there), fledge lanes run verify passed 10/10 steps in 12m28s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs, 100% file and LOC coverage) and the CI script tests. The lane's processes ran with a neutral global git config (#1092). It includes both added_requirement_block_end tests.](evidence/2026-11-19-1071-verify-lane-at-c2b19a91.md)
 - [At 76a66032 (the two small commits f52d7f3c and 6ffa715e from the lead's and the tester's reviews, each change re-checked there), fledge lanes run verify passed 10/10 steps in 16m09s: fmt, lint and check-types, cargo test (unit 3082 passed, 2 ignored; integration 629 passed), release build, strict spec check (62 specs) and the CI script tests. A run of the same head beside another lane failed once on archived_upstream::the_printed_cannot_tell_status_recovery_keeps_the_selected_project_root, a test from main that races Git's background packing (#1097); this run was alone. The lane's processes ran with a neutral global git config (#1092)](evidence/2026-11-19-1071-verify-lane-at-76a66032.md)
+- 2026-11-24-at-cb679a13-1071-1076-1060-and-574-merged-onto-main-a275ab44
 
 ## Open threads
 

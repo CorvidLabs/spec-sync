@@ -26,6 +26,7 @@ observations:
   - 2026-11-19-574-red-on-main-debug
   - 2026-11-19-574-green-at-the-tip-release
   - 2026-11-19-574-green-at-the-tip-debug
+  - 2026-11-24-at-cb679a13-1071-1076-1060-and-574-merged-onto-main-a275ab44
 bugs: []
 blockers: []
 waiting_on_human:
@@ -64,6 +65,8 @@ check names each undocumented export's file from one lookup, so its time grows l
 - [Red control for the resized timing test (32,000 against 128,000 undocumented exports, interleaved, fastest of three), on main 3bebe8b0 with only the test added, idle machine, debug build: 14.9 times as long (7.06s, 104.9s); linear is about 4 and the bound is 7. This is the defect #574 reports, fixed by this change; not a new bug.](evidence/2026-11-19-574-red-on-main-debug.md)
 - [The resized timing test at the batch 3 tip, idle machine, release build: 3.0 times as long (0.12s, 0.35s), under the bound of 7.](evidence/2026-11-19-574-green-at-the-tip-release.md)
 - [The resized timing test at the batch 3 tip, idle machine, debug build: 3.8 times as long (0.65s, 2.45s), under the bound of 7.](evidence/2026-11-19-574-green-at-the-tip-debug.md)
+- 2026-11-13-red-first-control-on-main-18385ef5e-with-only-the-new-test
+- 2026-11-24-at-cb679a13-1071-1076-1060-and-574-merged-onto-main-a275ab44
 
 ## Open threads
 

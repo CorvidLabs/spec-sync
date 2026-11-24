@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).
 
+- A requirement wrapped so that `SHALL` ends one line or starts the next counts as a normative statement. Every command that validates delta files used to refuse it with "must contain a normative SHALL statement", because it looked for `SHALL` with a space on both sides (#1076).
+
+- `specsync check` takes time in proportion to the number of undocumented exports. It used to search every export again for each one it reported, so a module with many undocumented exports slowed the check far more than its size explains (#574).
+
 ## [6.4.2] - 2026-11-24
 
 ### Added

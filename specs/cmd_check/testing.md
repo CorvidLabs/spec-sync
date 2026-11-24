@@ -79,3 +79,5 @@ Every link points inside the test's own temporary directory.
 The JSON repair regressions cover a successful file alongside an unreadable spec and a backup directory that cannot be created, and a read-only file whose headers need repair. They parse the complete stdout document, require a failing exit code, and check which files were repaired.
 
 `failed_fix_emits_each_unreadable_spec_in_the_requested_format` checks two failed reads in CSV, table, Markdown and GitHub output. A comma in one filename exercises CSV quoting.
+
+`failed_fix_backup_reports_json_before_changing_a_spec` primes the cache, changes the requirements and triggers a backup failure. JSON retains the original staleness record. CSV, table, Markdown and GitHub each report the warning alongside the backup error.

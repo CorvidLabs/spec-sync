@@ -89,8 +89,13 @@ fn append_suppressed_markdown(body: &mut String, details: &[serde_json::Value]) 
 }
 
 /// Emit the check result when repair stops before normal validation starts.
-fn exit_failed_fix(format: types::OutputFormat, failures: &[String]) -> ! {
+fn exit_failed_fix(
+    format: types::OutputFormat,
+    failures: &[String],
+    stale_entries: &[serde_json::Value],
+) -> ! {
     use types::OutputFormat::*;
+    let warnings = warnings_with_staleness(Vec::new(), stale_entries);
     match format {
         Text => {} // The repair already printed the underlying error to stderr.
         Json => {
@@ -99,18 +104,24 @@ fn exit_failed_fix(format: types::OutputFormat, failures: &[String]) -> ! {
                 "errors": failures,
                 "warnings": [],
                 "notices": [],
-                "stale": [],
+                "stale": stale_entries,
                 "specs_checked": 0,
             });
             println!("{}", serde_json::to_string_pretty(&output).unwrap());
         }
-        Csv => print_findings_csv(&findings(failures, &[], &[])),
-        Table => print_findings_table(&findings(failures, &[], &[])),
+        Csv => print_findings_csv(&findings(failures, &warnings, &[])),
+        Table => print_findings_table(&findings(failures, &warnings, &[])),
         Markdown | Github => {
             // Validation has not run, so there are no coverage or pass counts to render.
             println!("## SpecSync repair failed\n\n### Errors\n");
             for failure in failures {
                 println!("- {failure}");
+            }
+            if !warnings.is_empty() {
+                println!("\n### Warnings\n");
+                for warning in warnings {
+                    println!("- {warning}");
+                }
             }
         }
     }
@@ -590,7 +601,7 @@ pub fn cmd_check(
                 );
                 eprintln!("{} {message}", "✗".red());
                 eprintln!("  Aborting --fix to avoid data loss. Fix the backup path and retry.");
-                exit_failed_fix(format, &[message]);
+                exit_failed_fix(format, &[message], &stale_entries);
             }
             let mut backed_up = 0usize;
             for spec_file in &specs_to_validate {
@@ -602,7 +613,7 @@ pub fn cmd_check(
                             spec_file.display()
                         );
                         eprintln!("{} {message}", "✗".red());
-                        exit_failed_fix(format, &[message]);
+                        exit_failed_fix(format, &[message], &stale_entries);
                     }
                 };
                 let dest = backup_dir.join(rel);
@@ -616,7 +627,7 @@ pub fn cmd_check(
                     let message = format!("Failed to backup {}: {e}", spec_file.display());
                     eprintln!("{} {message}", "✗".red());
                     eprintln!("  Aborting --fix to avoid data loss.");
-                    exit_failed_fix(format, &[message]);
+                    exit_failed_fix(format, &[message], &stale_entries);
                 }
                 backed_up += 1;
             }
@@ -660,7 +671,7 @@ pub fn cmd_check(
                 "error:".red().bold(),
                 outcome.failures.len()
             );
-            exit_failed_fix(format, &outcome.failures);
+            exit_failed_fix(format, &outcome.failures, &stale_entries);
         }
     }
 

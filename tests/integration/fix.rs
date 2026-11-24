@@ -342,6 +342,19 @@ fn failed_fix_backup_reports_json_before_changing_a_spec() {
     let spec = root.join("specs/auth/auth.spec.md");
     let before = valid_spec("auth", &["src/auth.ts"]);
     fs::write(&spec, &before).unwrap();
+    let requirements = root.join("specs/auth/requirements.md");
+    fs::write(&requirements, "# Requirements\n").unwrap();
+    specsync()
+        .arg("--root")
+        .arg(root)
+        .arg("check")
+        .assert()
+        .success();
+    fs::write(
+        &requirements,
+        "# Requirements\n\nRevised acceptance criteria.\n",
+    )
+    .unwrap();
     fs::create_dir_all(root.join(".specsync")).unwrap();
     fs::write(root.join(".specsync/backup-fix"), "occupied").unwrap();
 
@@ -361,6 +374,33 @@ fn failed_fix_backup_reports_json_before_changing_a_spec() {
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["passed"], false);
     assert!(result["errors"][0].as_str().unwrap().contains("backup"));
+    assert_eq!(result["stale"][0]["reason"], "requirements_changed");
+    assert_eq!(result["stale"][0]["spec"], "specs/auth/auth.spec.md");
+    for format in ["csv", "table", "markdown", "github"] {
+        let output = specsync()
+            .args(["check", "--fix", "--backup", "--format", format, "--root"])
+            .arg(root)
+            .output()
+            .unwrap();
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(output.status.code(), Some(1), "{format}: {stdout}");
+        assert!(stdout.contains("backup"), "{format}: {stdout}");
+        assert!(
+            stdout.contains("specs/auth/auth.spec.md"),
+            "{format}: {stdout}"
+        );
+        assert_eq!(
+            stdout.matches("requirements changed").count(),
+            1,
+            "{format}: {stdout}"
+        );
+        if format == "csv" {
+            assert!(
+                stdout.lines().any(|row| row.starts_with("warning,")),
+                "{stdout}"
+            );
+        }
+    }
     assert_eq!(fs::read_to_string(spec).unwrap(), before);
 }
 

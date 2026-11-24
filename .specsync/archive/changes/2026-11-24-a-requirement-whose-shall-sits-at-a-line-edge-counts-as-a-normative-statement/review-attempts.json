@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "f690327c2f979c708647a5890925dfe5dfeaed7d",
+      "contract_digest": "d3f82311d92252c1096081c386ab602eac5f7072363181118d3171e106429101",
+      "execution_digest": "a60f11f385f96bf4c0bb2fdaa595fe8fd73060106b691520188ff9bc02dc3024",
+      "workspace_digest": "89db05c72394a2f076279fa8a697b4b6bed9c29985a3f5205f16da82daa819d0",
+      "timestamp": 1795553689,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I accept all four",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: do you accept each implementation?', which listed the four changes of the validation batch (#1071, #1076, #574 and #1060) with their native Verify lane at cb679a13, Trust, scoped checks and CLI dogfood against the 6.4.2 release binary. This change is the #1076 one of those four.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

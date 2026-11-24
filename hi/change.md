@@ -33,9 +33,13 @@ CHANGE-14, CHANGE-14.a and CHANGE-14.b were drafted by the agent from the SS-M05
 
 CHANGE-14.c was drafted by the agent after a fixture showed a task reopened after a passing check being reviewed and finalized (#892). Leif approved it in the Herdr orc tab on 2026-11-05 at 20:24 MST ("Widen S6"), relayed by the orc (t18). Recorded by the ss-testgaps agent.
 
+CHANGE-7.b is captured from Leif's answer in the orc tab on 2026-11-06 at about 17:35 MST (issue #931, from the Codex review of #901): "Capture both", for this sentence as drafted by the agent. Relayed by orc t18; recorded by the t18 worker Claude agent.
+
 CHANGE-15, CHANGE-15.a, CHANGE-15.b and CHANGE-15.c were drafted by an agent for issue #1091, whose title is Leif's ask: "A dry run of change approve: report every refusal without writing anything". Leif approved them in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 05:06Z: "OK, with (a) fixed". CHANGE-15, CHANGE-15.b and CHANGE-15.c are the agent's wording as drafted. CHANGE-15.a is the wording his planning session put to him as that fix, which he chose with those words; he did not write it. CHANGE-15.b follows his choice of depth on the issue on 2026-11-18: "First problem from each check". Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
 
 CHANGE-15.d was drafted by the agent for PR #1100 (#1091), after Leif chose on 2026-11-19 at about 14:14Z to add an optional `fix` field to the dry run, filled by the code that writes the command into each message. He approved it with the wording of that field, shown to him as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:32Z: "all as recommended, builder runs the send-back". It is the agent's wording, which he chose with those words; he did not write it. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
+
+CHANGE-16, CHANGE-16.a, CHANGE-16.b and CHANGE-16.c were drafted by an agent for issue #428, from Leif's choice on 2026-11-13 at about 04:04Z, "Every committed version": finalize, ship and archive refuse a change whose `approvals.json` is uncommitted or differs from `HEAD`, or where any committed version fails to extend the one before it. Leif approved the definition that carries them, with these four sentences marked as the agent's draft, in a Claude Code chat with his planning session (hc t4c) on 2026-11-19 at about 14:17Z: "Approve as written". They are the agent's wording, which he chose with those words; he did not write them. Relayed by hc t4c through the spec-sync lead agent (ss-lead, hc t58); recorded by the ss-builder Claude agent (hc t59).
 
 CHANGE-17, CHANGE-17.a, CHANGE-17.b and CHANGE-17.c were drafted by the SpecSync agent (hc t4t) for issue #1081 (a change in CorvidLabs/starling silently deleted 28 requirements) and approved by Leif in a Claude Code chat with his planning session hc t4c on 2026-11-19 at about 14:17Z, relayed through ss-lead hc t58: "Approve as written", on the frozen definition in ss-lead/gates/1081-definition.md, where these sentences were marked as the agent's draft.
 
@@ -64,6 +68,7 @@ CHANGE-17.d records the SpecSync maintainer’s answer in the #1105 interview wh
   - **CHANGE-7.a**  I am told whether it is safe to walk away and clear my head, or what to write down first.
     - **CHANGE-7.a.1**  A change whose archive fails its integrity check is never called safe to walk away from.
     - **CHANGE-7.a.2**  I am told the exact command that restores that archive from trusted history, and once it is restored I am told it is safe again.
+  - **CHANGE-7.b**  A name that comes from my repository is shown as plain text: it cannot add lines or terminal commands to what status tells me.
 - **CHANGE-8**  I can see every change in flight at once, without opening them one by one.
 - **CHANGE-9**  I can declare that one change has to land before another, so the order is not folklore.
 - **CHANGE-10**  When `change approve` refuses an affected path that no module owns, the error says which spec to edit.
@@ -98,6 +103,11 @@ CHANGE-17.d records the SpecSync maintainer’s answer in the #1105 interview wh
   - **CHANGE-15.b**  One run tells me the first problem from each check, and which checks it could not run yet.
   - **CHANGE-15.c**  Another tool can read the answer, one entry per refusal.
   - **CHANGE-15.d**  When a refusal names a command that fixes it, another tool gets that command on its own, and is told when it still has a blank to fill in.
+- **CHANGE-16**  A change is archived only with approvals that Git history holds.
+  - **CHANGE-16.a**  An approval edited after its commit, or never committed, stops the archive, and I am told how to put it back.
+  - **CHANGE-16.b**  A commit that rewrites or drops an earlier approval, reopening or send-back stops the archive, and I am told which commit did it.
+  - **CHANGE-16.c**  What the tool itself writes to that file never stops it: a reopen, a send-back and fresh approval, a repaired relay, a migration's backfill.
+
 - **CHANGE-17**  A change never deletes a requirement nobody agreed to remove.
   - **CHANGE-17.a**  Checking, verifying or shipping a change on a branch that lost a requirement without an approved removal stops, and names every lost requirement.
   - **CHANGE-17.b**  The project health check (audit) reports the same loss.

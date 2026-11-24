@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "pass-safe-directory-to-specsync-s-isolated-git-when-the-user-s-own-git-trusts-a-repository-owned-by-another-user",
+  "implementation_commit": "9699af6dc1face8606764cd33c380ce791ddee2d",
+  "implementation_tree": "a686344b42ae3a7fe36c344643afe62c5338ab35",
+  "contract_digest": "4de492ed2972249e5084e21ddde1b407db20002de38e0a2f298d127e9d563b13",
+  "workspace_digest": "a2af879dbbede53b0c423ac59b53959e9d800360a90140c0fcdfd02226f5bd2d",
+  "closing_digest": "8690b73d073f9dd1d85f99550083b2ff15aea3ec46f107b6b23212122f9af2ec",
+  "review_digest": "db1deb73cacc6ac3b4505453b726b670329c8d59b606e6c231b4cf2ad1732d00",
+  "finalization_digest": "e16fdc55753c03a7fd8e8943c51a33fb681e51f6f195d8822730a6cad57a2f8c",
+  "timestamp": 1795478422
+}

@@ -96,8 +96,40 @@ and `change audit` refuse rather than overwrite the newer text, and name the blo
 semantic delta for `auth` was approved against canonical text that has changed since (auth: REQ-auth-001); applying it would overwrite text this change never approved, ...
 ```
 
-Rewrite the delta body onto the current canonical text, then run `change approve` and `change check`
-again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,
+When main's edit and the change's own edit to a `## MODIFIED` requirement do not overlap word by
+word, `change check` proposes the rebase itself. It reads main's text for the requirement from Git
+at the merge-base of HEAD and the default branch (`origin/HEAD`, else `origin/main` or
+`origin/master`), never from the working tree, takes the approval-time text from that branch's
+earlier history, merges the three word by word, writes the merge into the delta, and refuses:
+
+```text
+semantic delta for <id> now holds a proposed rebase over main's edit, and nothing else was written: auth: REQ-auth-001 (main's text at 1a2b3c4d5e6f). A proposal is not approved wording: read it in the delta, approve it with `specsync change approve <id>`, then run `specsync change check <id>`
+```
+
+A proposal writes only the delta. The canonical requirement and `approvals.json` stay as they were,
+and `change status` shows the delta as changed after approval, so nothing reaches the canonical
+requirement until a person reads the merge and approves it; the next `change check` then applies it
+like any approved body. The requirement in the working tree must be main's text, the change's text
+or already their merge: a clean Git merge and a conflict resolved to either side get the same
+proposal. A requirement main has edited that cannot be proposed is refused even when the branch
+kept the change's own text, because keeping it would drop main's edit. The refusal names the cause
+and the way on for each requirement:
+
+- the edits overlap: the same words changed on both sides, a word both sides deleted at one place
+  that one side adds at another (as when both move one word), or a merge that would lose or
+  duplicate a word;
+- main deleted the requirement, or edited its heading;
+- the working tree holds some other text, such as a sentence added by hand on the branch;
+- the requirement is longer than the merge reads, 4,000 words a side;
+- a default branch exists and Git cannot read main's text (repair the repository or
+  `git fetch origin`, then check again).
+
+For all but the last, rewrite the body onto main's text by hand and approve it. With no default
+branch, and in CI, nothing is proposed and such a requirement materializes as before. Spec
+sections, `## REMOVED` items and workflow-v1 changes keep the refusal above.
+
+Otherwise, rewrite the delta body onto the current canonical text, then run `change approve` and
+`change check` again. Acceptance refuses the same way. Re-approving a body you have not rewritten is refused too,
 because it would record the newer text as the base and let the old body overwrite it. Approvals
 recorded before SpecSync carried this field keep their earlier behaviour, but once a change has
 recorded these bases, a later approval cannot drop them.
@@ -142,8 +174,9 @@ prints it as the merge-base held it; to remove it on purpose, name it in a `## R
 approve the change again. When the default branch has removed it too, because the branch took that
 removal by a cherry-pick or by hand instead of a merge, the refusal says so and names the way out:
 merge the default branch into this one (`git merge origin/main`). `change audit` reports the same
-refusal for every active change, a draft included, and `change ship-status` lists it as a blocker and
-exits 1 (REQ-change-169, #1081). A finalization that stopped after acceptance asks again when it is
+refusal for every active change, a draft included, whatever that change's own errors (REQ-change-176),
+and `change ship-status` lists it as a blocker and exits 1 for a change that can still be checked or
+shipped, not for an archived or retired one (REQ-change-169, REQ-cmd-change-045, #1081). A finalization that stopped after acceptance asks again when it is
 retried.
 
 The requirements files are those under the specs directory, at any depth, and those beside every
@@ -153,10 +186,15 @@ tree, and a registry path that leaves the project adds nothing. A directory that
 project, or is itself a link, is not read, and a `specs_dir` outside the project is refused in the
 words `specsync check` uses, naming the setting to fix. A requirement kept only in a file Git does
 not track counts for nothing, since `change check --commit` would not commit that file; the
-refusal names the `git add` that keeps it. The check takes them from the
+refusal names the `git add` that keeps it. When a requirement would be reported lost and a
+requirements directory or file in the working tree cannot be read, for example for lack of
+permission, the check says it cannot tell instead, naming each path and the error: make it readable
+and run `change check` again (REQ-change-177). The check takes them from the
 configuration and registry in the working tree and from those at the commit it compares with, so a
 branch that drops a registry mapping or moves `specs_dir` is still compared with the files that
-were canonical there. Only an active change past its draft, or a change the branch archived (read from its archived
+were canonical there. Only those are read at that commit: a file the branch newly makes canonical,
+by moving `specs_dir` or registering a spec, is looked in for an id now, but what it held before is
+not a canonical requirement (REQ-change-175). Only an active change past its draft, or a change the branch archived (read from its archived
 record, with a valid approval, archived after the commit it compares with), accounts for a
 removal. A retired change does not. The approval
 must bind the delta's wording: one that records no delta digests, as an approval made before they

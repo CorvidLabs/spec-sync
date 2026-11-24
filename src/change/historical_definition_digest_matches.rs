@@ -344,8 +344,7 @@ fn validate_trusted_correction_history(
     }
     references.sort();
     references.dedup();
-    let shallow = git_output(root, &["rev-parse", "--is-shallow-repository"])
-        .is_some_and(|value| value == "true");
+    let shallow = clone_is_shallow(root);
     // A correction-free shallow tip is indistinguishable from a correction
     // that was accepted and rolled back below the shallow boundary. Require
     // history through the recorded base before trusting either case; only a
@@ -1754,6 +1753,47 @@ fn finalization_digest(finalization: &FinalizationRecord) -> String {
     digest.finish()
 }
 
+const FINALIZATION_IMPLEMENTATION_MISSING: &str =
+    "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it";
+
+/// Check the recorded implementation independently of the surviving archive-tree fallback.
+fn finalization_implementation_is_available(
+    root: &Path,
+    finalization: &FinalizationRecord,
+) -> Result<bool, String> {
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    if resolved != finalization.implementation_commit {
+        return Err("finalization implementation commit is not canonical".into());
+    }
+    let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+    let tree = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &tree_expression,
+        ],
+    )
+    .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+    if tree != finalization.implementation_tree {
+        return Err("finalization implementation tree does not match its commit".into());
+    }
+    Ok(true)
+}
+
 fn validate_finalization_evidence(
     root: &Path,
     record: &ChangeRecord,
@@ -1780,45 +1820,13 @@ fn validate_finalization_evidence_with_review_binding(
     {
         return Err("same-PR finalization does not bind the accepted verification evidence".into());
     }
-    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
-    let resolved = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &implementation_expression,
-        ],
-    );
-    let implementation_commit_available = if let Some(resolved) = resolved {
-        if resolved != finalization.implementation_commit {
-            return Err("finalization implementation commit is not canonical".into());
-        }
-        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
-        let tree = git_output(
-            root,
-            &[
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                &tree_expression,
-            ],
-        )
-        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
-        if tree != finalization.implementation_tree {
-            return Err("finalization implementation tree does not match its commit".into());
-        }
-        true
-    } else if record.state == ChangeState::Archived
-        && archived_finalization_tree_is_recorded(root, record)?
+    let implementation_commit_available = finalization_implementation_is_available(root, &finalization)?;
+    if !implementation_commit_available
+        && (record.state != ChangeState::Archived
+            || !archived_finalization_tree_is_recorded(root, record)?)
     {
-        false
-    } else {
-        return Err(
-            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
-                .into(),
-        );
-    };
+        return Err(FINALIZATION_IMPLEMENTATION_MISSING.into());
+    }
     let review = load_scoped_review(root, record)?;
     if review.schema_version != 2
         || review.change_id != record.id
@@ -2155,6 +2163,8 @@ fn scoped_review_file_at_commit(
     if let Some(cached) = memoized_immutable_file(root, commit, path) {
         return Ok(cached);
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let object = format!("{commit}:{path}");
     // The trailing `--` makes Git parse `object` as a revision only. Without it, a missing path
     // holding glob characters (a project in `app[1]/`) falls back to a pathspec, prints nothing
@@ -2164,7 +2174,10 @@ fn scoped_review_file_at_commit(
     // is unavailable (an offline partial clone), which must neither pass as absent nor be memoized.
     if !output.status.success() && commit_tree_lists_path(root, commit, path) != Some(false) {
         return Err(format!(
-            "scoped-review Git object `{object}` is listed but could not be read"
+            "scoped-review Git object `{object}` is listed but could not be read{}",
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ));
     }
     let result = output.status.success().then_some(output.stdout);
@@ -2185,11 +2198,16 @@ fn scoped_review_git_text(root: &Path, args: &[&str]) -> Result<String, String> 
     if let Some(cached) = memoized_immutable_text(root, args) {
         return cached;
     }
+    // In a partial clone, what this read needs is downloaded first, once (REQ-change-172).
+    ensure_partial_clone_objects(root);
     let output = run_scoped_review_git(root, args)?;
     let result = if !output.status.success() {
         Err(format!(
-            "scoped-review Git query failed: git {}",
-            args.join(" ")
+            "scoped-review Git query failed: git {}{}",
+            args.join(" "),
+            partial_clone_download_refusal(root)
+                .map(|refusal| format!(": {refusal}"))
+                .unwrap_or_default()
         ))
     } else {
         String::from_utf8(output.stdout)
@@ -2759,6 +2777,11 @@ fn accept_change_with_gate(
             );
         }
     }
+    // REQ-change-166 (#428): finalize archives only approvals that Git history holds. Asked after
+    // the review, the more basic refusal, and before anything below writes.
+    if gate == "finalization" {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     validate_delta_files(root, &record)?;
@@ -2798,10 +2821,10 @@ fn accept_change_with_gate(
         // archive-only tips or interrupted finalizations. Gate "finalization" is terminal.
         ledger.approvals.push(ApprovalRecord {
             gate: "finalization".into(),
-            actor: "specsync:finalization".into(),
+            actor: FINALIZATION_APPROVAL_ACTOR.into(),
             timestamp: now(),
             digest: closing_digest.clone(),
-            note: Some("Same-PR finalization closing digest".into()),
+            note: Some(FINALIZATION_APPROVAL_NOTE.into()),
             definition_pair: None,
             approved_scope: None,
             scope_migration: None,
@@ -2823,9 +2846,7 @@ fn accept_change_with_gate(
                 actor: actor.clone(),
                 timestamp: now(),
                 digest: stable_definition_digest,
-                note: Some(
-                    "Normalized compatible definition evidence during explicit acceptance".into(),
-                ),
+                note: Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE.into()),
                 definition_pair: None,
                 approved_scope: None,
                 scope_migration: None,
@@ -2956,6 +2977,44 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+/// Whether `change finalize` would resume this accepted change: the checks it makes before it
+/// resumes an interrupted finalization, without writing (#933). Open tasks are asked apart, as
+/// ship-status and `change ship` already do.
+pub(crate) fn finalization_would_resume(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    require_state(record, &[ChangeState::Accepted], "resume the finalization")?;
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    if record.workflow_version < 2 {
+        return Err(format!("{} uses the legacy workflow", record.id));
+    }
+    if !record.canonical_applied {
+        return Err("canonical deltas are not materialized".into());
+    }
+    let verification = load_verification(root, record)?;
+    validate_finalization_evidence(root, record, &verification)
+        .map(|_| ())
+        .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))
+}
+
+#[cfg(test)]
+thread_local! {
+    static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: `finalize_change`, stopped after acceptance and before the archive move, as an
+/// interrupted finalization leaves the change (#933).
+#[cfg(test)]
+pub(crate) fn finalize_change_stopping_after_acceptance(
+    root: &Path,
+    id: &str,
+) -> Result<PathBuf, String> {
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(true));
+    let result = finalize_change(root, id);
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(false));
+    result
+}
+
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
@@ -2971,6 +3030,11 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     // Named before the trusted-transition preflight, which would refuse with "found 0".
     if let Some(upstream) = upstream_archive_of(root, &record) {
         return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    let ledger = change_dir(root, &record.id).join("approvals.json");
+    if change_dir(root, &record.id).is_dir() && !ledger.exists() {
+        approvals_ledger_held_by_history(root, &record)?;
     }
     if record.workflow_version < 2 {
         return Err(format!(
@@ -3006,7 +3070,16 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         let verification = load_verification(root, &record)?;
         ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+        #[cfg(test)]
+        if STOP_FINALIZE_AFTER_ACCEPTANCE.with(std::cell::Cell::get) {
+            return Err(
+                "test: the finalization stopped after acceptance, before the archive move".into(),
+            );
+        }
     } else {
+        // REQ-change-166 (#428): a resumed finalization archives only approvals that Git history
+        // holds; the uncommitted `finalization` approval is the accepting step's own record.
+        approvals_ledger_held_by_history(root, &record)?;
         let verification = load_verification(root, &record)?;
         validate_finalization_evidence(root, &record, &verification)
             .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))?;
@@ -3023,6 +3096,542 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
 pub fn archive_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     archive_change_with_options(root, id, false, false)
+}
+
+/// The note `change accept` gives the `definition` approval it writes when the effective
+/// definition approval no longer carries the stable definition digest. Besides its closing
+/// approval, it is the one record an accepting step writes (REQ-change-166).
+const ACCEPTANCE_NORMALIZING_DEFINITION_NOTE: &str =
+    "Normalized compatible definition evidence during explicit acceptance";
+
+/// The approvals-ledger lists whose committed records never change (REQ-change-166).
+const APPEND_ONLY_LEDGER_LISTS: [&str; 3] = ["approvals", "reopenings", "send_backs"];
+
+/// The actor and note of the `finalization` approval a finalizing acceptance writes. The
+/// approvals-ledger check exempts an uncommitted closing record only when it is that record
+/// (REQ-change-166, #1120 review).
+const FINALIZATION_APPROVAL_ACTOR: &str = "specsync:finalization";
+const FINALIZATION_APPROVAL_NOTE: &str = "Same-PR finalization closing digest";
+
+/// The reopening members `specsync migrate 5.0` adds to a reopening that lacked them. They may be
+/// added to a committed reopening, never changed (REQ-change-166).
+const MIGRATION_BACKFILLED_REOPENING_MEMBERS: [&str; 2] = [
+    "stale_acceptance_input_digest",
+    "current_acceptance_input_digest",
+];
+
+/// REQ-change-166 (#428): `change finalize`, `change ship` and `change archive` archive only an
+/// approvals ledger that Git history holds, and `change ship-status` reports this refusal as a
+/// blocker (REQ-cmd-change-committed-ledger-001). Read-only.
+///
+/// The ledger must be committed at `HEAD`, and the working copy must equal that version, except
+/// that an `accepted` change may append the closing records its accepting step wrote and has not
+/// committed. Every version committed along `HEAD`'s first-parent history must extend the one
+/// committed before it (`approvals_ledger_rewrite`). A commit at which the file does not exist, as
+/// an archive move leaves it, is skipped, so a change reopened out of its archive is compared with
+/// the ledger it had before the move, and one deleted and created again under the same id is
+/// refused unless its new ledger extends the old one. A change whose active workspace is gone,
+/// because a finalization moved it into the archive before stopping, has nothing left to ask.
+///
+/// Each refusal names the file and the way out that fits what differs: a commit when the working
+/// copy only adds records, a restore when it changes or drops one, and for a committed rewrite the
+/// two ways out, because a commit already in history cannot be made to extend the one before it.
+pub(crate) fn approvals_ledger_held_by_history(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    if !change_dir(root, &record.id).is_dir() {
+        return Ok(());
+    }
+    let working = change_dir(root, &record.id).join("approvals.json");
+    approvals_ledger_held_by_history_at(root, record, &working)
+}
+
+/// `approvals_ledger_held_by_history` for the ledger at `working`: the workspace's own, or, when an
+/// archive move is resumed, the moved package's, held to the history of the path the change's
+/// ledger was committed at. A package found in the archive is not exempt only because it is
+/// there (Codex on #1120).
+fn approvals_ledger_held_by_history_at(
+    root: &Path,
+    record: &ChangeRecord,
+    working_path: &Path,
+) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let relative = git_repo_relative_path(root, &display)?;
+    let working = match crate::util::read_project_bytes(root, working_path, crate::util::MAX_STATE_FILE_BYTES) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            return Err(missing_approvals_ledger_refusal(root, &display, &relative));
+        }
+        Err(error) => return Err(format!("failed to read `{display}`: {error}")),
+    };
+    let committed = |commit: &str| -> Result<Option<Vec<u8>>, String> {
+        let object = format!("{commit}:{relative}");
+        let output = run_git_bounded(
+            root,
+            &["show", object.as_str(), "--"],
+            None,
+            MAX_CHANGE_ARTIFACT_BYTES as usize,
+        )
+        .map_err(|error| format!("failed to read `{object}`: {error}; {REPAIR}"))?;
+        if output.status.success() {
+            return Ok(Some(output.stdout));
+        }
+        match commit_tree_lists_path(root, commit, &relative) {
+            Some(false) => Ok(None),
+            _ => Err(format!("failed to read `{object}`; {REPAIR}")),
+        }
+    };
+    const WHY: &str = APPROVALS_LEDGER_WHY;
+    // A blobless clone of a private repository (#1077) or a damaged one cannot read a version.
+    const REPAIR: &str =
+        "repair the repository or fetch the missing objects, then run the command again";
+    let commit_it = if record.state == ChangeState::Accepted {
+        format!("`git add -- {display}` and a commit")
+    } else {
+        check_commit_commits_the_ledger(&record.id)
+    };
+    // `change check --commit` does not commit an ignored file, so its way out would loop
+    // (tester2 on #428): an ignored ledger is told what does work.
+    let ignored = run_git_bounded(root, &["check-ignore", "-q", "--", display.as_str()], None, 1024)
+        .is_ok_and(|output| output.status.success());
+    let commit_it = if ignored {
+        format!(
+            "it is ignored by Git, so `specsync change check {} --commit` cannot commit it: a \
+             change's approvals ledger must not be ignored, so remove the rule that ignores it, or \
+             commit it with `git add -f -- {display}` and a commit",
+            record.id
+        )
+    } else {
+        commit_it
+    };
+    let Some(at_head) = committed("HEAD")? else {
+        return Err(format!(
+            "`{display}` is not committed at HEAD; {WHY}. Commit it with the change \
+             ({commit_it}), then run the command again"
+        ));
+    };
+    if at_head != working
+        && !(record.state == ChangeState::Accepted
+            && appends_only_closing_records(root, record, &at_head, &working))
+    {
+        let rewrite = approvals_ledger_rewrite(&at_head, &working);
+        return Err(working_ledger_restore(&display, &rewrite).unwrap_or_else(|| {
+            format!(
+                "`{display}` adds records the version committed at HEAD does not hold; {WHY}. \
+                 Commit it with the change ({commit_it}), then run the command again"
+            )
+        }));
+    }
+    let pathspec = format!(":(top,literal){relative}");
+    let max_count = format!("--max-count={}", MAX_TRUSTED_HISTORY_COMMITS + 1);
+    let output = run_git_bounded(
+        root,
+        &[
+            "log",
+            "--first-parent",
+            "--no-renames",
+            "--format=%H",
+            max_count.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+        None,
+        MAX_GIT_COMMAND_OUTPUT_BYTES,
+    )
+    .map_err(|error| format!("failed to read the history of `{display}`: {error}; {REPAIR}"))?;
+    if !output.status.success() {
+        return Err(format!("failed to read the history of `{display}`; {REPAIR}"));
+    }
+    let history = String::from_utf8_lossy(&output.stdout);
+    let mut commits: Vec<&str> = history.lines().filter(|line| !line.is_empty()).collect();
+    if commits.len() > MAX_TRUSTED_HISTORY_COMMITS {
+        return Err(format!(
+            "the history of `{display}` exceeds the deterministic \
+             {MAX_TRUSTED_HISTORY_COMMITS}-commit bound"
+        ));
+    }
+    commits.reverse();
+    let short = |commit: &str| commit[..12.min(commit.len())].to_string();
+    let two_ways_out = |commit: &str, removed: Option<&str>| {
+        // Taking out only the commit that created the file again would leave it deleted, so a
+        // removal and its re-creation are named together (tester2 on #428).
+        let commits = match removed {
+            Some(removed) => format!("{} and {}", short(removed), short(commit)),
+            None => short(commit),
+        };
+        format!(
+            "a commit already in history cannot be made to extend the one before it, so take \
+             {commits} out of this branch's history, or make the change again under a new id"
+        )
+    };
+    let mut earlier: Option<(&str, Vec<u8>)> = None;
+    let mut removed_in: Option<&str> = None;
+    for commit in commits {
+        let Some(bytes) = committed(commit)? else {
+            if earlier.is_some() && removed_in.is_none() {
+                removed_in = Some(commit);
+            }
+            continue;
+        };
+        // Each committed version must read as an approvals ledger, the first one too: a version
+        // whose lists are not lists is no baseline to extend (Codex on #1120). Only the shape of
+        // the three lists is asked, so a version an older SpecSync wrote, such as a reopening
+        // without the digests `specsync migrate 5.0` adds, still reads (tester2 on #1120).
+        let rewrite = if !ledger_lists_are_lists(&bytes) {
+            Err(())
+        } else {
+            match &earlier {
+                Some((_, earlier_bytes)) => approvals_ledger_rewrite(earlier_bytes, &bytes),
+                None => relay_blind_approval_ledger_bytes(&bytes)
+                    .map(|_| None)
+                    .ok_or(()),
+            }
+        };
+        match rewrite {
+            Ok(None) => {}
+            Ok(Some(why)) => {
+                let (earlier_commit, _) = earlier.as_ref().expect("a rewrite needs a version");
+                // The commit before the removal is the last one that held the earlier ledger.
+                let removal = match removed_in {
+                    Some(removed) => {
+                        let parent = format!("{removed}^1");
+                        let held = git_output(root, &["rev-parse", "--verify", parent.as_str()])
+                            .map(|commit| format!("last held in {}, ", short(&commit)))
+                            .unwrap_or_default();
+                        format!(
+                            " (the file was {held}removed in {} and created again)",
+                            short(removed)
+                        )
+                    }
+                    None => String::new(),
+                };
+                return Err(format!(
+                    "`{display}` as committed in {} {why} of the version committed in {}{removal}; \
+                     each committed version of the approvals ledger must extend the one before \
+                     it, and {}",
+                    short(commit),
+                    short(earlier_commit),
+                    two_ways_out(commit, removed_in)
+                ));
+            }
+            Err(()) => {
+                return Err(format!(
+                    "`{display}` as committed in {} does not read as an approvals ledger; {WHY}, \
+                     and {}",
+                    short(commit),
+                    two_ways_out(commit, None)
+                ));
+            }
+        }
+        earlier = Some((commit, bytes));
+        removed_in = None;
+    }
+    Ok(())
+}
+
+const APPROVALS_LEDGER_WHY: &str = "a change is archived only with approvals that Git history holds";
+
+/// The restore a working ledger needs when it changes or drops a record committed at `HEAD`, or
+/// does not read as a ledger; `None` when it only adds records (REQ-change-166).
+fn working_ledger_restore(display: &str, rewrite: &Result<Option<String>, ()>) -> Option<String> {
+    let what = match rewrite {
+        Ok(None) => return None,
+        Ok(Some(why)) => format!("{why} of the version committed at HEAD"),
+        Err(()) => "does not read as an approvals ledger".to_string(),
+    };
+    Some(format!(
+        "`{display}` {what}; {APPROVALS_LEDGER_WHY}. Restore it with `git checkout HEAD -- \
+         {display}`, then run the command again"
+    ))
+}
+
+/// `change check --commit` does not commit a ledger whose working copy changes or drops a record
+/// committed at `HEAD`: it refuses before writing anything, naming the restore finalize names
+/// (#1120). A ledger that only adds records, or is not committed yet, is the commit's to make.
+pub(crate) fn ensure_working_ledger_keeps_committed_records(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<(), String> {
+    let display = format!("{CHANGES_PATH}/{}/approvals.json", record.id);
+    let Ok(working) = crate::util::read_project_bytes(
+        root,
+        &change_dir(root, &record.id).join("approvals.json"),
+        crate::util::MAX_STATE_FILE_BYTES,
+    ) else {
+        return Ok(());
+    };
+    let relative = git_repo_relative_path(root, &display)?;
+    let object = format!("HEAD:{relative}");
+    let Ok(output) = run_git_bounded(
+        root,
+        &["show", object.as_str(), "--"],
+        None,
+        MAX_CHANGE_ARTIFACT_BYTES as usize,
+    ) else {
+        return Ok(());
+    };
+    if !output.status.success() {
+        return Ok(());
+    }
+    match working_ledger_restore(&display, &approvals_ledger_rewrite(&output.stdout, &working)) {
+        Some(refusal) => Err(refusal),
+        None => Ok(()),
+    }
+}
+
+/// The way out of a ledger refusal that `change check --commit` itself takes.
+fn check_commit_commits_the_ledger(id: &str) -> String {
+    format!("`specsync change check {id} --commit` commits it")
+}
+
+/// Whether the way out of an `approvals_ledger_held_by_history` refusal is `change check
+/// --commit`, so ship-status may keep that command as its next step. Any other way out, a restore
+/// above all, comes first: `check --commit` would commit an edited ledger (#1120).
+pub(crate) fn ledger_refusal_is_committed_by_check(refusal: &str, id: &str) -> bool {
+    refusal.contains(&check_commit_commits_the_ledger(id))
+}
+
+/// Whether `bytes` is a JSON object whose `approvals`, `reopenings` and `send_backs` are each a
+/// list when present (REQ-change-166).
+fn ledger_lists_are_lists(bytes: &[u8]) -> bool {
+    let Ok(serde_json::Value::Object(ledger)) = serde_json::from_slice::<serde_json::Value>(bytes)
+    else {
+        return false;
+    };
+    APPEND_ONLY_LEDGER_LISTS
+        .iter()
+        .all(|list| ledger.get(*list).is_none_or(serde_json::Value::is_array))
+}
+
+/// The refusal for a change whose working `approvals.json` is missing: the file, and the commit to
+/// restore it from, the one that last held it (REQ-change-166, tester2 on #428).
+fn missing_approvals_ledger_refusal(root: &Path, display: &str, relative: &str) -> String {
+    let pathspec = format!(":(top,literal){relative}");
+    // First-parent history, as the check reads it, so a merge that kept a side branch's deletion
+    // names the version the first parent held (Codex on #1120).
+    let last_touch = git_output(
+        root,
+        &["log", "-1", "--first-parent", "--format=%H", "HEAD", "--", pathspec.as_str()],
+    );
+    let held = last_touch.and_then(|commit| match commit_tree_lists_path(root, &commit, relative) {
+        Some(true) => Some(commit),
+        // The last commit that touched it removed it, so its parent last held it.
+        _ => git_output(root, &["rev-parse", "--verify", &format!("{commit}^1")]),
+    });
+    match held {
+        Some(commit) => {
+            let at_head = git_output(root, &["rev-parse", "HEAD"]).is_some_and(|head| head == commit);
+            let from = if at_head {
+                "HEAD".to_string()
+            } else {
+                commit[..12.min(commit.len())].to_string()
+            };
+            format!(
+                "`{display}` is missing; a change is archived only with approvals that Git history \
+                 holds. Restore it from the commit that last held it with `git checkout {from} -- \
+                 {display}`, then run the command again"
+            )
+        }
+        None => format!(
+            "`{display}` is missing and no commit holds it; a change is archived only with \
+             approvals that Git history holds, so make the change again under a new id"
+        ),
+    }
+}
+
+/// Why `newer` does not extend `older`, as "drops `approvals[0]`" or "changes `reopenings[1]`";
+/// `None` when it does; `Err` when either does not read as a ledger (REQ-change-166).
+///
+/// Every record of `approvals`, `reopenings` and `send_backs` in `older` must still be at its
+/// position in `newer`, unchanged. Both are first read through `relay_blind_approval_ledger_bytes`,
+/// the projection the #660 check compares an archived ledger with, so the `relayed_by` of every
+/// approval, and of every reopening's `superseded_approval`, is not compared: `change
+/// repair-relays` restores or removes it. A reopening may gain the two digest members
+/// `specsync migrate 5.0` backfills. Other members of the ledger are not compared.
+fn approvals_ledger_rewrite(older: &[u8], newer: &[u8]) -> Result<Option<String>, ()> {
+    let (Some(older), Some(newer)) = (
+        relay_blind_approval_ledger_bytes(older),
+        relay_blind_approval_ledger_bytes(newer),
+    ) else {
+        return Err(());
+    };
+    for list in APPEND_ONLY_LEDGER_LISTS {
+        let key = format!("\"{list}\"");
+        let (Some(before), Some(after)) = (
+            ledger_entries(&older, key.as_bytes()),
+            ledger_entries(&newer, key.as_bytes()),
+        ) else {
+            return Err(());
+        };
+        for (index, record) in before.iter().enumerate() {
+            match after.get(index) {
+                None => return Ok(Some(format!("drops `{list}[{index}]`"))),
+                Some(kept)
+                    if kept != record
+                        && !(list == "reopenings"
+                            && reopening_only_gains_backfilled_digests(record, kept)) =>
+                {
+                    return Ok(Some(format!("changes `{list}[{index}]`")));
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Whether `newer` is the reopening `older` plus the digest members `specsync migrate 5.0`
+/// backfills where `older` lacked them (REQ-change-166). A member `older` holds must not change.
+fn reopening_only_gains_backfilled_digests(older: &[u8], newer: &[u8]) -> bool {
+    let (Ok(serde_json::Value::Object(older)), Ok(serde_json::Value::Object(mut newer))) = (
+        serde_json::from_slice::<serde_json::Value>(older),
+        serde_json::from_slice::<serde_json::Value>(newer),
+    ) else {
+        return false;
+    };
+    for member in MIGRATION_BACKFILLED_REOPENING_MEMBERS {
+        if !older.contains_key(member) {
+            newer.remove(member);
+        }
+    }
+    older == newer
+}
+
+/// Whether `working` is the ledger committed at `HEAD` plus only the closing records the accepting
+/// step wrote, appended after the committed approvals with nothing else changed: one
+/// `finalization` approval, or an `acceptance` approval with, before it, the normalizing
+/// `definition` approval `change accept` may write (REQ-change-166). Each record must be the one
+/// that step writes, not only one with its gate (Codex and corvid-agent on #1120).
+fn appends_only_closing_records(
+    root: &Path,
+    record: &ChangeRecord,
+    head: &[u8],
+    working: &[u8],
+) -> bool {
+    closing_tail(head, working).is_some_and(|tail| {
+        closing_tail_gates_fit(&tail) && closing_tail_was_written_by_acceptance(root, record, &tail)
+    })
+}
+
+/// `closing_tail` with the gates and notes an accepting step writes; what the rule allows by
+/// shape alone, before the records are compared with what was written.
+#[cfg(test)]
+fn closing_tail_fits(head: &[u8], working: &[u8]) -> bool {
+    closing_tail(head, working).is_some_and(|tail| closing_tail_gates_fit(&tail))
+}
+
+/// The approvals `working` appends after the ones committed at `HEAD`, when that is all it
+/// changes: every committed approval unchanged at its position and every other member equal. The
+/// lists are compared as written, relays included. An absent list and an empty one are the same
+/// only for the ledger's own lists; any other member, a newer SpecSync's included, is compared
+/// exactly (Codex on #1120).
+fn closing_tail(head: &[u8], working: &[u8]) -> Option<Vec<serde_json::Value>> {
+    use serde_json::Value;
+    let normalized = |bytes: &[u8]| -> Option<serde_json::Map<String, Value>> {
+        let Ok(Value::Object(mut ledger)) = serde_json::from_slice::<Value>(bytes) else {
+            return None;
+        };
+        ledger.retain(|key, value| {
+            !(APPEND_ONLY_LEDGER_LISTS.contains(&key.as_str())
+                && matches!(value, Value::Array(items) if items.is_empty()))
+        });
+        Some(ledger)
+    };
+    let (mut head, mut working) = (normalized(head)?, normalized(working)?);
+    let approvals = |ledger: &mut serde_json::Map<String, Value>| match ledger.remove("approvals")
+    {
+        None => Some(Vec::new()),
+        Some(Value::Array(items)) => Some(items),
+        Some(_) => None,
+    };
+    let (committed, mut written) = (approvals(&mut head)?, approvals(&mut working)?);
+    if written.len() <= committed.len() {
+        return None;
+    }
+    let tail = written.split_off(committed.len());
+    (written == committed && working == head).then_some(tail)
+}
+
+fn closing_gate(approval: &serde_json::Value) -> Option<&str> {
+    approval.get("gate").and_then(serde_json::Value::as_str)
+}
+
+fn closing_member<'a>(approval: &'a serde_json::Value, member: &str) -> Option<&'a str> {
+    approval.get(member).and_then(serde_json::Value::as_str)
+}
+
+/// Whether a closing tail has the gates and notes an accepting step writes: one `finalization` or
+/// `acceptance` approval, or the normalizing `definition` approval and then `acceptance`.
+fn closing_tail_gates_fit(tail: &[serde_json::Value]) -> bool {
+    match tail {
+        [closing] => matches!(closing_gate(closing), Some("finalization" | "acceptance")),
+        [normalizing, closing] => {
+            closing_gate(normalizing) == Some("definition")
+                && closing_member(normalizing, "note") == Some(ACCEPTANCE_NORMALIZING_DEFINITION_NOTE)
+                && closing_gate(closing) == Some("acceptance")
+        }
+        _ => false,
+    }
+}
+
+/// Whether each record of a closing tail is the one the accepting step wrote: the closing digest
+/// it binds to the change's verification, a finalization's fixed actor and note, the stable
+/// definition digest and the closer's actor on a normalizing definition approval, and no member
+/// the step does not write (Codex and corvid-agent on #1120). A closer's actor and note are free.
+fn closing_tail_was_written_by_acceptance(
+    root: &Path,
+    record: &ChangeRecord,
+    tail: &[serde_json::Value],
+) -> bool {
+    use serde_json::Value;
+    let Ok(verification) = load_verification(root, record) else {
+        return false;
+    };
+    let closing = closing_digest(record, &verification);
+    let only = |approval: &Value, members: &[&str]| {
+        approval.as_object().is_some_and(|object| {
+            object.get("timestamp").is_some_and(Value::is_u64)
+                && object
+                    .iter()
+                    .all(|(key, value)| members.contains(&key.as_str()) || value.is_null())
+        })
+    };
+    const CLOSING_MEMBERS: [&str; 5] = ["gate", "actor", "timestamp", "digest", "note"];
+    let closes = |approval: &Value| {
+        closing_member(approval, "digest") == Some(closing.as_str())
+            && only(approval, &CLOSING_MEMBERS)
+    };
+    match tail {
+        [last] if closing_gate(last) == Some("finalization") => {
+            closes(last)
+                && closing_member(last, "actor") == Some(FINALIZATION_APPROVAL_ACTOR)
+                && closing_member(last, "note") == Some(FINALIZATION_APPROVAL_NOTE)
+        }
+        [last] => closes(last),
+        [normalizing, last] => {
+            let Ok(stable) = definition_digest(root, record) else {
+                return false;
+            };
+            closing_member(normalizing, "digest") == Some(stable.as_str())
+                && closing_member(normalizing, "actor") == closing_member(last, "actor")
+                && only(
+                    normalizing,
+                    &[
+                        "gate",
+                        "actor",
+                        "timestamp",
+                        "digest",
+                        "note",
+                        "approved_delta_digests",
+                        "approved_delta_bases",
+                    ],
+                )
+                && closes(last)
+        }
+        _ => false,
+    }
 }
 
 #[cfg(test)]
@@ -3513,6 +4122,12 @@ fn archive_change_with_options(
     let located = find_change_dir(root, id)?;
     let record = load_change(root, id)?;
     require_state(&record, &[ChangeState::Accepted], "archive the change")?;
+    // A missing approvals ledger is named before any read of it can fail with a bare error.
+    if change_dir(root, &record.id).is_dir()
+        && !change_dir(root, &record.id).join("approvals.json").exists()
+    {
+        approvals_ledger_held_by_history(root, &record)?;
+    }
     validate_acceptance_owner_correction_records(&record)?;
     let source = change_dir(root, &record.id);
     let archive_root = root.join(ARCHIVE_PATH);
@@ -3544,6 +4159,14 @@ fn archive_change_with_options(
                     .into(),
             );
         }
+    }
+    // REQ-change-166 (#428): archive only approvals that Git history holds, before anything is
+    // written. A post-move resume has no active workspace left, so the moved package's ledger is
+    // held to the history of the path it was committed at (Codex on #1120).
+    if resume_post_move {
+        approvals_ledger_held_by_history_at(root, &record, &destination.join("approvals.json"))?;
+    } else {
+        approvals_ledger_held_by_history(root, &record)?;
     }
     let current_location = if resume_post_move {
         destination.as_path()
@@ -4042,24 +4665,56 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
 /// away; when the damage is committed, the commit that archived the package holds them; when the
 /// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
 /// literals, the change ID and the package path only — never a digest — and every interpolated
-/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
-/// the step is meant to be copied into a shell (#901 review).
+/// word is quoted as one shell word, because a change ID or archive directory may carry `;`, `$`
+/// or spaces and the step is meant to be copied into a shell (#901 review). Each package path is a
+/// literal Git pathspec (#929), each status command puts `--` before the ID so an ID that begins
+/// with `-` is not read as a flag (#930), and a control byte in a directory name is printed as an
+/// escape that bash still reads as that byte (#931, CHANGE-7.b).
 fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
-    let status = format!("specsync change status {}", shell_quote(id));
+    let id = printable_shell_word(id);
+    let status = format!("specsync change status -- {id}");
+    let literal = |path: &str| printable_shell_word(&literal_pathspec(path));
     match corrupt {
         CorruptArchive::DiffersFromHead { package } => format!(
             "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
-            shell_quote(package)
+            literal(package)
         ),
         CorruptArchive::DamageCommitted { package } => format!(
             "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
-            shell_quote(package),
-            shell_quote(&format!("{package}/state.json"))
+            literal(package),
+            literal(&format!("{package}/state.json"))
         ),
         CorruptArchive::OutsidePackage => format!(
-            "run `{status} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+            "run `specsync change status --json -- {id}`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
+}
+
+/// `text` as one shell word for a printed step: what `shell_quote` gives when it holds no control
+/// character. Otherwise it is written in `$'...'` quoting, with `\\`, `\'` and a `\xHH` escape for
+/// each byte of each control character, so the printed step holds no control byte and cannot add
+/// lines or terminal commands to the output, while bash still reads the exact name (#931,
+/// CHANGE-7.b).
+fn printable_shell_word(text: &str) -> String {
+    if !text.chars().any(char::is_control) {
+        return shell_quote(text);
+    }
+    let mut word = String::from("$'");
+    for character in text.chars() {
+        match character {
+            '\\' => word.push_str("\\\\"),
+            '\'' => word.push_str("\\'"),
+            control if control.is_control() => {
+                let mut bytes = [0_u8; 4];
+                for byte in control.encode_utf8(&mut bytes).as_bytes() {
+                    word.push_str(&format!("\\x{byte:02x}"));
+                }
+            }
+            other => word.push(other),
+        }
+    }
+    word.push('\'');
+    word
 }
 
 /// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
@@ -4108,23 +4763,21 @@ fn corrupt_archive_signal(
     let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
         return Some(CorruptArchive::OutsidePackage);
     };
-    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
-    // package's tracked content differs from that commit, staged or not.
-    let differs_from = |commit: &str| {
-        crate::git_utils::status_without_inherited_output(
-            Command::new("git")
-                .args(["diff", "--quiet", commit, "--", &package])
-                .current_dir(root),
-        )
-        .is_ok_and(|status| status.code() == Some(1))
-    };
+    let differs_from = |commit: &str| archive_package_differs_from(root, commit, &package);
     if differs_from("HEAD") {
         return Some(CorruptArchive::DiffersFromHead { package });
     }
     let state = format!("{package}/state.json");
     let archiving_commit = crate::git_utils::output_after_child_exits(
         Command::new("git")
-            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .args([
+                "log",
+                "-1",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                &literal_pathspec(&state),
+            ])
             .current_dir(root),
     )
     .ok()
@@ -4137,6 +4790,23 @@ fn corrupt_archive_signal(
         Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
         _ => Some(CorruptArchive::OutsidePackage),
     }
+}
+
+/// Whether the tracked content of `package` (relative to `root`) differs from `commit`, staged
+/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then. The
+/// package is one literal path, so `*`, `?` and `[` in it match only that package (#929).
+fn archive_package_differs_from(root: &Path, commit: &str, package: &str) -> bool {
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["diff", "--quiet", commit, "--", &literal_pathspec(package)])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.code() == Some(1))
+}
+
+/// `path` as one literal Git pathspec, relative to the directory Git runs in (#929).
+fn literal_pathspec(path: &str) -> String {
+    format!(":(literal){path}")
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,
@@ -4938,12 +5608,11 @@ fn check_project_with_command_output(
                 // The refusal `change check` gives for a body approved over canonical text
                 // that has since moved (#843), asked only once the body itself is intact.
                 report.errors.push(format!("{}: {error}", record.id));
-            } else if approval.is_ok()
-                && delta_files.is_ok()
-                && let Err(error) = ensure_no_lost_requirements(root, record)
-            {
-                // The refusal `change check` gives a branch that lost a canonical requirement
-                // (#1081, REQ-change-169).
+            }
+            // The refusal `change check` gives a branch that lost a canonical requirement
+            // (#1081, REQ-change-169), asked whatever this change's own checks say: an approval
+            // or delta that cannot be read accounts for no removal (REQ-change-176, #1116).
+            if let Err(error) = ensure_no_lost_requirements(root, record) {
                 report.errors.push(format!("{}: {error}", record.id));
             }
         }

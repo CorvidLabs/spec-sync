@@ -1600,16 +1600,17 @@ fn canonical_block_digest(module: &str, spec: &str, requirements: &str, item: &D
         DeltaTarget::SpecSection => (spec, "## "),
     };
     let heading = format!("{prefix}{}", item.key);
-    let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
-    digest.frame(b"key", delta_base_key(module, item).as_bytes());
     match markdown_block_range(source, &heading, markdown_prefix_level(prefix)) {
-        None => digest.frame(b"absent", b""),
-        Some(range) => {
-            let block = source[range].replace("\r\n", "\n");
-            digest.frame(b"block", block.trim_matches(['\n', ' ', '\t']).as_bytes());
+        // Main's side of a proposed rebase frames its blocks through the same function
+        // (REQ-change-rebase-proposal-001).
+        Some(range) => item_block_digest(module, item, &source[range]),
+        None => {
+            let mut digest = FramedDigest::new(APPROVED_DELTA_BASE_DOMAIN);
+            digest.frame(b"key", delta_base_key(module, item).as_bytes());
+            digest.frame(b"absent", b"");
+            digest.finish()
         }
     }
-    digest.finish()
 }
 
 /// Every `## MODIFIED` / `## REMOVED` item of every affected module, with the canonical spec and
@@ -1952,9 +1953,11 @@ fn approval_delta_bases(
 /// over; an item whose block is neither that base nor already this change's own text is refused,
 /// naming the block, before anything is written.
 ///
-/// An item that is already applied is never refused: the block carrying exactly this change's
-/// approved text is converged, whatever the base was. Absent bases (approvals written before this
-/// binding) are unknown, not violated, so such a change keeps materializing as before.
+/// An item that is already applied is converged, whatever the base was, unless it is a
+/// workflow-v2 requirement main has edited past its base (REQ-change-rebase-proposal-001): keeping the change's
+/// body there drops main's edit, so it is stale until a proposed rebase of it is approved. Absent
+/// bases (approvals written before this binding) are unknown, not violated, so such a change keeps
+/// materializing as before.
 fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     if record.no_spec_change {
         return Ok(());
@@ -1977,17 +1980,27 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
         return Ok(());
     };
     let mut moved: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let specs_dir = crate::config::load_config(root).specs_dir;
     for_each_replacing_delta_item(root, record, |module, spec, requirements, item| {
-        if delta_item_is_applied(spec, requirements, item) {
-            return;
-        }
         let key = delta_base_key(module, item);
         let Some(base) = bases.get(&key) else {
             return;
         };
-        if *base != canonical_block_digest(module, spec, requirements, item) {
+        let stale = !delta_item_is_applied(spec, requirements, item)
+            && *base != canonical_block_digest(module, spec, requirements, item);
+        // A requirement main has edited past its base is stale too, even when the working tree
+        // carries this change's own body: keeping that body would drop main's edit
+        // (REQ-change-rebase-proposal-001; the tester's and ss-lead's reviews of #1089). Its cause is named.
+        let main_refusal = canonical_module_paths(root, &specs_dir, module)
+            .ok()
+            .and_then(|(_, requirements_path)| {
+                main_edit_refusal(root, record, &requirements_path, requirements, module, item, base)
+            });
+        if stale || main_refusal.is_some() {
             let target = match item.target {
-                DeltaTarget::Requirement => item.key.clone(),
+                DeltaTarget::Requirement => {
+                    format!("{}{}", item.key, main_refusal.unwrap_or_default())
+                }
                 DeltaTarget::SpecSection => format!("section `{}`", item.key),
             };
             moved.entry(module.to_string()).or_default().push(target);
@@ -1996,8 +2009,36 @@ fn ensure_approved_delta_bases_current(root: &Path, record: &ChangeRecord) -> Re
     if moved.is_empty() {
         return Ok(());
     }
+    // The way on for a requirement main edited without overlapping this change's words: take
+    // main's text for it and check again, and the check proposes a rebase of the delta for a
+    // person to approve (REQ-change-rebase-proposal-001). Without this, a correct hand resolution of a merge
+    // conflict reads only as stale (fable-lead's review of #1089).
+    let rebase_hint = if record.workflow_version >= 2
+        && moved
+            .values()
+            .flatten()
+            .any(|target| !target.starts_with("section "))
+    {
+        // The file of a module that has a stale requirement, never one whose only stale item is
+        // a section (Codex's review of #1089).
+        moved
+            .iter()
+            .filter(|(_, targets)| targets.iter().any(|target| !target.starts_with("section ")))
+            .find_map(|(module, _)| canonical_module_paths(root, &specs_dir, module).ok())
+            .and_then(|(_, requirements)| project_relative(root, &requirements))
+            .zip(remote_default_ref(root))
+            .map(|(file, default)| {
+                format!(
+                    ". For a requirement whose edits do not overlap main's, merge {default} into this branch, leave the requirement as {default} has it (`git show {default}:{file}` prints that text), as this change has it, or with both edits, and run `specsync change check {}` again: the check then proposes a rebase of the delta, for a person to approve with `specsync change approve {}`",
+                    record.id, record.id
+                )
+            })
+            .unwrap_or_default()
+    } else {
+        String::new()
+    };
     Err(format!(
-        "semantic delta for {} was approved against canonical text that has changed since ({}); applying it would overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text, re-run `specsync change approve {}` to approve the rebased bodies, then `specsync change check {}`",
+        "semantic delta for {} was approved against canonical text that has changed since ({}); applying it would overwrite text this change never approved, so rewrite each listed delta body onto the current canonical text, re-run `specsync change approve {}` to approve the rebased bodies, then `specsync change check {}`{rebase_hint}",
         moved
             .keys()
             .map(|module| format!("`{module}`"))
@@ -2509,37 +2550,34 @@ fn validate_requirement(id: &str, content: &str) -> Result<(), String> {
 }
 
 fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
+    parse_delta_with_body_ranges(content)
+        .map(|items| items.into_iter().map(|(item, _)| item).collect())
+}
+
+fn parse_delta_with_body_ranges(content: &str) -> Result<Vec<(DeltaItem, Range<usize>)>, String> {
     let mut operation: Option<DeltaOperation> = None;
-    let mut current_target: Option<DeltaTarget> = None;
-    let mut current_key = String::new();
-    let mut body = Vec::new();
+    let mut current_item: Option<(DeltaTarget, String, usize)> = None;
     let mut items = Vec::new();
-    let flush = |items: &mut Vec<DeltaItem>,
+    let mut offset = 0;
+    let flush = |items: &mut Vec<(DeltaItem, Range<usize>)>,
                  operation: Option<DeltaOperation>,
-                 target: Option<DeltaTarget>,
-                 key: &str,
-                 body: &mut Vec<String>| {
-        if let (Some(operation), Some(target)) = (operation, target) {
-            items.push(DeltaItem {
-                operation,
-                target,
-                key: key.trim().to_string(),
-                content: body.join("\n").trim().to_string(),
-            });
+                 state: Option<(DeltaTarget, String, usize)>,
+                 end: usize| {
+        if let (Some(operation), Some((target, key, start))) = (operation, state) {
+            let range = start..end;
+            let normalized = content[range.clone()].replace("\r\n", "\n");
+            items.push((
+                DeltaItem { operation, target, key, content: normalized.trim().to_string() },
+                range,
+            ));
         }
-        body.clear();
     };
-    for line in content.lines() {
+    for raw in content.split_inclusive('\n') {
+        let line_start = offset;
+        offset += raw.len();
+        let line = raw.lines().next().unwrap_or_default();
         if let Some(header) = line.strip_prefix("## ") {
-            flush(
-                &mut items,
-                operation,
-                current_target,
-                &current_key,
-                &mut body,
-            );
-            current_target = None;
-            current_key.clear();
+            flush(&mut items, operation, current_item.take(), line_start);
             operation = match header.trim().to_ascii_uppercase().as_str() {
                 "ADDED" => Some(DeltaOperation::Added),
                 "MODIFIED" => Some(DeltaOperation::Modified),
@@ -2553,61 +2591,26 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
             continue;
         }
         if let Some(header) = line.strip_prefix("### ") {
-            // Classify BEFORE flushing. #564 taught this grammar that a `###` inside an open
-            // item is content, but left the flush above the classification, so every content
-            // heading still ended the item: one `## MODIFIED / ### SPEC SECTION X` carrying
-            // `### Scenario` subheadings became SEVERAL items keyed X, each holding one
-            // fragment, and application kept only the last. A spec section silently lost
-            // everything above its final subheading — including behaviour the change never
-            // touched. Fixing the classification without moving the flush was half a fix.
+            // Only the delta grammar's item markers end an item. An ordinary subheading belongs
+            // to its body, including scaffolding's `### Functions` or `### Consumes` (#564).
             let item_heading = strip_ascii_prefix_ignore_case(header, "REQUIREMENT ")
                 .map(|value| (DeltaTarget::Requirement, value))
                 .or_else(|| {
                     strip_ascii_prefix_ignore_case(header, "SPEC SECTION ")
                         .map(|value| (DeltaTarget::SpecSection, value))
                 });
-            let (target, key) = if let Some(parsed) = item_heading {
-                flush(
-                    &mut items,
-                    operation,
-                    current_target,
-                    &current_key,
-                    &mut body,
-                );
-                parsed
-            } else if current_target.is_some() {
-                // A `###` that is not one of this grammar's item headings, met
-                // while inside an item, is section CONTENT — not a malformed
-                // item. Rejecting it made a scaffolded spec impossible to
-                // change through the lifecycle: `scaffold` writes
-                // `### Structs & Enums`, `### Traits`, `### Functions` inside
-                // `## Public API` and `### Consumes` inside `## Dependencies`,
-                // so `approve` refused the section it had just generated
-                // (#564). The grammar identifies its own items by keyword, so
-                // depth was never what distinguished them.
-                body.push(line.to_string());
-                continue;
-            } else {
+            if let Some((target, key)) = item_heading {
+                flush(&mut items, operation, current_item.take(), line_start);
+                current_item = Some((target, key.trim().to_string(), offset));
+            } else if current_item.is_none() {
                 return Err(format!(
                     "invalid delta item heading `### {header}` — a delta item must be `### REQUIREMENT <id>` or `### SPEC SECTION <name>`; subheadings are only content once an item has been opened"
                 ));
-            };
-            current_target = Some(target);
-            current_key = key.trim().to_string();
-            continue;
-        }
-        if current_target.is_some() {
-            body.push(line.to_string());
+            }
         }
     }
-    flush(
-        &mut items,
-        operation,
-        current_target,
-        &current_key,
-        &mut body,
-    );
-    if items.iter().any(|item| item.key.is_empty()) {
+    flush(&mut items, operation, current_item, content.len());
+    if items.iter().any(|(item, _)| item.key.is_empty()) {
         return Err("semantic delta contains an item with an empty key".into());
     }
     // Two items with the same operation/target/key under `## MODIFIED` silently overwrite:
@@ -2621,8 +2624,8 @@ fn parse_delta(content: &str) -> Result<Vec<DeltaItem>, String> {
     // ONLY because the old ordering split one section into several items. With the reordering
     // they parse as single items and pass; without it, this guard would refuse them and their
     // changes could no longer be re-materialized.
-    for (index, item) in items.iter().enumerate() {
-        if let Some(earlier) = items[..index].iter().find(|candidate| {
+    for (index, (item, _)) in items.iter().enumerate() {
+        if let Some((earlier, _)) = items[..index].iter().find(|(candidate, _)| {
             candidate.operation == item.operation
                 && candidate.target == item.target
                 && candidate.key == item.key
@@ -3016,30 +3019,30 @@ fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
 /// Extracted so that applying an item and asking whether an item is ALREADY applied read the same
 /// block out of the same scan. Two answers derived from two scans is how a tree and the record of
 /// it drift apart, which is the whole subject of #741.
+///
+/// Use the requirement reader's fence rules for both target types. Track byte offsets into the
+/// original Markdown so applying and comparing the block preserve its source bytes.
 fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Range<usize>> {
-    let mut lines = Vec::new();
+    let mut fence = None;
+    let mut start = None;
     let mut offset = 0;
     for raw in source.split_inclusive('\n') {
-        let line = raw
-            .strip_suffix('\n')
-            .unwrap_or(raw)
-            .strip_suffix('\r')
-            .unwrap_or_else(|| raw.strip_suffix('\n').unwrap_or(raw));
-        lines.push((offset, line));
+        let line_offset = offset;
         offset += raw.len();
+        let line = raw.strip_suffix('\n').unwrap_or(raw);
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if crate::validator::update_fence(line, &mut fence) || fence.is_some() {
+            continue;
+        }
+        if let Some(start) = start {
+            if markdown_heading_level(line).is_some_and(|found| found <= level) {
+                return Some(start..line_offset);
+            }
+        } else if requirement_heading_line_matches(line, heading) {
+            start = Some(line_offset);
+        }
     }
-    if offset < source.len() {
-        lines.push((offset, &source[offset..]));
-    }
-    let start = lines
-        .iter()
-        .position(|(_, line)| requirement_heading_line_matches(line, heading))?;
-    let end = lines
-        .iter()
-        .skip(start + 1)
-        .find(|(_, line)| markdown_heading_level(line).is_some_and(|found| found <= level))
-        .map_or(source.len(), |(next_offset, _)| *next_offset);
-    Some(lines[start].0..end)
+    start.map(|start| start..source.len())
 }
 
 /// Heading depth a delta target writes at: `"## "` is 2, `"### "` is 3.

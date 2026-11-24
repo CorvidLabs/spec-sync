@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-watch-tests-read-a-run-through-to-the-line-after-its-verdict",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "2b703b4ad37aa6646c0eb7d80d3fc06f25d1c5c0",
+      "contract_digest": "d7136a2b4894a0e43e66af343659742aaf5c12e5de9f2014f08ba2ddbfa2efd2",
+      "execution_digest": "fa5eb25c22f19e7a25957bb58245cddc754647b16494173ff326feb083df0c6c",
+      "workspace_digest": "6b46e2fa72ef8c089e6c66a297a091879e1494b2093482c11b6d3b50285ca542",
+      "timestamp": 1795477899,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "0xLeif, SpecSync 6.4.2 coordination session, November 23 2026 Mountain time, relayed by the Codex coordinator for PR #1153",
+        "recorded_by": "codex"
+      }
+    }
+  ]
+}

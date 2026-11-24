@@ -157,6 +157,33 @@ fn a_removal_merged_in_from_main_is_not_lost_but_a_cherry_pick_is() {
     }
 }
 
+#[test]
+fn a_merge_hint_quotes_the_default_ref_in_both_diagnostics() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    let git = git_in(root);
+    let remote_ref = "refs/remotes/origin/review's-default";
+    git(&["checkout", "-q", "main"]);
+    let removed = drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001");
+    fs::write(requirements_path(root), &removed).unwrap();
+    git(&["commit", "-q", "-am", "default branch removes REQ-auth-001"]);
+    git(&["update-ref", remote_ref, "HEAD"]);
+    git(&["symbolic-ref", "refs/remotes/origin/HEAD", remote_ref]);
+    git(&["checkout", "-q", "change"]);
+
+    // Inspect the rendered command only. The ref's apostrophe is literal text.
+    let expected = "`git merge 'origin/review'\\''s-default'`";
+    fs::write(requirements_path(root), &removed).unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("one lost requirement");
+    assert!(error.contains(expected) && !error.contains("For REQ-auth-002"), "{error}");
+
+    let removed_both = drop_block(&removed, "REQ-auth-002");
+    fs::write(requirements_path(root), removed_both).unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("two lost requirements");
+    assert!(error.contains(expected) && error.contains("For REQ-auth-002"), "{error}");
+}
+
 /// REQ-change-169: a block moved to another requirements file under its id is not lost; a
 /// renumbered one is lost under its old id, and the refusal says ids are permanent.
 #[test]
@@ -307,6 +334,45 @@ fn another_active_change_s_approved_removal_accounts_for_the_loss() {
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &second.id).unwrap()), Ok(None));
 }
 
+#[test]
+fn a_sibling_removal_must_survive_the_selected_changes_commit() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let first = vanished_repository(root, ADDED_THIRD, &[]);
+    let sibling = completed_section_only_current_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    let sibling = approve_definition(root, &sibling.id, Some("Scope owner".into()), None).unwrap();
+    fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
+
+    // The selected workspace will be staged by its own lifecycle command.
+    assert_eq!(ensure_no_lost_requirements(root, &sibling), Ok(None));
+    let refused = || {
+        let error = ensure_no_lost_requirements(root, &first)
+            .expect_err("the sibling removal authority is missing from the index");
+        assert!(error.contains("REQ-auth-001"), "{error}");
+    };
+    refused();
+    let package = format!("{CHANGES_PATH}/{}", sibling.id);
+    let git = git_in(root);
+    git(&["add", "--", &format!("{package}/state.json"), &format!("{package}/approvals.json")]);
+    refused();
+    git(&["add", "--", &package]);
+    let approvals = format!("{package}/approvals.json");
+    let approved = fs::read(root.join(&approvals)).unwrap();
+    fs::write(root.join(&approvals), "{}").unwrap();
+    git(&["add", "--", &approvals]);
+    fs::write(root.join(&approvals), approved).unwrap();
+    refused();
+    git(&["add", "--", &approvals]);
+    fs::write(root.join(&package).join("notes.local"), "Private scratch notes.").unwrap();
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+
+    git(&["commit", "-qam", "record the removal and its authority"]);
+    let fresh = TempDir::new().unwrap();
+    git(&["clone", "--quiet", "--no-local", ".", fresh.path().to_str().unwrap()]);
+    let first = load_change(fresh.path(), &first.id).unwrap();
+    assert_eq!(ensure_no_lost_requirements(fresh.path(), &first), Ok(None));
+}
+
 /// Two approved changes on `origin/main`, one adding REQ-auth-003 and one removing REQ-auth-001,
 /// checked out on branch `change`: `(adding, removing)`.
 fn two_change_repository(root: &Path) -> (ChangeRecord, ChangeRecord) {
@@ -367,7 +433,7 @@ fn a_change_archived_on_the_branch_accounts_for_its_removal() {
     .unwrap();
     git_in(root)(&["commit", "-q", "-am", "the archived change's removal"]);
 
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&first.id)).unwrap();
 
     assert!(removed.contains("REQ-auth-001"), "{removed:?}");
     assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
@@ -393,7 +459,7 @@ fn a_bare_archived_delta_or_a_retired_change_accounts_for_no_removal() {
     .unwrap();
     git_in(root)(&["add", "--all"]);
     git_in(root)(&["commit", "-q", "-m", "a bare delta under the archive path"]);
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&record.id)).unwrap();
     assert!(!removed.contains("REQ-auth-001"), "{removed:?}");
     let error = ensure_no_lost_requirements(root, &record).unwrap_err();
     assert!(error.contains("REQ-auth-001"), "{error}");
@@ -476,8 +542,9 @@ fn a_root_specs_project_reads_no_workspace_git_or_excluded_directory_as_canonica
     let scope = requirement_scope(root);
     assert_eq!(scope.directories, vec![".".to_string()]);
     let scanned: Vec<String> = working_tree_requirement_blocks(root, &scope, &excluded_requirement_directories(root))
+        .files
         .into_iter()
-        .map(|(path, _)| path)
+        .map(|file| file.chain[0].clone())
         .collect();
     assert!(scanned.contains(&"specs/auth/requirements.md".to_string()), "{scanned:?}");
     assert!(
@@ -685,6 +752,131 @@ fn on_main_and_change(root: &Path, files: &[(&str, &str)]) {
     git(&["merge", "-q", "--ff-only", "main"]);
 }
 
+#[cfg(unix)]
+fn tracked_requirement_link(root: &Path) -> ChangeRecord {
+    let record = vanished_repository(root, ADDED_THIRD, &[]);
+    on_main_and_change(
+        root,
+        &[
+            ("specs/billing/notes.md", "Billing"),
+            ("content/billing.md", "### REQ-billing-001\n\nBilling runs monthly.\n"),
+        ],
+    );
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    std::os::unix::fs::symlink("../../content/billing.md", root.join("specs/billing/requirements.md"))
+        .unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Register the billing requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    record
+}
+
+#[cfg(unix)]
+#[test]
+fn a_tracked_requirements_link_preserves_and_reports_ids_from_its_target() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    // Only the target changed, outside the canonical specs directory.
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the linked requirement was lost");
+    assert!(error.contains("REQ-billing-001 (specs/billing/requirements.md)"), "{error}");
+    assert!(error.contains(":content/billing.md") && !error.contains("git merge"), "{error}");
+
+    // A tracked canonical link cannot make bytes in an untracked target durable.
+    let git = git_in(root);
+    let canonical = root.join("specs/billing/requirements.md");
+    fs::remove_file(&canonical).unwrap();
+    std::os::unix::fs::symlink("../../content/next.md", &canonical).unwrap();
+    fs::write(root.join("content/next.md"), "### REQ-billing-001\n\nBilling runs monthly.\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("an untracked target cannot keep the id");
+    assert!(error.contains("Git does not track") && error.contains("git add content/next.md"), "{error}");
+    git(&["add", "content/next.md"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+#[cfg(unix)]
+#[test]
+fn a_linked_requirement_removed_on_the_default_tip_names_the_merge() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    git(&["commit", "-q", "-am", "Retire the billing requirement on main"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    fs::write(root.join("content/billing.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("merge the default branch first");
+    assert!(error.contains("origin/main has removed REQ-billing-001 too"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_requirements_file_can_use_two_tracked_links_inside_the_project() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::rename(root.join("content/billing.md"), root.join("content/current.md")).unwrap();
+    std::os::unix::fs::symlink("current.md", root.join("content/billing.md")).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Use a second link for the billing requirements"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    fs::write(root.join("content/current.md"), "# Billing\n").unwrap();
+    let error = ensure_no_lost_requirements(root, &record).expect_err("the linked requirement was lost");
+    assert!(error.contains("REQ-billing-001 (specs/billing/requirements.md)"), "{error}");
+    assert!(error.contains(":content/current.md") && !error.contains("git merge"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dangling_reference_requirement_link_names_the_unreadable_file() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    fs::remove_file(root.join("content/billing.md")).unwrap();
+    git(&["commit", "-q", "-am", "Leave a dangling requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("a reference link cannot be read");
+    assert!(error.contains("cannot read specs/billing/requirements.md") && error.contains("content/billing.md"), "{error}");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_cyclic_reference_requirement_link_fails_closed() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let record = tracked_requirement_link(root);
+    let git = git_in(root);
+    git(&["checkout", "-q", "main"]);
+    let target = root.join("content/billing.md");
+    fs::remove_file(&target).unwrap();
+    std::os::unix::fs::symlink("../specs/billing/requirements.md", &target).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-q", "-m", "Record a cyclic requirements link"]);
+    git(&["push", "-q", "origin", "main"]);
+    git(&["checkout", "-q", "change"]);
+    git(&["merge", "-q", "--ff-only", "main"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("a reference cycle cannot be read");
+    assert!(error.contains("cannot read specs/billing/requirements.md") && error.contains("cyclic"), "{error}");
+}
+
 /// Codex on #1108 (P1): a spec registered at the project root has its requirements beside it, in
 /// the root's own `requirements.md` and `<module>.req.md` ("beside a registered spec"), and losing
 /// them is refused. ss-lead's guard: that reads the root directory's own files, not the whole
@@ -783,9 +975,36 @@ fn an_accepted_change_resuming_finalization_is_refused_and_the_audit_reports_it(
     assert_eq!(fs::read(archive.join("verification-attempts.json")).unwrap(), attempts);
 }
 
-/// Codex on #1108 (P1): a requirements file canonical at the reference ("in such a file at the
-/// reference commit") is read even when the branch dropped its registry mapping or moved the
-/// specs directory away from it.
+/// A registry with backslash separators can map an external companion in each snapshot.
+#[test]
+fn registry_companions_use_normalized_paths_in_the_worktree_and_reference() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let original = "modules/billing/requirements.md";
+    let moved = "packages/billing/billing.req.md";
+    let registry = ".specsync/registry.toml";
+    let mapping = |path: &str| format!("[registry]\nname = \"vanished\"\n\n[specs]\nbilling = '{path}'\n");
+    let text = "# Requirements\n\n### REQ-billing-001\n\nThe system SHALL bill once a month.\n";
+    let record = vanished_repository(
+        root,
+        ADDED_THIRD,
+        &[(registry, &mapping(r"modules\billing\billing.spec.md")), (original, text)],
+    );
+    let git = git_in(root);
+    fs::write(root.join(registry), mapping(r"packages\billing\billing.spec.md")).unwrap();
+    fs::create_dir_all(root.join("packages/billing")).unwrap();
+    fs::rename(root.join(original), root.join(moved)).unwrap();
+    git(&["add", "--all"]);
+    assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+
+    fs::remove_file(root.join(moved)).unwrap();
+    git(&["add", "--all"]);
+    let error = ensure_no_lost_requirements(root, &record).expect_err("REQ-billing-001 was lost");
+    assert!(error.contains("REQ-billing-001 (modules/billing/requirements.md)"), "{error}");
+}
+
+/// A requirements file canonical at the reference is still read after the branch drops its
+/// registry mapping or moves the specs directory away from it.
 #[test]
 fn requirements_canonical_only_at_the_reference_are_still_read() {
     // The branch drops the registry mapping and the file beside its spec.
@@ -1018,11 +1237,10 @@ fn a_dangling_origin_head_alone_falls_back_to_the_base_commit_or_the_note() {
     assert!(note.is_some_and(|note| note.contains("not checked")));
 }
 
-/// corvid-agent on #1108 (non-blocking): `change finalize` moves a change into the archive before
-/// the archive tip is committed. A second active change checked on that tree still sees the
-/// archived change's approved removals, though Git does not track its record yet.
+/// Finalize stages its own archive. Another change can rely on that archive once the
+/// removal authority is in the index and will survive a checkout of the resulting commit.
 #[test]
-fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
+fn an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibling() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
     let (first, second) = two_change_repository(root);
@@ -1030,10 +1248,76 @@ fn a_change_archived_but_not_yet_committed_accounts_for_its_removal() {
     move_into_archive_uncommitted(root, &second, ChangeState::Archived);
     fs::write(requirements_path(root), drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-001")).unwrap();
 
-    let removed = removed_requirement_ids_on_branch(root, &reference).unwrap();
+    let own = removed_requirement_ids_on_branch(root, &reference, Some(&second.id)).unwrap();
+    assert!(own.contains("REQ-auth-001"), "{own:?}");
+    let unselected = removed_requirement_ids_on_branch(root, &reference, None).unwrap();
+    assert!(!unselected.contains("REQ-auth-001"), "{unselected:?}");
+    let refused = || {
+        let error = ensure_no_lost_requirements(root, &first)
+            .expect_err("the sibling archive is missing removal authority in Git");
+        assert!(error.contains("REQ-auth-001"), "{error}");
+    };
+    refused();
+    let archive = format!("{ARCHIVE_PATH}/2026-11-20-{}", second.id);
+    let git = git_in(root);
+    git(&["add", "--", &format!("{archive}/state.json"), &format!("{archive}/approvals.json")]);
+    refused();
+    git(&["add", "--", &archive]);
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
 
-    assert!(removed.contains("REQ-auth-001"), "{removed:?}");
-    assert_eq!(ensure_no_lost_requirements(root, &load_change(root, &first.id).unwrap()), Ok(None));
+    let state = root.join(&archive).join("state.json");
+    let indexed = fs::read(&state).unwrap();
+    let mut changed = indexed.clone();
+    changed.push(b'\n');
+    fs::write(&state, changed).unwrap();
+    refused();
+    fs::write(&state, indexed).unwrap();
+    assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        git(&["config", "core.filemode", "true"]);
+        let original = fs::metadata(&state).unwrap().permissions();
+        fs::set_permissions(&state, fs::Permissions::from_mode(original.mode() | 0o111)).unwrap();
+        refused();
+        fs::set_permissions(&state, original).unwrap();
+        assert_eq!(ensure_no_lost_requirements(root, &first), Ok(None));
+    }
+
+    git(&["commit", "-qam", "record the archived sibling and its removal"]);
+    let fresh = TempDir::new().unwrap();
+    git(&["clone", "--quiet", "--no-local", ".", fresh.path().to_str().unwrap()]);
+    let first = load_change(fresh.path(), &first.id).unwrap();
+    assert_eq!(ensure_no_lost_requirements(fresh.path(), &first), Ok(None));
+}
+
+/// Legacy approvals bind the selected artifacts at their logical change paths even after a move.
+#[test]
+fn an_archived_legacy_sibling_needs_its_selected_artifacts_in_the_index() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let record = completed_section_only_record(root, "## REMOVED\n\n### REQUIREMENT REQ-auth-001\n");
+    fs::write(requirements_path(root), VANISHED_BASE_REQUIREMENTS).unwrap();
+    let record = approve_definition(root, &record.id, Some("Scope owner".into()), None).unwrap();
+    git(&["add", "--all"]);
+    git(&["commit", "-qm", "legacy approval"]);
+    let reference = vanished_rev(root, "HEAD");
+    move_into_archive_uncommitted(root, &record, ChangeState::Archived);
+    let archive = format!("{ARCHIVE_PATH}/2026-11-20-{}", record.id);
+    git(&["add", "--", &archive]);
+    let removals = || removed_requirement_ids_on_branch(root, &reference, None).unwrap();
+    assert!(removals().contains("REQ-auth-001"));
+    let selected = format!("{archive}/{}", record.selected_artifacts[0].file_name());
+    git(&["restore", "--staged", "--", &selected]);
+    assert!(!removals().contains("REQ-auth-001"));
+    git(&["add", "--", &selected]);
+    assert!(removals().contains("REQ-auth-001"));
 }
 
 /// Codex on #1108, second round (P1): a branch that adds a formerly canonical directory to
@@ -1457,4 +1741,40 @@ fn an_untracked_copy_of_a_lost_requirement_does_not_count() {
     let output = Command::new("sh").args(["-c", command]).current_dir(root).output().unwrap();
     assert!(output.status.success(), "{command}");
     assert_eq!(ensure_no_lost_requirements(root, &record), Ok(None));
+}
+
+/// Codex on #1134, second round (REQ-change-177): an error the directory listing yields, or one
+/// from reading an entry's kind, is kept with its path for the cannot-tell refusal, not dropped.
+/// A failing filesystem cannot be made in a test, so the scan's entry step is driven directly.
+#[test]
+fn a_listing_or_entry_error_is_kept_with_its_path() {
+    let directory = std::path::Path::new("specs/auth");
+    let listing = listed_entry(directory, Err(std::io::Error::other("input/output error")));
+    assert!(
+        matches!(&listing, Err((path, error)) if path == directory && error.to_string() == "input/output error"),
+        "{listing:?}"
+    );
+    let file = directory.join("requirements.md");
+    let entry = listed_entry(
+        directory,
+        Ok((file.clone(), Err(std::io::Error::other("input/output error")))),
+    );
+    assert!(matches!(&entry, Err((path, _)) if *path == file), "{entry:?}");
+}
+
+#[test]
+fn ship_status_omits_the_lost_requirement_refusal_for_a_retired_change() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let mut record = vanished_repository(root, ADDED_THIRD, &[]);
+    fs::write(
+        requirements_path(root),
+        drop_block(VANISHED_BASE_REQUIREMENTS, "REQ-auth-002"),
+    )
+    .unwrap();
+
+    let active = lost_requirements_refusal(root, &record).unwrap();
+    assert!(active.contains("REQ-auth-002"), "{active}");
+    record.state = ChangeState::Retired;
+    assert_eq!(lost_requirements_refusal(root, &record), None);
 }

@@ -730,7 +730,7 @@ fn strict_check_reports_standalone_unprovable_archived_history() {
     // the status JSON reports, and the dead `specsync change check` tail is gone (#880).
     let summary = summarize_change(root, &record);
     let step = format!(
-        "run `specsync change status '{0}' --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status '{0}'`",
+        "run `specsync change status --json -- '{0}'`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status -- '{0}'`",
         record.id
     );
     assert_eq!(summary.next_action, step);
@@ -2363,8 +2363,9 @@ fn squash_merged_recording_anchor_fails_closed_without_matching_evidence() {
 
     // Tamper with the current closing-evidence bytes so no in-history accepted record
     // matches them; archival must still fail closed. The note text is not bound by the
-    // closing digest, so every earlier guard still passes and the trusted-transition
-    // preflight is what must reject the archive.
+    // closing digest, so every digest guard still passes. Since #428 the approvals ledger
+    // must equal the version committed at HEAD (REQ-change-166), so that check is the one
+    // that refuses this working-copy tamper, before the trusted-transition preflight.
     let approvals_path = change_dir(root, &record.id).join("approvals.json");
     let tampered = fs::read_to_string(&approvals_path).unwrap().replacen(
         "\"note\": null",
@@ -2375,7 +2376,9 @@ fn squash_merged_recording_anchor_fails_closed_without_matching_evidence() {
     fs::write(&approvals_path, tampered).unwrap();
     let error = archive_change(root, &record.id).unwrap_err();
     assert!(
-        error.contains("requires exactly one trusted transition"),
+        error.contains("approvals.json")
+            && error.contains("of the version committed at HEAD")
+            && error.contains("git checkout HEAD --"),
         "{error}"
     );
 }

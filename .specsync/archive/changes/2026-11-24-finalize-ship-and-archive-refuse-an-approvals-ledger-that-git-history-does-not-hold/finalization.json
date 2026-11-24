@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+  "implementation_commit": "f28652b32ab5eb45517012aaac1d0ebe80b52680",
+  "implementation_tree": "4b1506b8c5c62b0689ee63c9b9719bcd36d096e7",
+  "contract_digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+  "workspace_digest": "bc5aef60109908f9b408e41d44c6d440614642d84f00f7aa2c48c09a9975c241",
+  "closing_digest": "3a6b783fb990a83fa9ad43f243282448374c5815adc313b2fb84ea682bf9d148",
+  "review_digest": "d7382308362767b993c2f9caa33cb0a10df6b6d3231f332a3d728baa42686a24",
+  "finalization_digest": "637f4e08208f3a277447eae5838b687a92242eced1323f833c083ce087961435",
+  "timestamp": 1795478932
+}

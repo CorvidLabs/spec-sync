@@ -19,6 +19,11 @@ These tests hold the workflow to four rules:
    `skipped` passes only where classify deselected the job.
 3. Simulated over every classify path, the required gate is green when every
    selected job succeeds, and red when any one of them fails or is cancelled.
+4. Every job that runs the archive gate, in ci.yml and trust.yml, checks out full
+   history. The gate tells a stale copy of an upstream-archived change from a
+   reopened one with `log --diff-filter=A` on the default branch and `merge-base
+   --is-ancestor`, so a single-commit checkout names `change ship` for the stale
+   copy (REQ-cmd-change-029, #965).
 
 The workflow is parsed with Ruby's standard-library Psych, like the other
 workflow validators here, and the gate's own shell steps are executed the way
@@ -48,6 +53,7 @@ from typing import Any, Callable
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = ROOT / ".github/workflows/ci.yml"
+TRUST_WORKFLOW = ROOT / ".github/workflows/trust.yml"
 GATE_JOB = "implementation-gate"
 REQUIRED_JOB = "ci-gate"
 ALWAYS_REQUIRED = ("archive", "classify", "preflight", "lifecycle-gate")
@@ -489,6 +495,48 @@ def archive_first_errors(jobs: dict[str, Any]) -> list[str]:
     return errors
 
 
+def archive_gate_steps(jobs: dict[str, Any]) -> list[tuple[str, int]]:
+    """Every (job, step index) that runs the archive gate on the checked-out repository.
+
+    A step with a `root` input gates a fixture project elsewhere on the runner (the packaged
+    Action consumer), not this repository's history, so it is left out.
+    """
+    found: list[tuple[str, int]] = []
+    for name in sorted(jobs):
+        for index, step in enumerate(jobs[name]["steps"]):
+            if not isinstance(step, dict) or step.get("uses") != "./":
+                continue
+            inputs = step.get("with") or {}
+            if "root" in inputs:
+                continue
+            if any(
+                str(inputs.get(key, "")).lower() == "true"
+                for key in ("archive-gate-only", "require-archived")
+            ):
+                found.append((name, index))
+    return found
+
+
+def archive_gate_history_errors(jobs: dict[str, Any], workflow: str) -> list[str]:
+    """Rule 4: a job that runs the archive gate checks out full history (#965)."""
+    errors: list[str] = []
+    for name, index in archive_gate_steps(jobs):
+        checkouts = [
+            step
+            for step in jobs[name]["steps"][:index]
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).startswith("actions/checkout@")
+        ]
+        depth = (checkouts[-1].get("with") or {}).get("fetch-depth") if checkouts else None
+        if str(depth) != "0":
+            errors.append(
+                f"{workflow}: {name} runs the archive gate without a full-history checkout "
+                "(fetch-depth: 0), so it cannot tell a stale copy of an upstream-archived "
+                "change from a reopened one and names `change ship` for it"
+            )
+    return errors
+
+
 # MARK: - Simulation
 
 
@@ -791,6 +839,27 @@ class RequiredGateContractTests(unittest.TestCase):
         )
         for job in sorted(product - {"classify", "preflight", "lifecycle-gate"}):
             self.assertIn(f"needs.{job}.result", reported, f"corvid-pet does not report {job}")
+
+
+class ArchiveGateHistoryTests(unittest.TestCase):
+    """Rule 4 (#965): the archive gate sees the default branch's history."""
+
+    def test_every_archive_gate_job_checks_out_full_history(self) -> None:
+        for path in (WORKFLOW, TRUST_WORKFLOW):
+            jobs = load_workflow(path)["jobs"]
+            self.assertTrue(archive_gate_steps(jobs), f"{path.name} runs no archive gate")
+            self.assertEqual(archive_gate_history_errors(jobs, path.name), [])
+
+    def test_a_single_commit_checkout_before_the_archive_gate_fails(self) -> None:
+        jobs = copy.deepcopy(load_workflow()["jobs"])
+        for step in jobs[ARCHIVE_JOB]["steps"]:
+            if isinstance(step, dict) and str(step.get("uses", "")).startswith("actions/checkout@"):
+                (step.get("with") or {}).pop("fetch-depth", None)
+        errors = archive_gate_history_errors(jobs, "ci.yml")
+        self.assertTrue(
+            any(f"ci.yml: {ARCHIVE_JOB} runs the archive gate" in error for error in errors),
+            errors,
+        )
 
 
 class GuardMutationTests(unittest.TestCase):

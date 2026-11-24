@@ -144,7 +144,15 @@ stored change record.
 Approval digests bind recorded approval to content. The actor/reviewer label is not authenticated identity. Signed provenance and a required policy-verification check must be configured separately when identity or provenance enforcement is required; recording a signature or using soft mode alone is not that gate. The scope approver may also perform the implementation review.
 
 `change finalize` requires current verification and scoped review, writes finalization evidence,
-and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. That command commits
+and moves the package to `.specsync/archive/changes/YYYY-MM-DD-<id>/`. It archives only an
+approvals ledger that Git history holds: `approvals.json` must be committed at `HEAD` and equal to
+it, and every version committed before must extend the one before it. `change check --commit`
+commits it; a ledger edited by hand afterwards is refused with `git checkout HEAD -- <path>` as the
+way back, and one whose working copy only adds records with the commit as the way out. A committed
+rewrite of an earlier approval, reopening or send-back is refused with the commit that made it, and
+since history cannot be made to extend itself, the way out is to take that commit out of the
+branch or to make the change again under a new id. `change ship`, `change archive` and
+`change ship-status` ask the same. That command commits
 the move as `chore(lifecycle): archive <id>`. Run `review` and `finalize` (or `ship`)
 consecutively without an intervening commit. Push the archive commit and wait for required
 checks. Never merge while a change on that PR remains active.
@@ -358,6 +366,26 @@ This installs:
 Check what's installed with `specsync hooks status`.
 
 ---
+
+### Clones Git reads differently
+
+SpecSync reads Git without your configuration, so its reads do not depend on your settings. Three
+kinds of checkout need more than that, and each is handled for you or named with one command.
+
+- **A repository owned by another user.** When SpecSync's own Git refuses it for dubious ownership
+  and your Git trusts it (`safe.directory`), SpecSync passes that trust, and nothing else, through a
+  private temporary file it removes when the command ends (REQ-change-171). When your Git refuses it
+  too, the command says so and names
+  `git config --global --add safe.directory <path>`.
+- **A partial clone** (`git clone --filter=blob:none`). Before its first history read, SpecSync
+  downloads every history object it needs that is not there, in one fetch with your own Git, and
+  says how many it downloads (REQ-change-172). The fetch never prompts and stops after 60 seconds.
+  The fetch includes requirements from historical configurations. If a fetch fails or a missing
+  tree prevents discovery, the command names a recovery fetch.
+- **A shallow clone.** A check of the project's lifecycle history that cannot see far enough says
+  the clone is shallow and names `git fetch --unshallow origin`, and `change new` refuses before it
+  writes anything (REQ-change-173). If the checkout is also partial, the baseline refusal
+  names the shallow-history recovery first.
 
 ## Creating Canonical Specs
 

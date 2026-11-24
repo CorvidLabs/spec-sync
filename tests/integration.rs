@@ -156,3 +156,6 @@ mod hardening_641;
 
 #[path = "integration/stale_input_refusals.rs"]
 mod stale_input_refusals;
+
+#[path = "integration/ship_status_reopen_and_resume.rs"]
+mod ship_status_reopen_and_resume;

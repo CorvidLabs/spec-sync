@@ -4071,44 +4071,151 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
 enum AcceptedInputValidity {
     Exact,
     SuccessorCovered,
+    /// Some changed input is covered only by an in-flight later change (#657).
+    ProvisionallyCovered,
     HistoricallyReconciled,
 }
 
+/// A stale delivery entry carries its signed path and the owners that failed validation.
+#[derive(Clone, Debug)]
+struct AcceptedInputError {
+    reason: String,
+    stale_input: Option<(String, Vec<String>)>,
+}
+
+impl AcceptedInputError {
+    fn stale(reason: String, path: &str, owners: &[String]) -> Self {
+        Self {
+            reason,
+            stale_input: Some((path.to_owned(), owners.to_vec())),
+        }
+    }
+}
+
+impl From<String> for AcceptedInputError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            stale_input: None,
+        }
+    }
+}
+
+impl std::fmt::Display for AcceptedInputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
+    }
+}
+
+/// The first approved, implementing or verifying change created after `record` that declares
+/// `owner` and a scope covering `path`. It covers that changed input of `record` until it is
+/// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
+/// so the obligation is deferred, not dropped (#657).
+fn in_flight_coverer(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> Option<String> {
+    records
+        .values()
+        .find(|candidate| in_flight_change_covers(root, memo, candidate, record, path, owner))
+        .map(|candidate| candidate.id.clone())
+}
+
+fn in_flight_change_covers(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+        && happens_after(candidate, record)
+        && candidate.affected_specs.iter().any(|module| module == owner)
+        && candidate
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(path, scope))
+        && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
+            ensure_definition_approval_valid(root, candidate).is_ok()
+        })
+}
+
+/// The sentence for an accepted change whose changed inputs in-flight changes cover for now.
+fn provisional_coverage_reason(record: &ChangeRecord, covered: &[(String, String)]) -> String {
+    let listed = covered
+        .iter()
+        .map(|(path, change)| format!("`{path}` by in-flight `{change}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change needs explicit succession to cover the input after acceptance",
+        record.id
+    )
+}
+
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
-    if record.state == ChangeState::Archived && read_scope_value(root, |_| Some(())).is_some() {
-        return archived_terminal_evidence_in_scope(root, record);
+    if record.state == ChangeState::Archived {
+        if read_scope_value(root, |_| Some(())).is_some() {
+            return archived_terminal_evidence_in_scope(root, record);
+        }
+        return archived_terminal_summary(root, record, &mut ArchivedIntegrityCache::default());
     }
     if let Some(cached) = read_scope_value(root, |scope| scope.terminal_evidence.clone()) {
         return terminal_summary_from_cache(record, cached);
     }
     if read_scope_value(root, |_| Some(())).is_some() {
-        let result = list_all_changes_checked(root).map(|records| {
-            let accepted: BTreeMap<String, ChangeRecord> = records
+        // #1104: a change whose records fail keeps its own failure; the others are judged on the
+        // changes that loaded, as REQ-change-119, REQ-change-012 and REQ-change-024 say.
+        let result = terminal_evidence_roster(root).map(|roster| {
+            let accepted: BTreeMap<String, ChangeRecord> = roster
+                .records
                 .iter()
                 .filter(|(_, other)| other.state != ChangeState::Archived)
                 .map(|(id, other)| (id.clone(), other.clone()))
                 .collect();
-            let (results, _) = terminal_evidence_results_with_records(root, &accepted, &records);
-            results
+            let (results, _) =
+                terminal_evidence_results_with_records(root, &accepted, &roster.records);
+            let mut summaries: BTreeMap<String, TerminalEvidenceSummary> = results
                 .into_iter()
-                .map(|result| (result.id, result.evidence))
-                .collect()
+                .map(|result| {
+                    let evidence =
+                        name_failed_candidates(&roster, accepted.get(&result.id), result.evidence);
+                    (result.id, evidence)
+                })
+                .collect();
+            // Only a record that is not archived is answered from this map: an archived record
+            // in a read scope is answered by `archived_terminal_evidence_in_scope`.
+            for (id, failed) in &roster.failed {
+                summaries.insert(id.clone(), own_failure_summary(false, failed));
+            }
+            summaries
         });
         update_read_scope(root, |scope| {
             scope.terminal_evidence = Some(result.clone());
         });
         return terminal_summary_from_cache(record, result);
     }
-    let result = list_all_changes_checked(root)
-        .map(|records| terminal_evidence_summary_with_records(root, record, &records));
+    let result = terminal_evidence_roster(root).map(|roster| match roster.failed.get(&record.id) {
+        Some(failed) => own_failure_summary(false, failed),
+        None => name_failed_candidates(
+            &roster,
+            Some(record),
+            terminal_evidence_summary_with_records(root, record, &roster.records),
+        ),
+    });
     match result {
         Ok(summary) => summary,
         Err(reason) => TerminalEvidenceSummary {
-            validity: if record.state == ChangeState::Archived {
-                TerminalEvidenceValidity::CorruptHistory
-            } else {
-                TerminalEvidenceValidity::Stale
-            },
+            validity: TerminalEvidenceValidity::Stale,
             reason: Some(reason),
         },
     }
@@ -4168,14 +4275,18 @@ pub(crate) fn own_accepted_evidence(
             Err(reason) => return Ok(OwnAcceptedEvidence::ReopenBlocked(reason)),
         }
     }
-    // A roster error makes the verdict unavailable. The terminal summary also uses this cached
-    // result, but would otherwise turn the error into a corrupt-history verdict for an archive.
-    let records = list_all_changes_checked(root)?;
-    if record.state == ChangeState::Archived
-        && terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
-    {
-        return Ok(OwnAcceptedEvidence::Corrupt);
-    }
+    let records = if record.state == ChangeState::Archived {
+        // Archive status isolates unrelated history failures. A roster failure with no
+        // assignable change still makes the verdict unavailable.
+        let roster = terminal_evidence_roster(root)?;
+        if terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+        {
+            return Ok(OwnAcceptedEvidence::Corrupt);
+        }
+        roster.records
+    } else {
+        list_all_changes_checked(root)?
+    };
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
     if validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
@@ -4305,9 +4416,6 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
     }) {
         return cached;
     }
-    if let Err(reason) = list_all_changes_checked(root) {
-        return terminal_summary_from_cache(record, Err(reason));
-    }
     let mut cache = CHANGE_READ_SCOPES
         .with(|scopes| {
             scopes
@@ -4317,20 +4425,101 @@ fn archived_terminal_evidence_in_scope(root: &Path, record: &ChangeRecord) -> Te
                 .and_then(|scope| scope.archived_integrity_cache.take())
         })
         .unwrap_or_default();
-    let summary = terminal_evidence_summary_with_validation_state(
-        root,
-        record,
-        &BTreeMap::new(),
-        &mut BTreeSet::new(),
-        &mut AcceptedInputValidationMemo::default(),
-        &mut cache,
-    );
+    let summary = archived_terminal_summary(root, record, &mut cache);
     update_read_scope(root, |scope| {
         scope.archived_integrity_cache = Some(cache);
         scope
             .archived_terminal_evidence
             .insert(record.id.clone(), summary.clone());
     });
+    summary
+}
+
+/// A read-only archived summary isolates unrelated roster failures. Reuse the same roster for
+/// every archive in the read scope and for the legacy baseline authority, if one is needed.
+fn archived_terminal_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match cache
+        .summary_roster
+        .get_or_insert_with(|| terminal_evidence_roster(root))
+    {
+        Ok(roster) => {
+            if let Some(failed) = roster.failed.get(&record.id) {
+                return own_failure_summary(true, failed);
+            }
+        }
+        Err(reason) => {
+            return TerminalEvidenceSummary {
+                validity: TerminalEvidenceValidity::CorruptHistory,
+                reason: Some(reason.clone()),
+            };
+        }
+    }
+    archived_integrity_summary(root, record, cache)
+}
+
+/// The verdict of a change whose own records fail validation: its own reason, `corrupt-history`
+/// when the record asked about is archived and `stale` for any other, as the roster load gives
+/// every change it cannot read. The verdict follows the copy asked about, so a change open and
+/// archived at once reads `stale` asked as the open change and `corrupt-history` asked as the
+/// archive, whichever copy the roster found first (#1104 review).
+fn own_failure_summary(asked_archived: bool, failed: &FailedChange) -> TerminalEvidenceSummary {
+    TerminalEvidenceSummary {
+        validity: if asked_archived {
+            TerminalEvidenceValidity::CorruptHistory
+        } else {
+            TerminalEvidenceValidity::Stale
+        },
+        reason: Some(failed.reason.clone()),
+    }
+}
+
+/// #1104: a change that failed to load cannot cover anything, so an accepted change whose changed
+/// input it might have covered is stale either way; the reason then names it and its failure. A
+/// candidate is a failed change that could have covered one of the judged change's inputs: it
+/// passes the first test `successor_covers_input` puts to a successor (`may_succeed`) and declares
+/// a succession of the judged change. A failed change whose `state.json` does not read at all is a
+/// candidate too, because it cannot be shown not to be one. Only a successor search for a changed
+/// input names candidates; every other verdict is left as it is.
+fn name_failed_candidates(
+    roster: &TerminalRoster,
+    record: Option<&ChangeRecord>,
+    mut summary: TerminalEvidenceSummary,
+) -> TerminalEvidenceSummary {
+    let Some(record) = record else {
+        return summary;
+    };
+    let searched = summary.validity == TerminalEvidenceValidity::Stale
+        && record.state == ChangeState::Accepted
+        && summary
+            .reason
+            .as_deref()
+            .is_some_and(|reason| reason.contains(CHANGED_AFTER_ACCEPTANCE));
+    if !searched || roster.failed.is_empty() {
+        return summary;
+    }
+    let candidates: Vec<String> = roster
+        .failed
+        .iter()
+        .filter(|(id, failed)| {
+            *id != &record.id
+                && failed.record.as_ref().is_none_or(|other| {
+                    may_succeed(other, record)
+                        && other
+                            .supersedes
+                            .iter()
+                            .any(|edge| edge.predecessor_id == record.id)
+                })
+        })
+        .map(|(id, failed)| format!("candidate successor `{id}` fails validation: {}", failed.reason))
+        .collect();
+    if !candidates.is_empty() {
+        let reason = summary.reason.take().unwrap_or_default();
+        summary.reason = Some(format!("{reason}; {}", candidates.join("; ")));
+    }
     summary
 }
 
@@ -4424,66 +4613,113 @@ fn terminal_evidence_summary_with_validation_state(
     archived_cache: &mut ArchivedIntegrityCache,
 ) -> TerminalEvidenceSummary {
     if record.state == ChangeState::Archived {
-        return match validate_archived_integrity_with_cache(root, record, archived_cache) {
-            Ok(()) => {
-                if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                    historical_terminal_summary()
-                } else {
-                    TerminalEvidenceSummary { validity: TerminalEvidenceValidity::AuthenticatedHistory, reason: None }
-                }
-            },
-            Err(reason) => TerminalEvidenceSummary {
-                validity: TerminalEvidenceValidity::CorruptHistory,
-                reason: Some(reason),
-            },
-        };
+        return archived_integrity_summary(root, record, archived_cache);
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
-        Ok(AcceptedInputValidity::Exact) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
-            }
+        Ok(_) if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") => {
+            historical_terminal_summary()
+        }
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact, reason: None,
         },
-        Ok(AcceptedInputValidity::SuccessorCovered) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
-            }
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered, reason: None,
+        },
+        Ok(AcceptedInputValidity::ProvisionallyCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::ProvisionallyCovered,
+            reason: Some(provisional_coverage_reason(
+                record,
+                memo.provisional.get(&record.id).map_or(&[][..], Vec::as_slice),
+            )),
         },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
-        Err(reason) => TerminalEvidenceSummary {
+        Err(error) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
+            reason: Some(error.reason),
+        },
+    }
+}
+
+fn archived_integrity_summary(
+    root: &Path,
+    record: &ChangeRecord,
+    cache: &mut ArchivedIntegrityCache,
+) -> TerminalEvidenceSummary {
+    match validate_archived_integrity_with_cache(root, record, cache) {
+        Ok(()) => {
+            if record
+                .answers
+                .get(HISTORICAL_RECONCILIATION)
+                .is_some_and(|value| value == "unproven")
+            {
+                historical_terminal_summary()
+            } else {
+                TerminalEvidenceSummary {
+                    validity: TerminalEvidenceValidity::AuthenticatedHistory,
+                    reason: None,
+                }
+            }
+        }
+        Err(reason) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::CorruptHistory,
             reason: Some(reason),
         },
     }
 }
 
+/// The closing-approval check of an accepted change, judged on the roster terminal evidence uses
+/// (#1104 review): when every change loads it is `list_all_changes_checked`, and when one fails,
+/// that failure stays its own and the others are judged on the changes that load.
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+    let roster = terminal_evidence_roster(root)?;
+    if let Some(failed) = roster.failed.get(&record.id) {
+        return Err(failed.reason.clone());
+    }
+    ensure_closing_approval_valid_against(root, record, &roster.records)
+        .map(|_| ())
+        .map_err(|error| error.reason)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they
 /// archive, judged against the structural roster (REQ-change-124): every gate on `record` is the
 /// same, and only the other archives' own Git history is left to `change audit --strict`.
+///
+/// Returns each changed input an in-flight later change covers for now, as `(path, change)`, so
+/// the archive can record which change covered it (#657).
 fn ensure_archiving_closing_approval_valid(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
+) -> Result<Vec<(String, String)>, String> {
+    let records = list_all_changes_structural(root)?;
+    ensure_closing_approval_valid_against(root, record, &records).map_err(|error| {
+        let Some((path, owners)) = error.stale_input else {
+            return error.reason;
+        };
+        let later = later_changes_blocked_by(root, &records, record, &path, &owners);
+        if later.is_empty() {
+            return error.reason;
+        }
+        let named = later
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{}. Later change {named} shares `{path}` and cannot be archived either while `{}` is stale",
+            error.reason, record.id
+        )
+    })
 }
 
 fn ensure_closing_approval_valid_against(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, AcceptedInputError> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)
-        .map(|_| ())
+    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)?;
+    Ok(memo.provisional.remove(&record.id).unwrap_or_default())
 }
 
 /// `pending` is the closing token of `archive_change_with_options`, forwarded so the package that
@@ -4633,6 +4869,8 @@ struct LegacyArchiveBaselineContext {
 #[derive(Debug, Default)]
 struct ArchivedIntegrityCache {
     legacy: Option<Result<LegacyArchiveBaselineContext, String>>,
+    // Archive audit and mutation use the strict loader because they never set this field.
+    summary_roster: Option<Result<TerminalRoster, String>>,
 }
 
 fn validate_archived_integrity(root: &Path, archived: &ChangeRecord) -> Result<(), String> {
@@ -4759,7 +4997,13 @@ fn authenticate_legacy_archive_baseline(
         .ok_or_else(|| "legacy archive is missing stored closing approval".to_string())?;
 
     if cache.legacy.is_none() {
-        cache.legacy = Some(load_legacy_archive_baseline_context(root));
+        let roster = cache
+            .summary_roster
+            .as_ref()
+            .map(Result::as_ref)
+            .transpose()
+            .map_err(Clone::clone)?;
+        cache.legacy = Some(load_legacy_archive_baseline_context(root, roster));
     }
     let context = cache
         .legacy
@@ -4808,14 +5052,31 @@ fn authenticate_legacy_archive_baseline(
 
 fn load_legacy_archive_baseline_context(
     root: &Path,
+    summary_roster: Option<&TerminalRoster>,
 ) -> Result<LegacyArchiveBaselineContext, String> {
     let baseline_path = root.join(LEGACY_BASELINE_PATH);
     let baseline_bytes = crate::util::read_project_bytes(root, &baseline_path, crate::util::MAX_STATE_FILE_BYTES)
         .map_err(|error| format!("failed to read legacy archive baseline: {error}"))?;
     let (baseline, baseline_digest) = validate_legacy_archive_baseline_bytes(&baseline_bytes)?;
 
-    let records = list_all_changes_checked(root)?;
-    let authority = records.get(&baseline.authority_change_id).ok_or_else(|| {
+    let authority_id = &baseline.authority_change_id;
+    let strict_records;
+    let records = match summary_roster {
+        Some(roster) => {
+            if let Some(failed) = roster.failed.get(authority_id) {
+                return Err(format!(
+                    "legacy archive baseline authority `{authority_id}` failed validation: {}",
+                    failed.reason
+                ));
+            }
+            &roster.records
+        }
+        None => {
+            strict_records = list_all_changes_checked(root)?;
+            &strict_records
+        }
+    };
+    let authority = records.get(authority_id).ok_or_else(|| {
         format!(
             "legacy archive baseline authority `{}` is unavailable",
             baseline.authority_change_id
@@ -5607,7 +5868,7 @@ fn validate_accepted_inputs_recursive(
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
-) -> Result<AcceptedInputValidity, String> {
+) -> Result<AcceptedInputValidity, AcceptedInputError> {
     if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
@@ -5615,13 +5876,13 @@ fn validate_accepted_inputs_recursive(
         return Err(format!(
             "successor `{}` is not accepted or archived",
             record.id
-        ));
+        ).into());
     }
     if !visiting.insert(record.id.clone()) {
         return Err(format!(
             "semantic succession cycle detected at `{}`",
             record.id
-        ));
+        ).into());
     }
     let result = (|| {
         let verification = memo.authenticate(root, record, pending)?;
@@ -5656,12 +5917,14 @@ fn validate_accepted_inputs_recursive(
             .collect();
         let mut successor_covered = false;
         let mut historically_reconciled = false;
+        let mut provisional: Vec<(String, String)> = Vec::new();
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
-                format!(
+                let reason = format!(
                     "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
-                )
+                );
+                AcceptedInputError::stale(reason, &expected.path, &expected.owners)
             })?;
             if expected.kind == current.kind
                 && expected.mode == current.mode
@@ -5690,7 +5953,11 @@ fn validate_accepted_inputs_recursive(
                 // the successors, and each is judged exactly as a signed owner's successor is.
                 let claimants = succession_claimants(records, record, expected);
                 if claimants.is_empty() {
-                    return Err(exact_only_input_remediation_reason(record, &expected.path));
+                    return Err(AcceptedInputError::stale(
+                        exact_only_input_remediation_reason(record, &expected.path),
+                        &expected.path,
+                        &expected.owners,
+                    ));
                 }
                 let mut rejected_successors = BTreeMap::new();
                 if !claimants.iter().any(|module| {
@@ -5698,6 +5965,7 @@ fn validate_accepted_inputs_recursive(
                         root,
                         record,
                         records,
+                        records.values(),
                         visiting,
                         memo,
                         pending,
@@ -5707,11 +5975,16 @@ fn validate_accepted_inputs_recursive(
                         &mut historically_reconciled,
                     )
                 }) {
-                    return Err(stale_input_remediation_reason(
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         &expected.owners.join("`, `"),
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
@@ -5723,6 +5996,7 @@ fn validate_accepted_inputs_recursive(
                     root,
                     record,
                     records,
+                    records.values(),
                     visiting,
                     memo,
                     pending,
@@ -5731,15 +6005,31 @@ fn validate_accepted_inputs_recursive(
                     &mut rejected_successors,
                     &mut historically_reconciled,
                 ) {
-                    return Err(stale_input_remediation_reason(
+                    if let Some(coverer) = in_flight_coverer(root, memo, records, record, &expected.path, owner)
+                    {
+                        provisional.push((expected.path.clone(), coverer));
+                        continue;
+                    }
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         owner,
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
             }
+        }
+        if !provisional.is_empty() {
+            provisional.sort_unstable();
+            provisional.dedup();
+            memo.provisional.insert(record.id.clone(), provisional);
+            return Ok(AcceptedInputValidity::ProvisionallyCovered);
         }
         Ok(if historically_reconciled {
             AcceptedInputValidity::HistoricallyReconciled

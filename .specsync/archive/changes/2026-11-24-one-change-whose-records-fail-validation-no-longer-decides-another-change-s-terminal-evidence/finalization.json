@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence",
+  "implementation_commit": "a8d3b46098e9099104c40147032d5120a69cd8f2",
+  "implementation_tree": "a71b474c66e66bdf78d67a1baf72ac79efa565d9",
+  "contract_digest": "adf45ebb46f08814bf0656c901f40c7704f7cefe34f6f6f9f7d21b46187560e7",
+  "workspace_digest": "cd2630416ccc37ae69d117c5dcc86ff1bbcc52924ca9c4d4199f86ef24c520d8",
+  "closing_digest": "1f706efaf09d7f4615154b1f88ae0821e9677a0a1e2bd734070b3bd8f6dfac2a",
+  "review_digest": "0f1278b908a86ba05257e874055974d2ff1e7c0eafaf1ba472a041e64ecd6823",
+  "finalization_digest": "a5a507c9aed387cf1761ac9060f7c37a7e85c390ce39f8ef93d1ee619e484c1f",
+  "timestamp": 1795480680
+}

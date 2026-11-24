@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "keep-accepted-interview-correction-fail-closed-on-broken-change-records",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "d1a41ea7d6e9cad067148b48a7cba838d36de684",
+  "contract_digest": "0b14471566d72f39b6d93bb4c8c10e52ac0a12f520463e7c08825db1c09aea16",
+  "execution_digest": "7a404a7b8adccef0ffb86c5f2d8d60a57ffc7103c34fd4040702f9b73a751538",
+  "workspace_digest": "d7d1e8a4b76f7ccce090fc7c5acc3c9c763ad778f67b762a69ea999c738a7c9a",
+  "timestamp": 1795494419,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected the #1114 writer fix and scope. Approve the scope and archive once verified.",
+    "where": "SpecSync 6.4.2 maintainer release conversation, 2026-11-24 UTC, relayed by the release coordinator for the inspected #1114 writer fix; carried in the private handoff 0xLeif gave the succeeding release lead on 2026-11-24 UTC; recorded after full native Verify passed at d1a41ea7d6e9cad067148b48a7cba838d36de684",
+    "recorded_by": "agent:claude:release-lead"
+  }
+}

@@ -131,6 +131,9 @@ mod spec_history;
 #[path = "integration/vanished_requirements.rs"]
 mod vanished_requirements;
 
+#[path = "integration/terminal_evidence_isolation.rs"]
+mod terminal_evidence_isolation;
+
 #[cfg(unix)]
 #[path = "integration/project_links.rs"]
 mod project_links;
@@ -162,3 +165,6 @@ mod ship_status_reopen_and_resume;
 mod git_environments;
 #[path = "integration/rebase_stale_delta.rs"]
 mod rebase_stale_delta;
+
+#[path = "integration/stale_input_refusals.rs"]
+mod stale_input_refusals;

@@ -1,0 +1,58 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795486517,
+      "digest": "0b14471566d72f39b6d93bb4c8c10e52ac0a12f520463e7c08825db1c09aea16",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "keep-accepted-interview-correction-fail-closed-on-broken-change-records",
+        "title": "Keep accepted interview correction fail-closed on broken change records",
+        "description": "Keep accepted interview correction fail-closed on broken change records",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "specs/change/",
+          "src/change/historical_definition_digest_matches.rs",
+          "tests/integration/terminal_evidence_isolation.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "When an unrelated change has corrupt committed workflow history, correcting accepted interview metadata must fail with that history error before writing any new evidence. The same correction must succeed with a valid project roster, and the healthy change’s read-only status must remain independent from that sibling."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Keep accepted corrections append-only (REQ-change-032). Isolate unrelated history failures only in read-only status and handoff.",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "e367eecbc8945858dc29a68e6814abc95edc650809b31e5967974e5cded79c9f"
+      },
+      "approved_delta_bases": {
+        "change: REQUIREMENT REQ-change-032": "232065c69d67c42986f0231b9864e3243c83fe523e1fd03d26a0e2381d6ab768"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the #1114 writer fix and scope. Approve the scope and archive once verified.",
+        "where": "SpecSync 6.4.2 release conversation on 2026-11-24 UTC, relayed verbatim by the lead agent (/root) for the writer fix and scope of PR #1114.",
+        "recorded_by": "codex-delta-block"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795494435,
+      "digest": "5a0ba4df92d14b3f16272fb33134b25e111865bef768d379cef4e896ff704af2",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

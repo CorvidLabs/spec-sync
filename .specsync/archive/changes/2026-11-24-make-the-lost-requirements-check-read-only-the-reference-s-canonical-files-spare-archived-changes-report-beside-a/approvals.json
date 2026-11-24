@@ -1,0 +1,65 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795187529,
+      "digest": "aefd5fd8c778c295efaffd70ab2706bfe5b77c47938cdbcccd715de43236b305",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a (at plan)\": \"Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)\" (Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/1112-1113-1116-1117-definition.md: the recommended choices taken, no new refusal, all four requirements ADDED) by t4c on 2026-11-20 at about 14:50Z, sent directly from hc t4c while ss-lead t58 was stopped). Relayed and recorded by claude-code-t4t at 2026-11-20T15:12:07Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "make-the-lost-requirements-check-read-only-the-reference-s-canonical-files-spare-archived-changes-report-beside-a",
+        "title": "Make the lost-requirements check read only the reference's canonical files, spare archived changes, report beside a change's own errors, and name an unreadable path",
+        "description": "Make the lost-requirements check read only the reference's canonical files, spare archived changes, report beside a change's own errors, and name an unreadable path",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/deltas.md",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/vanished_requirements.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) REQ-change-175: the files read at the reference come only from what was canonical there; a branch that registers a spec beside, or moves specs_dir onto, a requirements.md that was already there and rewrites it is not refused for its old ids; a requirement moved into a newly canonical file is found there. (2) REQ-change-176: change audit reports the lost requirements for each active change whether or not its approval, delta files and delta bodies validate, beside its own error. (3) REQ-change-177: when a requirement would be reported lost and a requirements directory or file in the working tree could not be read, the check says it cannot tell, naming each path and the error and the way out; nothing changes when nothing is lost. (4) REQ-cmd-change-045: change ship-status lists the lost-requirements blocker only for a change that can still be checked, finalized or shipped, not for an archived or retired one."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "No new refusal and no change to REQ-change-169's or REQ-cmd-change-042's wording: four ADDED requirements. #1112 and #1113 only remove false refusals; #1116 adds lines only where the audit already fails for that change; #1117 gives the existing 'cannot tell' form in place of a wrong loss report, at the same points, only when a loss would otherwise be reported. Stacked on #1108 (ed258f58).",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "5f9280cf7b310948f0e5fc11985d0ade431ef9eb308b61e101010a57071fdd6c",
+        "cmd_change": "1b3dcc94515b21cea64dbf20e8bbf6426c48f174ea3671de5a51855e25e63f9e"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)",
+        "where": "Leif's standing OK for scope approvals (2026-11-20 dialog, 'Standing OK, tell me after'), confirmed for this definition (defs/1112-1113-1116-1117-definition.md: the recommended choices taken, no new refusal, all four requirements ADDED) by t4c on 2026-11-20 at about 14:50Z, sent directly from hc t4c while ss-lead t58 was stopped",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795483145,
+      "digest": "3e652a1eebcddbc69b7d24a1f9d51f1537bdf358156cf55e57d9862a12df8e94",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

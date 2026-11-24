@@ -834,11 +834,38 @@ Read linked-worktree pointers with a regular-file bound. A trusted checkout's pr
 @plane z=73 label="Readers wait for fetched objects, and recovery preserves the path (#1122)"
 A history read shares the result of the first download for its root. A placeholder success let other workers reach isolated Git before the user-configured fetch finished. Store the terminal result in one per-root initializer and release the map lock before starting the fetch or waiting. The ownership refusal still prints a single command. Encode raw Unix path bytes only when the path cannot be printed as UTF-8, and preserve trailing newlines through shell substitution.
 
+@plane z=75 label="Preserve error attribution through confined requirements reads (#1134)"
+The lost-requirements check uses the reference's own scope for historical files and both scopes for tracked working-tree files. Keep Git's NUL-delimited paths exact for both. Collect errors from the confined readers if they obscure tracked requirements files or directories that contain them. A readable untracked copy can still suggest a recovery step. An unreadable directory with only untracked requirements, deleted requirements from history or tracked notes cannot account for a lost ID, so the check still names the loss. Audit reports that branch diagnostic independently of an active change's own errors. Read-only commands leave the attempt ledger intact, and mutating commands keep the existing refusal-recording gate.
+
 @plane z=74 label="Check checkout boundaries before any write (#1122)"
 Check the canonical temporary parent before creating a private Git directory. Reject insufficient shallow history before opening the lifecycle lock, since opening it can create the lock and recover a journal. Use a single path renderer for recovery commands that need raw Unix bytes. Read Git's NUL-delimited paths independently so a name outside SpecSync's supported path representation cannot prevent recovery of otherwise readable history.
 
-@plane z=75 label="Preview the same foreign directories adoption imports (#432)"
+@plane z=76 label="Approval currency for shared inputs (#657)"
+A later change can cover a shared input only while its approved scope still validates. The sequence ledger uses the same restriction on provisional successors as other delivery inputs. A historical transition recorded as unproven keeps its warning under provisional coverage.
+
+@plane z=77 label="Archive refusals for deleted inputs (#688)"
+The input validator carries the signed path and failed owners into the archive refusal. This lets archive identify the later delivery that deleted a file even when the original error names only its exact owner or its disappearance.
+
+@plane z=78 label="Explicit succession after temporary coverage (#657)"
+The coverage receipt records which change was working on a path. To clear its warning after acceptance, check the recorded change against the predecessor’s signed input and succession obligation. The archive’s own evidence stays historical. A path can have several signed owners. Each owner needs coverage, and the recorded change must account for at least one. Recheck its approval while it remains active. When that change covers all owners directly, the status can be decided without opening unrelated archives. When successors split an input’s owners, evaluate each successor in its own state. An accepted owner can supply explicit succession while the other owner still has current provisional approval.
+
+@plane z=79 label="Retire one archive generation’s coverage receipt"
+After moving an archived package back to the active workspace, publish the reopen state and retire its old generated coverage receipt through one journal. Only the unchanged committed receipt can be retired automatically. A refused publish restores the original when the receipt is missing and preserves a replacement at its path. The next archive computes its own coverage. A present invalid receipt is an advisory diagnostic and never determines terminal archive authentication.
+
+@plane z=80 label="Read coverage from the committed archive generation (#1132)"
+A covering change can still validate after somebody edits the receipt to name it. Check the receipt against its own archive generation before validating any coverers. A staged or working-tree edit, a later committed replacement, or a receipt copied from a superseded generation carries no coverage and stays advisory. Reopen preserves those bytes. A shallow boundary cannot prove that an existing package was introduced there. Status and audit still decide the archive's terminal evidence independently.
+
+@plane z=81 label="Bounded reads during terminal evidence recovery (#1104)"
+When the full roster fails validation, the per-change scan reads archive directories, state files and retirement receipts through the same confined helpers. Each individual read failure retains its path and the owning change.
+
+@plane z=82 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
+An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.
+
+@plane z=83 label="Keep correction writes on the full roster (#1114)"
+A healthy status can isolate a sibling’s broken history. Accepted interview correction writes new lifecycle evidence and must validate the complete roster before it writes. Keep the original roster error and every workspace byte on refusal.
+
+@plane z=84 label="Preview the same foreign directories adoption imports (#432)"
 Preview and adoption share the changes-directory scan. Both leave a real top-level archive directory in place without walking inside it, and reject symlinks on the active import paths. Keep the directory entry checks ahead of the archive exclusion so a link named `archive` is still refused.
 
-@plane z=76 label="Preview reads the actual foreign Markdown (#432)"
+@plane z=85 label="Preview reads the actual foreign Markdown (#432)"
 Adoption preview traverses the same active and canonical inputs through the same bounded UTF-8 reader as adoption. Discard each prepared preview payload immediately. Keep Markdown under an active change eligible even when one of its nested directories is named archive.

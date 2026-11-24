@@ -127,7 +127,20 @@ spec: change.spec.md
 - [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
 
 - [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).
+- [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
+- [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).
+- [x] Restore full-roster validation before accepted interview correction writes evidence (REQ-change-032).
+- [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
+- [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
+- [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).
+- [x] Use the explicit succession obligation to decide whether an accepted or archived coverer clears the recorded shared-input warning (#657).
+- [x] Check current approval for a recorded in-flight coverer and explicit succession for every signed owner of a permanently covered path (#657).
+- [x] Retire a valid coverage receipt during archived reopen and restore its bytes on publication failure (REQ-change-reopened-coverage-receipt-001).
+
+- [x] Check each owner’s current coverage as split successors move from implementation to acceptance (#657).
 - [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
 
 - [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).
+
+- [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).

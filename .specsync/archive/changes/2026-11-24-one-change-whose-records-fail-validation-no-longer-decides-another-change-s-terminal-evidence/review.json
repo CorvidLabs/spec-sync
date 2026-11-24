@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "one-change-whose-records-fail-validation-no-longer-decides-another-change-s-terminal-evidence",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "a8d3b46098e9099104c40147032d5120a69cd8f2",
+  "contract_digest": "adf45ebb46f08814bf0656c901f40c7704f7cefe34f6f6f9f7d21b46187560e7",
+  "execution_digest": "bb780e199182d1833d82f9394ffef1b94a2acf009feefd43237e5aa433987a2e",
+  "workspace_digest": "cd2630416ccc37ae69d117c5dcc86ff1bbcc52924ca9c4d4199f86ef24c520d8",
+  "timestamp": 1795480651,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+    "where": "SpecSync 6.4.2 release conversation on 2026-11-23 UTC, relayed verbatim by the lead agent (/root) for qualified PR #1114 at a8d3b46098e9099104c40147032d5120a69cd8f2.",
+    "recorded_by": "codex-delta-block"
+  }
+}

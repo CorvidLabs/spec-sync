@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "370d6671ea932fb589a06e0b66f6561614e53d50",
+  "contract_digest": "19962964c0a25e8ece74972c4a9601a6c2aee050df4c307b9b53f0ad00185ea8",
+  "execution_digest": "82233c656ed0cfd7734f90c24ff256527745dcd7f5b80914db9560f1a0a51c37",
+  "workspace_digest": "fac6b919161ca99f5163f271d447a2087634e61527407f0c38e17ee9c09a972d",
+  "timestamp": 1795402741,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected #1132 and approve archival",
+    "where": "Codex SpecSync repository session, 2026-11-22 America/Denver, direct response to the implementation review prompt for PR #1132 at 370d6671ea932fb589a06e0b66f6561614e53d50",
+    "recorded_by": "codex"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "workflow_version": 2,
+  "workflow_origin_version": 2,
+  "id": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
+  "slug": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
+  "title": "Keep archived foreign change directories outside adoption validation and import",
+  "description": "Keep archived foreign change directories outside adoption validation and import",
+  "kind": "bug_fix",
+  "state": "draft",
+  "base_commit": "892df7f5e00e941edf6d00d9d8368080347b0281",
+  "created_at": 1795479668,
+  "updated_at": 1795479782,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/validate_loaded_change.rs",
+    "tests/integration/change.rs"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "For both OpenSpec and Spec Kit, preview and import ignore a symlink inside the real top-level archive directory and reject a symlink in an active change. Preview and refusal leave the destination unchanged. Real adoption imports only active content."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-014 requires safe foreign import, an untouched destination on refusal, and archives preserved in place. Keep previews metadata-only and never follow a foreign symlink.",
+    "public_contract": "no"
+  }
+}

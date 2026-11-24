@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-watch-tests-read-a-run-through-to-the-line-after-its-verdict",
+  "implementation_commit": "2b703b4ad37aa6646c0eb7d80d3fc06f25d1c5c0",
+  "implementation_tree": "afff27452c3e952bf647b35bacb3db43131077ea",
+  "contract_digest": "d7136a2b4894a0e43e66af343659742aaf5c12e5de9f2014f08ba2ddbfa2efd2",
+  "workspace_digest": "6b46e2fa72ef8c089e6c66a297a091879e1494b2093482c11b6d3b50285ca542",
+  "closing_digest": "08992708ed3995c85bfd43449569f0581a52d88b8c6daa7bef13404f85c8f938",
+  "review_digest": "95d478a7528ecae21687134f31b461cbfa0698a59eae1e0b9b63300e92712579",
+  "finalization_digest": "40c545db4cb935eacbf180c7a54c594dd298ce22e7efb09f368c4c43e94699bd",
+  "timestamp": 1795477913
+}

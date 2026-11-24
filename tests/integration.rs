@@ -150,3 +150,6 @@ mod repository_inputs;
 
 #[path = "integration/hardening_641.rs"]
 mod hardening_641;
+
+#[path = "integration/rebase_stale_delta.rs"]
+mod rebase_stale_delta;

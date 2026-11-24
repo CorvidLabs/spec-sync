@@ -41,6 +41,13 @@
         "where": "coordinator chat (Claude Code hc t370), 2026-11-13T03:41Z, relayed by claude-code-t370. Asked: 'SpecSync bug fix spec-sync#1071: change audit wrongly rejected an unchanged new requirement whenever another section followed it, because validation read more text than the edit step does. The fix makes them read the same, as the spec already requires, with no new wording. Approve its scope?' Option text: 't38c records it and builds, with a failing test first.'",
         "recorded_by": "claude-code-t38c (Claude Opus 5.5, hc t38c)"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795554431,
+      "digest": "16bc17c56e41a8f38ea4c129997f4b3598178424e322261dbb50920cc900098b",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

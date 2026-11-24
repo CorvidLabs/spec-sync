@@ -327,6 +327,13 @@
         "where": "SpecSync 6.4.2 release conversation on 2026-11-23, in response to the two permanent-ID renewal proposals linked in the remaining-PR review question.",
         "recorded_by": "Codex"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795479618,
+      "digest": "82ba584ba54807c74c62c93913571d6f385b03186b4bdea4f5f44a144af0e755",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": [],

@@ -837,3 +837,6 @@ When the full roster fails validation, the per-change scan reads archive directo
 
 @plane z=74 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
 An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.
+
+@plane z=75 label="Read coverage from the committed archive generation (#1132)"
+A covering change can still validate after somebody edits the receipt to name it. Check the receipt against its own archive generation before validating any coverers. A staged or working-tree edit, a later committed replacement, or a receipt copied from a superseded generation carries no coverage and stays advisory. Reopen preserves those bytes. Status and audit still decide the archive's terminal evidence independently.

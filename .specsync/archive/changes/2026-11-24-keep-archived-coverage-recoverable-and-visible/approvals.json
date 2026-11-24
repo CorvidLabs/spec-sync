@@ -49,6 +49,13 @@
         "where": "SpecSync Codex conversation on 2026-11-23, following the two archive coverage findings and proposed repair, relayed by coordinating Codex agent",
         "recorded_by": "codex:state_check"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795479860,
+      "digest": "73fe094c6db558924d60024068e024437b68f741904daa63b5b4f2ff8f3b48a2",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

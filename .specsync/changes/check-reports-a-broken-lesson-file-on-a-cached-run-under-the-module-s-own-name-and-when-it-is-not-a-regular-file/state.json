@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+  "slug": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+  "title": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+  "description": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+  "kind": "bug_fix",
+  "state": "approved",
+  "base_commit": "24d553f6912b7594e8664e629eba5092afd6cbe2",
+  "created_at": 1795559360,
+  "updated_at": 1795560787,
+  "affected_specs": [
+    "cmd_check",
+    "hash_cache",
+    "validator"
+  ],
+  "affected_paths": [
+    "src/validator/consumed_by_re.rs",
+    "src/hash_cache.rs",
+    "tests/integration/check.rs",
+    "CHANGELOG.md",
+    "specs/cmd_check/",
+    "specs/hash_cache/",
+    "specs/validator/validator.3md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "After a clean check, a plain check reports a module's lesson file that was added broken or broken since: every .3md entry beside a spec is an input of its cached verdict and of the changed-spec classification (REQ-hash-cache-011). check reads the lesson file the lifecycle reads, <module>.3md named for the spec's module whatever the spec file is called. A <module>.3md that is not a regular file, such as a directory, is reported as one that cannot be read. change check --strict still fails on the warning, as on any other; REQ-cmd-check-023 and the changelog say that instead of saying lifecycle commands never fail. Each of the three fixes has a test that fails without it, and the full native Verify lane passes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "Findings from the Codex review of #1163, each reproduced on the CLI first. The warning's words do not change. Every project read stays behind the bounded reader and every directory listing behind read_project_dir (the validator lesson from #1060). A lesson file that is a link is already refused by coverage discovery and stays so.",
+    "public_contract": "yes"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-delta-materializer-skips-fenced-examples-when-it-matches-a-requirement-block",
+  "implementation_commit": "04977932e2e8411d9d20a7ec0928d7217c045112",
+  "implementation_tree": "55039924b78deab038439e947d2a5ef75c72e783",
+  "contract_digest": "b331061433dbae4b0e92968ca3fc459d6e308e6f1cb269afc74c853c0560a8a1",
+  "workspace_digest": "c5957db912fdc9d4b8edc6cefdce0550b9f8c53c341fe8edabc5e0d30f857e86",
+  "closing_digest": "b1ce95e1f5d5e627bd1758de55f3c140cab82cdbdf0285cb7ce75eb059c2bd6d",
+  "review_digest": "f1d799723409d17c647735a0afeaf6352e67826b6bb83bcfc6fdcfb31d15cc4b",
+  "finalization_digest": "75b6b2ce167ab96d57b2044e465813114f7c9842ff2f758409a4a8b018b22dc3",
+  "timestamp": 1795401987
+}

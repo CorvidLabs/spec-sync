@@ -376,6 +376,13 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
 - `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.
 
+## Fenced canonical delta blocks (REQ-change-152)
+
+- `a_modified_delta_skips_a_fenced_example_of_the_same_id` checks that the real requirement is replaced and the preceding example and next requirement survive.
+- `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.
+- `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
+- `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.
+
 The upstream archive tests exercise a reopened package after a remote rename, matching and unrelated non-UTF-8 directory names, and copies of a remote-only record under backup and nested paths. Only a package’s own state.json establishes local archive history. The two non-UTF-8 package tests also run with `core.quotePath=false`, where Git can write raw path bytes to its commit summary.
 
 ## Lost-requirement refusals (REQ-change-169)

@@ -825,5 +825,8 @@ Canonical delta matching uses the parser's byte-preserving fenced-code blanker. 
 @plane z=70 label="Share the fence rules for canonical deltas (#1144)"
 The first fence-aware matcher used a copy with fenced lines blanked. The review found that the general blanker and the requirement reader classify backticks in a fence info string differently. Canonical delta matching now uses the requirement reader's CommonMark recognizer for both target types and tracks byte offsets into the original file. Cover both already-applied checks whenever changing block discovery, since replay uses the same range.
 
-@plane z=71 label="Preview the same foreign directories adoption imports (#432)"
+@plane z=71 label="Recognizing a reopened archive after a remote rename"
+A reopen moves the package out of the archive. The remote default can later rename its copy. Check whether this exact state blob occupied an archive package’s state.json in HEAD history. The same bytes in a backup or nested notes directory do not establish that the branch held the archive.
+
+@plane z=72 label="Preview the same foreign directories adoption imports (#432)"
 Preview and adoption share the changes-directory scan. Both leave a real top-level archive directory in place without walking inside it, and reject symlinks on the active import paths. Keep the directory entry checks ahead of the archive exclusion so a link named `archive` is still refused.

@@ -44,6 +44,13 @@
         "where": "Maintainer response in the SpecSync 6.4.2 release conversation, 2026-11-24 UTC, after inspecting the new scope and fixes at 01752687 in PR #1151.",
         "recorded_by": "Codex"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795481891,
+      "digest": "93e39367955b8d9adac858606e8af9ca9ec0c679273b331027e196996586373f",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

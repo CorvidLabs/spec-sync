@@ -1,6 +1,6 @@
 ---
 id: keep-archived-foreign-change-directories-outside-adoption-validation-and-import
-state: verifying
+state: archived
 type: bug_fix
 base_commit: 892df7f5e00e941edf6d00d9d8368080347b0281
 ---

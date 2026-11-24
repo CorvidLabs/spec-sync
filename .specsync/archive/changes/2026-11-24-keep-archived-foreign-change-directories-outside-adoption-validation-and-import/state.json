@@ -7,11 +7,11 @@
   "title": "Keep archived foreign change directories outside adoption validation and import",
   "description": "Keep archived foreign change directories outside adoption validation and import",
   "kind": "bug_fix",
-  "state": "verifying",
+  "state": "archived",
   "canonical_applied": true,
   "base_commit": "892df7f5e00e941edf6d00d9d8368080347b0281",
   "created_at": 1795479668,
-  "updated_at": 1795481280,
+  "updated_at": 1795481895,
   "affected_specs": [
     "change"
   ],

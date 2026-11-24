@@ -48,6 +48,13 @@
         "where": "Direct response by 0xLeif in this SpecSync orchestration session, November 22 2026 Mountain time, choosing the explicit-succession rule for #1132.",
         "recorded_by": "codex"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795480174,
+      "digest": "18616be4dd2603ca611e56b0d48faead3c532141ab63197300427cfce9db2c42",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

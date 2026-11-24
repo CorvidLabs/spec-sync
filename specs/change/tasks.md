@@ -144,3 +144,4 @@ spec: change.spec.md
 - [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).
 
 - [x] Report unexplained canonical requirement loss after the last change is archived, using the shared comparison for audit and strict check (#1105, REQ-change-archived-requirement-loss-001).
+- [x] Answer for strict check whether SDD governs the branch, from the working tree or the comparison base audit reads (#1149 review, REQ-change-archived-requirement-loss-001).

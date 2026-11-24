@@ -15,4 +15,5 @@ Red first: the new cases fail on the tree before the fix, where strict check exi
 
 | Requirement | Evidence |
 | --- | --- |
-| REQ-cmd-check-004 | Planned policy-disabled and policy-deleted branch cases, uncommitted and committed, and the disabled-at-base control in tests/integration/vanished_requirements.rs |
+| REQ-cmd-check-004 | `strict_check_keeps_the_comparison_when_the_branch_turns_sdd_off` (policy disabled, then deleted, on the branch; uncommitted and committed) and the control `strict_check_stays_drift_only_when_the_comparison_base_has_sdd_disabled`, in tests/integration/vanished_requirements.rs |
+| REQ-change-archived-requirement-loss-001 | The same two tests run `change audit --strict` beside strict check: both commands name the loss on the policy-flip branch, and both stay on the drift-only path when the comparison base has the policy disabled |

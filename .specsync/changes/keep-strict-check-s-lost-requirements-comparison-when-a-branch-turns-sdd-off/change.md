@@ -1,6 +1,6 @@
 ---
 id: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
-state: approved
+state: verifying
 type: bug_fix
 base_commit: 2e2ddab1af06a6b8e877a3efd6fb40801786a2fc
 ---

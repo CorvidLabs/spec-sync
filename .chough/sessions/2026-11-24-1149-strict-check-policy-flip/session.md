@@ -5,7 +5,7 @@ aliases: [1149-strict-check-policy-flip]
 objective: "check --strict keeps the lost-requirements comparison of #1149 when a branch disables or deletes the SDD policy its comparison base has enabled, as change audit does (Codex P1 on #1149, CHANGE-17.d)"
 intent_scope: CHANGE
 modules: [cmd_check, change]
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -16,12 +16,18 @@ requirements: [REQ-cmd-check-004, REQ-change-archived-requirement-loss-001]
 cases: []
 design: []
 files: []
-observations: [2026-11-24-1149-policy-flip-red-at-a8b31fe8]
+observations:
+  - 2026-11-24-1149-policy-flip-red-at-a8b31fe8
+  - 2026-11-24-1149-policy-flip-green-with-the-fix
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+    holds: accept
+    drives: review
+    opened: 2026-11-24T14:12:15Z
 run_consents: []
-next: "Gate \"Scope approval of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off\" closed (approved); run `chough stage advance` to move on."
+next: Commit, run change check --commit and the full native Verify lane, then ship on 0xLeif's recorded decision
 ---
 # check --strict keeps the lost-requirements comparison of #1149 when a branch disables or deletes the SDD policy its comparison base has enabled, as change audit does (Codex P1 on #1149, CHANGE-17.d)
 
@@ -32,6 +38,7 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
 ## Where it stands
 
 - Drafted the native change: interview answered, six artifacts written, MODIFIED deltas for cmd_check (REQ-cmd-check-004) and change (REQ-change-archived-requirement-loss-001); chough change ready reports nothing missing and approve --dry-run would approve
+- Added the failing CLI cases and the disabled-at-base control, then the fix: check --strict asks the change module whether SDD governs the branch (working tree, then the trusted comparison base audit reads). Updated both contracts, testing companions, task lists and the cmd_check lesson.
 
 ## Decisions and why
 
@@ -41,6 +48,7 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
 ## What was verified
 
 - 2026-11-24-1149-policy-flip-red-at-a8b31fe8
+- [With the fix on the working tree over 2e2ddab1 (REQ-cmd-check-004, REQ-change-archived-requirement-loss-001): strict_check_keeps_the_comparison_when_the_branch_turns_sdd_off failed before the fix at check --strict and passes now; the disabled-at-base control passes both times. All 27 tests of the vanished_requirements integration module pass. Through the binary, the two policy-flip cases now exit 1 and name the loss in both check --strict and change audit --strict, uncommitted and committed, and the three controls are unchanged.](evidence/2026-11-24-1149-policy-flip-green-with-the-fix.md)
 
 ## Open threads
 
@@ -71,4 +79,25 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
     - recorded_by: claude-code-t14v
     - native: specsync change approve keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
     - actor: 0xLeif
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:07:39Z · advance · plan → build · native:approved ^t-14d15b
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - gate: native:approved
+  - revision: af9ee3727c15ef74371508dddabdaf168e540459
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:11:18Z · advance · build → test · native:approved ^t-bb6d1b
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - gate: native:approved
+  - revision: af9ee3727c15ef74371508dddabdaf168e540459
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:11:19Z · advance · test → accept · native:approved ^t-e2b86d
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - gate: native:approved
+  - revision: af9ee3727c15ef74371508dddabdaf168e540459
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:12:15Z · gate-opened · accept → accept · Implementation review of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off ^t-f945a4
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - revision: af9ee3727c15ef74371508dddabdaf168e540459
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t14v)

@@ -1170,6 +1170,70 @@ fn project_requirement_comparison_discloses_missing_default_but_preserves_opt_ou
     assert!(!output.contains("canonical requirements"), "{report}");
 }
 
+/// The policy text of the fixture with SDD switched off.
+fn disabled_policy(project: &Project) -> String {
+    let policy = project.read(".specsync/sdd.json");
+    assert!(policy.contains("\"enabled\": true"), "{policy}");
+    policy.replace("\"enabled\": true", "\"enabled\": false")
+}
+
+/// Codex on #1149 (REQ-cmd-check-004): a branch that switches the policy off, or deletes it,
+/// while its comparison base has SDD enabled is still compared. `change audit` already read the
+/// policy from that base; strict check read the working tree alone and passed.
+#[test]
+fn strict_check_keeps_the_comparison_when_the_branch_turns_sdd_off() {
+    for delete in [false, true] {
+        for committed in [false, true] {
+            let project = Project::new();
+            project.git(&["checkout", "-q", "-b", "change"]);
+            remove_sign_out(&project);
+            if delete {
+                fs::remove_file(project.root.join(".specsync/sdd.json")).unwrap();
+            } else {
+                project.write(".specsync/sdd.json", &disabled_policy(&project));
+            }
+            if committed {
+                project.git(&["add", "--all"]);
+                project.git(&["commit", "-q", "-m", "drop a requirement and turn SDD off"]);
+            }
+            for args in [
+                &["check", "--strict", "--json"][..],
+                &["change", "audit", "--strict", "--json"],
+            ] {
+                assert_project_loss(&project, args);
+            }
+        }
+    }
+}
+
+/// The control beside it: a default branch that has the policy disabled keeps drift-only
+/// strict check, as one that never had a policy does.
+#[test]
+fn strict_check_stays_drift_only_when_the_comparison_base_has_sdd_disabled() {
+    let project = Project::new();
+    project.write(".specsync/sdd.json", &disabled_policy(&project));
+    project.git(&["commit", "-qam", "turn SDD off on the default branch"]);
+    project.git(&["push", "-q", "origin", "main"]);
+    project.git(&["checkout", "-q", "-b", "change"]);
+    remove_sign_out(&project);
+    for committed in [false, true] {
+        if committed {
+            project.git(&["commit", "-qam", "drop a requirement"]);
+        }
+        for args in [
+            &["check", "--strict", "--json"][..],
+            &["change", "audit", "--strict", "--json"],
+        ] {
+            let output = project.run(args);
+            let _: Value = serde_json::from_str(&output).unwrap();
+            assert!(
+                !output.contains("canonical requirements"),
+                "{args:?}: {output}"
+            );
+        }
+    }
+}
+
 #[test]
 fn shallow_project_requirement_comparison_refuses_with_fetch_guidance() {
     let source = Project::new();

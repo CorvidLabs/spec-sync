@@ -52,11 +52,12 @@ shared historical guard for unexplained canonical requirement loss.
 11. A warm hash-cache skip skips re-validation, never the previous findings: unchanged specs
     replay their stored snapshot, `specs_checked` counts them, and a hash-only cache with no
     snapshot is re-validated rather than reported clean.
-12. Ordinary `check` validates living specs and code. With `--strict` on an SDD-enabled Git
-    project, it also invokes the shared canonical requirement-loss comparison
-    (REQ-change-archived-requirement-loss-001). Approved removal evidence is considered only to
-    account for a lost ID. Lifecycle policy compliance, workspace health and general archive
-    validation stay in `specsync change`.
+12. Ordinary `check` validates living specs and code. With `--strict` on a Git project that has
+    SDD enabled in its working tree or at its trusted comparison base, it also invokes the shared
+    canonical requirement-loss comparison (REQ-change-archived-requirement-loss-001). A branch
+    that disables or deletes the policy its base has enabled is still compared. Approved removal
+    evidence is considered only to account for a lost ID. Lifecycle policy compliance, workspace
+    health and general archive validation stay in `specsync change`.
 13. When the hash cache location is refused, because no local state folder can be found or
     what is at `hashes.json` there is a link or not a regular file, `check` prints one
     `warning: hash cache not used: <reason>` on stderr before anything can end the run, neither

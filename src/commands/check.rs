@@ -332,9 +332,10 @@ pub fn cmd_check(
 
     // Historical requirement loss belongs to the project, so neither spec filters nor
     // a cached per-spec result can account for it. Opted-out projects keep drift-only checks.
+    // A branch that switches SDD off is not opted out while its comparison base has it on.
     let mut history_errors = Vec::new();
     let mut history_notices = Vec::new();
-    if strict && crate::change::load_policy(root).is_some_and(|policy| policy.enabled) {
+    if strict && crate::change::sdd_enabled_here_or_at_comparison_base(root) {
         match crate::change::project_lost_requirements(root, "specsync check --strict") {
             Ok(Some(note)) => history_notices.push(note),
             Ok(None) => {}

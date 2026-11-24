@@ -1,6 +1,6 @@
 ---
 id: give-the-macos-release-candidate-qualification-120-minutes
-state: draft
+state: approved
 type: operations
 base_commit: b114d09fd1b102ddbb57dd4032769d6c854e5c52
 ---

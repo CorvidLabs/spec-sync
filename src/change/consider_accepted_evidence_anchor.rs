@@ -5418,13 +5418,14 @@ fn validate_accepted_inputs_recursive(
                     return Err(AcceptedInputError::stale(
                         reason,
                         &expected.path,
-                        std::slice::from_ref(owner),
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
             }
         }
         if !provisional.is_empty() {
+            provisional.sort_unstable();
             provisional.dedup();
             memo.provisional.insert(record.id.clone(), provisional);
             return Ok(AcceptedInputValidity::ProvisionallyCovered);

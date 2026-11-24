@@ -328,7 +328,7 @@ fn accepted_change_with_successor_in_flight(root: &Path, explicit: bool) -> (Cha
 const SHARED_INPUT_DELTA: &str =
     "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication remains governed.\n";
 
-fn accepted_shared_input_predecessor(root: &Path, shared_owner: bool) -> ChangeRecord {
+fn accepted_shared_input_predecessor(root: &Path, extra_owners: &[&str]) -> ChangeRecord {
     quiet_git(root, &["init", "-b", "main"]);
     quiet_git(root, &["config", "user.email", "test@example.com"]);
     quiet_git(root, &["config", "user.name", "Test"]);
@@ -337,12 +337,18 @@ fn accepted_shared_input_predecessor(root: &Path, shared_owner: bool) -> ChangeR
     quiet_git(root, &["add", "."]);
     quiet_git(root, &["commit", "-m", "base"]);
     let mut predecessor = completed_section_only_record(root, SHARED_INPUT_DELTA);
-    if shared_owner {
-        fs::create_dir_all(root.join("specs/shared")).unwrap();
+    if !extra_owners.is_empty() {
         let spec = fs::read_to_string(root.join("specs/auth/auth.spec.md")).unwrap();
-        fs::write(root.join("specs/shared/shared.spec.md"), spec.replace("module: auth", "module: shared")).unwrap();
-        predecessor.affected_specs.push("shared".into());
-        fs::write(delta_path(root, &predecessor, "shared"), SHARED_INPUT_DELTA).unwrap();
+        for owner in extra_owners {
+            fs::create_dir_all(root.join(format!("specs/{owner}"))).unwrap();
+            fs::write(
+                root.join(format!("specs/{owner}/{owner}.spec.md")),
+                spec.replace("module: auth", &format!("module: {owner}")),
+            )
+            .unwrap();
+            predecessor.affected_specs.push((*owner).into());
+            fs::write(delta_path(root, &predecessor, owner), SHARED_INPUT_DELTA).unwrap();
+        }
         save_change(root, &predecessor).unwrap();
         write_change_markdown(root, &predecessor).unwrap();
     }
@@ -356,7 +362,8 @@ fn accepted_shared_input_predecessor(root: &Path, shared_owner: bool) -> ChangeR
 }
 
 fn shared_input_fixture(root: &Path, explicit: bool, shared_owner: bool) -> (ChangeRecord, ChangeRecord) {
-    let predecessor = accepted_shared_input_predecessor(root, shared_owner);
+    let owners: &[&str] = if shared_owner { &["shared"] } else { &[] };
+    let predecessor = accepted_shared_input_predecessor(root, owners);
     let delta = SHARED_INPUT_DELTA;
     let manifest = load_verification(root, &predecessor)
         .unwrap()
@@ -971,15 +978,18 @@ fn a_recorded_active_coverer_needs_its_current_approval() {
     assert!(archived_provisional_coverage(root, &archived).unwrap()[0].warning.is_some());
 }
 
-fn approved_split_owner_successor(
+fn approved_shared_owner_change(
     root: &Path,
     predecessor: &ChangeRecord,
     input: &AcceptanceInputEntryV1,
-    owner: &str,
+    owners: &[&str],
+    explicit: bool,
 ) -> ChangeRecord {
     let mut successor = completed_record(root);
-    successor.affected_specs = vec![owner.into()];
-    successor.affected_paths.push(format!("specs/{owner}/"));
+    successor.affected_specs = owners.iter().map(|owner| (*owner).into()).collect();
+    successor
+        .affected_paths
+        .extend(owners.iter().map(|owner| format!("specs/{owner}/")));
     save_change(root, &successor).unwrap();
     write_change_markdown(root, &successor).unwrap();
     for artifact in &successor.selected_artifacts {
@@ -994,20 +1004,27 @@ fn approved_split_owner_successor(
         )
         .unwrap();
     }
-    fs::write(
-        delta_path(root, &successor, owner),
-        SHARED_INPUT_DELTA.replace("remains governed", &format!("is governed by {owner}")),
-    )
-    .unwrap();
-    add_supersedes_obligation(
-        root,
-        &successor.id,
-        &predecessor.id,
-        &input.path,
-        owner,
-        &input.entry_digest,
-    )
-    .unwrap();
+    for owner in owners {
+        let body = if explicit {
+            SHARED_INPUT_DELTA.replace("remains governed", &format!("is governed by {owner}"))
+        } else {
+            SHARED_INPUT_DELTA.to_owned()
+        };
+        fs::write(delta_path(root, &successor, owner), body).unwrap();
+    }
+    if explicit {
+        for owner in owners {
+            add_supersedes_obligation(
+                root,
+                &successor.id,
+                &predecessor.id,
+                &input.path,
+                owner,
+                &input.entry_digest,
+            )
+            .unwrap();
+        }
+    }
     approve_definition(root, &successor.id, Some("Reviewer".into()), None).unwrap();
     start_implementation(root, &successor.id).unwrap()
 }
@@ -1016,7 +1033,7 @@ fn approved_split_owner_successor(
 fn verified_successors_can_split_ownership_of_one_archived_input() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();
-    let predecessor = accepted_shared_input_predecessor(root, true);
+    let predecessor = accepted_shared_input_predecessor(root, &["shared"]);
     let manifest = resolved_acceptance_manifest(root, &predecessor).unwrap();
     let input = manifest
         .entries
@@ -1025,10 +1042,10 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
         .unwrap();
     assert_eq!(input.owners, ["auth", "shared"]);
 
-    let auth = approved_split_owner_successor(root, &predecessor, input, "auth");
+    let auth = approved_shared_owner_change(root, &predecessor, input, &["auth"], true);
     quiet_git(root, &["add", "--all"]);
     quiet_git(root, &["commit", "-m", "commit the first successor scope"]);
-    let shared = approved_split_owner_successor(root, &predecessor, input, "shared");
+    let shared = approved_shared_owner_change(root, &predecessor, input, &["shared"], true);
     fs::write(
         root.join(&input.path),
         "// Both modules now use passkeys.\n",
@@ -1071,6 +1088,78 @@ fn verified_successors_can_split_ownership_of_one_archived_input() {
         );
         assert_covered(ChangeState::Accepted, shared_state);
     }
+}
+
+#[test]
+fn an_archive_records_each_coverer_once_for_nonadjacent_signed_owners() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let predecessor = accepted_shared_input_predecessor(root, &["shared", "utilities"]);
+    let manifest = resolved_acceptance_manifest(root, &predecessor).unwrap();
+    let input = manifest
+        .entries
+        .iter()
+        .find(|entry| entry.path == "src/auth.rs")
+        .unwrap();
+    assert_eq!(input.owners, ["auth", "shared", "utilities"]);
+
+    let outside = approved_shared_owner_change(
+        root, &predecessor, input, &["auth", "utilities"], true,
+    );
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the covering scope for first and last owners"]);
+    let middle = approved_shared_owner_change(root, &predecessor, input, &["shared"], true);
+    fs::write(root.join(&input.path), "// All owners now use passkeys.\n").unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "edit the three-owner input"]);
+
+    archive_change(root, &predecessor.id).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "archive the temporarily covered predecessor"]);
+    let archived = load_change(root, &predecessor.id).unwrap();
+    let coverage = archived_provisional_coverage(root, &archived).unwrap();
+    assert_eq!(coverage.len(), 2, "{coverage:?}");
+    for coverer in [outside, middle] {
+        assert!(
+            coverage.iter().any(|entry| {
+                entry.path == input.path && entry.change == coverer.id && entry.warning.is_none()
+            }),
+            "{coverage:?}"
+        );
+    }
+}
+
+#[test]
+fn a_stale_shared_input_names_later_accepted_changes_for_other_signed_owners() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let predecessor = accepted_shared_input_predecessor(root, &["shared"]);
+    let manifest = resolved_acceptance_manifest(root, &predecessor).unwrap();
+    let input = manifest
+        .entries
+        .iter()
+        .find(|entry| entry.path == "src/auth.rs")
+        .unwrap();
+    assert_eq!(input.owners, ["auth", "shared"]);
+
+    fs::write(root.join(&input.path), "// Edited before the later change began.\n").unwrap();
+    quiet_git(root, &["commit", "-am", "modify the input before the later change begins"]);
+    let later = approved_shared_owner_change(root, &predecessor, input, &["shared"], false);
+    assert!(verify_change(root, &later.id).unwrap().passed);
+    let later = accept_change(root, &later.id, Some("Closer".into()), None).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "accept the later change for the other owner"]);
+    assert!(!delivery_changed_path(root, &later, &predecessor, &input.path));
+
+    let refusal = archive_change(root, &predecessor.id).unwrap_err();
+    assert!(refusal.contains("(owner `auth`)"), "{refusal}");
+    assert!(
+        refusal.contains(&format!("Later change `{}`", later.id))
+            && refusal.contains("cannot be archived either"),
+        "{refusal}"
+    );
+    let later_refusal = archive_change(root, &later.id).unwrap_err();
+    assert!(later_refusal.contains(&predecessor.id), "{later_refusal}");
 }
 
 #[test]

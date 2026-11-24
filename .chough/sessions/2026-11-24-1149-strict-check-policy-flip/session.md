@@ -5,7 +5,7 @@ aliases: [1149-strict-check-policy-flip]
 objective: "check --strict keeps the lost-requirements comparison of #1149 when a branch disables or deletes the SDD policy its comparison base has enabled, as change audit does (Codex P1 on #1149, CHANGE-17.d)"
 intent_scope: CHANGE
 modules: [cmd_check, change]
-stage: accept
+stage: done
 stage_status: active
 iteration: 1
 callers: []
@@ -22,13 +22,9 @@ observations:
   - 2026-11-24-1149-native-verify-at-303f1d85
 bugs: []
 blockers: []
-waiting_on_human:
-  - gate: Implementation review of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
-    holds: accept
-    drives: review
-    opened: 2026-11-24T14:12:15Z
+waiting_on_human: []
 run_consents: []
-next: Ship on 0xLeif's recorded decision, then integrate with main, push and merge
+next: Continue done
 ---
 # check --strict keeps the lost-requirements comparison of #1149 when a branch disables or deletes the SDD policy its comparison base has enabled, as change audit does (Codex P1 on #1149, CHANGE-17.d)
 
@@ -46,6 +42,7 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
 
 - 0xLeif chose 'Fix as a successor change (Recommended)' when asked what to do with the Codex P1 on #1149 (Claude Code release chat, 2026-11-24 about 04:42 UTC). The option approved the scope shown with it (cmd_check and change; check.rs, one helper in change, the vanished-requirements tests, specs/cmd_check/, specs/change/; MODIFIED REQ-cmd-check-004) and archival once the full native Verify passes. Not chosen: a plain fix commit, deferring as an issue, holding #1149 out of 6.4.2.
 - 0xLeif decided "Scope approval of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off": "Approve both deltas (Recommended)" (Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes.' It followed his answer 'Fix as a successor change (Recommended)' to the question on the Codex P1 on #1149.); recorded by claude-code-t14v; a relayed claim, not authenticated; ran specsync change approve keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off as 0xLeif
+- 0xLeif decided "Implementation review of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off": "Approve both deltas (Recommended)" (Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes. I record this answer as your relayed decision at the scope gate and the review gate.' The full native Verify lane passed at 303f1d85 on 2026-11-24 at 14:43 UTC.); recorded by claude-code-t14v; a relayed claim, not authenticated; ran specsync change review keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off as 0xLeif with verdict pass
 
 ## What was verified
 
@@ -103,4 +100,20 @@ check --strict keeps the lost-requirements comparison of #1149 when a branch dis
   - revision: af9ee3727c15ef74371508dddabdaf168e540459
   - holds: accept
   - drives: review
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:47:46Z · gate-closed · accept → accept · Implementation review of keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off ^t-c0470e
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - revision: 2aaa21d745d3ec318d6d3a7abc6d3276ac64b34b
+  - relayed_by:
+    - decided_by: 0xLeif
+    - words: Approve both deltas (Recommended)
+    - where: Claude Code release-lead chat, 2026-11-24 UTC, a multiple-choice answer recorded by the agent he answered. The option read: 'Scope approval of the full definition: MODIFIED REQ-cmd-check-004 as you saw it, plus MODIFIED REQ-change-archived-requirement-loss-001 as in the preview, and archival once the full native Verify passes. I record this answer as your relayed decision at the scope gate and the review gate.' The full native Verify lane passed at 303f1d85 on 2026-11-24 at 14:43 UTC.
+    - recorded_by: claude-code-t14v
+    - native: specsync change review keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+    - actor: 0xLeif
+  - by: claude-code (hc t14v)
+- 2026-11-24T14:47:48Z · advance · accept → done · native:archived ^t-74e6d5
+  - native_change: keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off
+  - gate: native:archived
+  - revision: 2aaa21d745d3ec318d6d3a7abc6d3276ac64b34b
   - by: claude-code (hc t14v)

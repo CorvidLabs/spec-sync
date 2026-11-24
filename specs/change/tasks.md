@@ -123,6 +123,9 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+- [x] Skip fenced headings when locating or ending a canonical delta block (#1050, REQ-change-152).
+- [x] Share the requirement reader's fence rules with canonical delta matching and cover already-applied removal and modification (#1144, REQ-change-152).
+
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
 - [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).

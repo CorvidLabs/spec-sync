@@ -3391,7 +3391,10 @@ fn workflow_v2_baseline_exists_in_reachable_history(root: &Path) -> Result<bool,
     {
         return Ok(false);
     }
+    // A literal top-level pathspec, as the module's other history queries use (#851, #990): a
+    // project directory named like pathspec magic, such as `:(exclude)app`, is one path (#1074).
     let baseline_path = git_repo_relative_path(root, WORKFLOW_V2_BASELINE_PATH)?;
+    let baseline_pathspec = format!(":(top,literal){baseline_path}");
     let history = scoped_review_git_text(
         root,
         &[
@@ -3400,7 +3403,7 @@ fn workflow_v2_baseline_exists_in_reachable_history(root: &Path) -> Result<bool,
             "--max-count=1",
             "HEAD",
             "--",
-            baseline_path.as_str(),
+            baseline_pathspec.as_str(),
         ],
     )
     .map_err(|_| "failed to inspect reachable workflow-v2 baseline history".to_string())?;
@@ -3507,9 +3510,19 @@ fn workflow_v1_record_present_in_cutoff_tree(
     // archive tree is there but cannot be read (an offline partial clone that never fetched it),
     // and that is said, never answered as "absent" (REQ-change-145).
     if !listing.status.success() {
+        // A literal top-level pathspec, as the module's other history queries use (#851): a
+        // project directory named like pathspec magic, such as `:(exclude)app`, is one path (#990).
         let root_listing = run_git_bounded(
             root,
-            &["ls-tree", "--full-tree", "-z", "--name-only", cutoff, "--", &archive_root],
+            &[
+                "ls-tree",
+                "--full-tree",
+                "-z",
+                "--name-only",
+                cutoff,
+                "--",
+                &format!(":(top,literal){archive_root}"),
+            ],
             None,
             MAX_GIT_COMMAND_OUTPUT_BYTES,
         )?;

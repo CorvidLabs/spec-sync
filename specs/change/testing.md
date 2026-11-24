@@ -387,6 +387,13 @@ The archive coverage regressions in `src/change_tests/provisional_coverage.rs` e
 
 `reopened_covered_archive_recomputes_coverage_at_finalization` exercises reopen, verification, review, and re-finalization with the original receipt retained byte-for-byte in Git. `reopen_rollback_restores_the_receipt_and_preserves_replacements` checks the original archive after an injected post-removal failure and after replacement of the receipt following journal preparation. `reopened_archive_preserves_untracked_and_edited_valid_coverage` protects actual working copies even if their receipts parse. The existing active-source and post-move retry controls check unexpected coverage refusals.
 
+## Fenced canonical delta blocks (REQ-change-152)
+
+- `a_modified_delta_skips_a_fenced_example_of_the_same_id` checks that the real requirement is replaced and the preceding example and next requirement survive.
+- `a_fenced_heading_inside_the_block_does_not_end_it` checks that a heading inside a fenced example cannot cut the replacement short.
+- `a_backtick_in_an_info_string_keeps_the_next_heading_visible` checks that a malformed backtick opener leaves requirement and spec section targets visible and preserves surrounding Markdown.
+- `a_removed_requirement_is_applied_when_only_a_fenced_example_remains` and `a_modified_requirement_is_applied_when_its_real_block_carries_the_new_body` check the replay predicate against a fenced copy of the same ID.
+
 ## Lost-requirement refusals (REQ-change-169)
 
 - The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.

@@ -1,0 +1,50 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795545752,
+      "digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of give-the-macos-release-candidate-qualification-120-minutes\": \"yes raise it to 120 and cut rc.2\" (Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request that named this scope: raise the qualify limit from 75 to 120 in .github/workflows/release.yml, with a note in the 6.4.2 handoff, as its own small change, archived once its scoped check, the release contract tests, pre-push and Trust pass, with no further native Verify lane.). Relayed and recorded by claude-code-t14v at 2026-11-24T18:42:31Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "give-the-macos-release-candidate-qualification-120-minutes",
+        "title": "Give the macOS release-candidate qualification 120 minutes",
+        "description": "Give the macOS release-candidate qualification 120 minutes",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/workflows/release.yml",
+          "docs/releases/6.4.2.md"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "A CI job limit and a release handoff note. No module contract, requirement or product behaviour changes.",
+        "acceptance_criteria": [
+          "The `qualify` job in `.github/workflows/release.yml` has `timeout-minutes: 120`, and its comment says why. The 6.4.2 handoff records that `v6.4.2-rc.1` was cancelled on macOS at 75 minutes with every test passed and that the candidate is cut again. The version validator, the workflow-pin validator and the release-candidate contract tests pass. No product, test or spec file changes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "yes raise it to 120 and cut rc.2",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request that named this scope: raise the qualify limit from 75 to 120 in .github/workflows/release.yml, with a note in the 6.4.2 handoff, as its own small change, archived once its scoped check, the release contract tests, pre-push and Trust pass, with no further native Verify lane.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795545867,
+      "digest": "5d8f1aeba6e565e4f06962f1ea2c3b08db201b6a2bc7dd6ab7e04d1a54e10183",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

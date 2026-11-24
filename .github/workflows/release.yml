@@ -266,9 +266,10 @@ jobs:
     needs: [resolve, validate]
     if: needs.resolve.outputs.mode == 'qualify'
     runs-on: ${{ matrix.os }}
-    # macos-15 runs the full test lane in about 40 minutes and v6.2.0-rc.1 was cancelled at 45
-    # during the release build; the lane's slowness is tracked separately.
-    timeout-minutes: 75
+    # macos-15 needs about 84 minutes for this lane at 6.4.2. Its tests alone took 69m41s, and
+    # v6.4.2-rc.1 was cancelled at 75 during the release build with every test passed, as
+    # v6.2.0-rc.1 was at 45. This limit is a stopgap: bringing the lane under 30 minutes is #1161.
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:

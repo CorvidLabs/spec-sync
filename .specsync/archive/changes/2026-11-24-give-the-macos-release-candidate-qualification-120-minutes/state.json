@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "give-the-macos-release-candidate-qualification-120-minutes",
+  "slug": "give-the-macos-release-candidate-qualification-120-minutes",
+  "title": "Give the macOS release-candidate qualification 120 minutes",
+  "description": "Give the macOS release-candidate qualification 120 minutes",
+  "kind": "operations",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "b114d09fd1b102ddbb57dd4032769d6c854e5c52",
+  "created_at": 1795545714,
+  "updated_at": 1795545870,
+  "affected_specs": [],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    "docs/releases/6.4.2.md"
+  ],
+  "no_spec_change": true,
+  "no_spec_change_rationale": "A CI job limit and a release handoff note. No module contract, requirement or product behaviour changes.",
+  "acceptance_criteria": [
+    "The `qualify` job in `.github/workflows/release.yml` has `timeout-minutes: 120`, and its comment says why. The 6.4.2 handoff records that `v6.4.2-rc.1` was cancelled on macOS at 75 minutes with every test passed and that the candidate is cut again. The version validator, the workflow-pin validator and the release-candidate contract tests pass. No product, test or spec file changes."
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "public_contract": "no"
+  }
+}

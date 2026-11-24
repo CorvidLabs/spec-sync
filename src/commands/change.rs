@@ -1470,10 +1470,12 @@ fn open_tasks_first(root: &Path, record: &ChangeRecord, action: String) -> Strin
 }
 
 fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    // In a shallow clone the history underneath may be what failed: REQ-change-173's refusal
+    // names the fetch instead (REQ-cmd-change-044).
     change::effective_change_definition(root, record)
         .is_ok()
         .then_some(())
-        .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
+        .ok_or_else(|| change::correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,

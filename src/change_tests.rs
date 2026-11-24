@@ -64,5 +64,6 @@ include!("change_tests/commit_identity_guards.rs");
 include!("change_tests/unknown_members.rs");
 include!("change_tests/journal_replay_targets.rs");
 include!("change_tests/committed_approvals.rs");
+include!("change_tests/git_environments.rs");
 include!("change_tests/hardening_641.rs");
 include!("change_tests/vanished_requirements.rs");

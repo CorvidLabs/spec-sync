@@ -1,0 +1,216 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795151894,
+      "digest": "94c0c21f6d780079a3788df0d7ce6443005182cb5b0f907a2e173bd086495ada",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them\": \"Fetch it itself (Recommended); yes to all 3\" (option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md, choice 1 (#1077). The two details under option 1 (every command that reads history fetches, change status, audit and ship-status included, and CI fetches the same way): 'yes to all 3', a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 01:00Z, relayed through ss-lead t58, answering t4c's item 2: '#1077: should every command that reads Git history fetch what it needs, CI included?'). Relayed and recorded by claude-code-t4t at 2026-11-20T05:18:10Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+        "title": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "description": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change_tests.rs",
+          "src/change_tests/git_environments.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) In a blobless clone whose promisor remote answers only with the user's configuration, change review of a change created in an earlier commit succeeds, and the objects it read are present afterwards. (2) The download is one fetch, whatever the number of objects. (3) When the remote cannot be reached, the refusal says the clone is partial and names a git fetch command with the object ids that, run as printed, lets the same command succeed. (4) A full clone makes no fetch. (5) The fetch is one call bounded at 60 seconds and never prompts; one line on standard error says how many objects and from which remote. (6) change status, change audit and change ship-status in a partial clone fetch the same way."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Reads stay isolated: the one fetch runs with the user's environment and configuration to the repository's own promisor remote, GIT_TERMINAL_PROMPT=0, no terminal, bounded at 60 s (inside Chough's 120 s); a full clone spawns no fetch; when the download fails, option 2's refusal names the command",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "303b94e7082ea02b0f09af0d4e182d9954f1dc2ab6b8be0b785409bd82efc5d3"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Fetch it itself (Recommended); yes to all 3",
+        "where": "option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z, relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58 (a dialog choice, not a chat message), on ss-lead/gates/git-environments-909-1072-1077-definition.md, choice 1 (#1077). The two details under option 1 (every command that reads history fetches, change status, audit and ship-status included, and CI fetches the same way): 'yes to all 3', a Claude Code chat message to his planning session hc t4c, 2026-11-20 at about 01:00Z, relayed through ss-lead t58, answering t4c's item 2: '#1077: should every command that reads Git history fetch what it needs, CI included?'",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795155253,
+      "digest": "b9a643f354b7aab6cd311e24f01b7f68f96d9dd63faebe1113dcb2e2a82d3705",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them (an added path)\": \"Fetch it itself (Recommended); yes to all 3; Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)\" (REQ-change-172 option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z ('Fetch it itself (Recommended)'), relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58, and 'yes to all 3', a Claude Code chat message to hc t4c at about 01:00Z, relayed through ss-lead t58, for the two details. The added path src/change/validate_loaded_change.rs: Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), confirmed by t4c on 2026-11-20 at about 06:04Z through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-20T06:14:09Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+        "title": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "description": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/git_environments.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) In a blobless clone whose promisor remote answers only with the user's configuration, change review of a change created in an earlier commit succeeds, and the objects it read are present afterwards. (2) The download is one fetch, whatever the number of objects. (3) When the remote cannot be reached, the refusal says the clone is partial and names a git fetch command with the object ids that, run as printed, lets the same command succeed. (4) A full clone makes no fetch. (5) The fetch is one call bounded at 60 seconds and never prompts; one line on standard error says how many objects and from which remote. (6) change status, change audit and change ship-status in a partial clone fetch the same way."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Reads stay isolated: the one fetch runs with the user's environment and configuration to the repository's own promisor remote, GIT_TERMINAL_PROMPT=0, no terminal, bounded at 60 s (inside Chough's 120 s); a full clone spawns no fetch; when the download fails, option 2's refusal names the command",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "303b94e7082ea02b0f09af0d4e182d9954f1dc2ab6b8be0b785409bd82efc5d3"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Fetch it itself (Recommended); yes to all 3; Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)",
+        "where": "REQ-change-172 option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z ('Fetch it itself (Recommended)'), relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58, and 'yes to all 3', a Claude Code chat message to hc t4c at about 01:00Z, relayed through ss-lead t58, for the two details. The added path src/change/validate_loaded_change.rs: Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), confirmed by t4c on 2026-11-20 at about 06:04Z through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795183845,
+      "digest": "d431c54ebd52a62ca79ea36ebcbfcfb47d237fa2f5de487e5777e209ca505f6c",
+      "note": "Approved by 0xLeif at the Chough gate \"Re-approval of download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them (two added paths)\": \"Fetch it itself (Recommended); yes to all 3; Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)\" (REQ-change-172 option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z ('Fetch it itself (Recommended)'), relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58, and 'yes to all 3', a Claude Code chat message to hc t4c at about 01:00Z, relayed through ss-lead t58, for the two details. The added paths src/change/validate_loaded_change.rs (confirmed by t4c at about 06:04Z) and src/change/consider_accepted_evidence_anchor.rs with src/change/vanished_requirements.rs (confirmed by t4c at about 14:09Z): Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), each confirmed through ss-lead t58). Relayed and recorded by claude-code-t4t at 2026-11-20T14:10:41Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+        "title": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "description": "Download the history objects a partial clone lacks in one fetch with the user's own Git before SpecSync reads them",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/read_cache.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change/vanished_requirements.rs",
+          "src/change_tests.rs",
+          "src/change_tests/git_environments.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "(1) In a blobless clone whose promisor remote answers only with the user's configuration, change review of a change created in an earlier commit succeeds, and the objects it read are present afterwards. (2) The download is one fetch, whatever the number of objects. (3) When the remote cannot be reached, the refusal says the clone is partial and names a git fetch command with the object ids that, run as printed, lets the same command succeed. (4) A full clone makes no fetch. (5) The fetch is one call bounded at 60 seconds and never prompts; one line on standard error says how many objects and from which remote. (6) change status, change audit and change ship-status in a partial clone fetch the same way."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "Reads stay isolated: the one fetch runs with the user's environment and configuration to the repository's own promisor remote, GIT_TERMINAL_PROMPT=0, no terminal, bounded at 60 s (inside Chough's 120 s); a full clone spawns no fetch; when the download fails, option 2's refusal names the command",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "303b94e7082ea02b0f09af0d4e182d9954f1dc2ab6b8be0b785409bd82efc5d3"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Fetch it itself (Recommended); yes to all 3; Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c)",
+        "where": "REQ-change-172 option 1: a choice in a question dialog in the tester's (hc t4p) Claude Code session, 2026-11-20 at about 00:45Z ('Fetch it itself (Recommended)'), relayed by the tester to his planning session hc t4c and by t4c through ss-lead t58, and 'yes to all 3', a Claude Code chat message to hc t4c at about 01:00Z, relayed through ss-lead t58, for the two details. The added paths src/change/validate_loaded_change.rs (confirmed by t4c at about 06:04Z) and src/change/consider_accepted_evidence_anchor.rs with src/change/vanished_requirements.rs (confirmed by t4c at about 14:09Z): Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), each confirmed through ss-lead t58",
+        "recorded_by": "claude-code-t4t"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795478293,
+      "digest": "554b3cbe7ea14904cc5ca06c3f8c4f270d68f1a46874cb9fd68b1af477c7428f",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+      "actor": "0xLeif",
+      "reason": "#1077's affected paths gain src/change/validate_loaded_change.rs, where the approved fetch runs before the baseline history check, so the record names every file the fix edits; no requirement or wording changes. Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), confirmed by t4c at about 06:04Z (run by the builder on Leif's relayed word, via t4c, 2026-11-20)",
+      "timestamp": 1795155230,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-172",
+          "content": "When SpecSync reads an object of the repository's history in a partial clone and the object is not present, it SHALL first download every missing object that read needs in one fetch from the repository's promisor remote, run with the user's own Git environment and configuration and without prompting, and then read it as before. When that download fails, it SHALL refuse, saying the clone is partial and naming one `git fetch` command that downloads those objects.\n\nAcceptance Criteria\n- In a blobless clone of a repository whose promisor remote answers only with the user's configuration, `change review` of a change created in an earlier commit succeeds, and the objects it read are present afterwards.\n- The download is one fetch, whatever the number of objects.\n- When the remote cannot be reached, the refusal says the clone is partial and names a `git fetch … <oid> …` command that, run as printed, lets the same command succeed.\n- A full clone makes no fetch.\n- The fetch is one call bounded at 60 seconds. It never prompts: with no terminal, a credential that needs typing fails it, and the command then refuses as in option 2. Before it runs, one line on standard error says how many objects it downloads and from which remote.\n- `change status`, `change audit` and `change ship-status` in a partial clone fetch the same way. A full clone never fetches."
+        }
+      ],
+      "applied_modules": [
+        "change"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "download-the-history-objects-a-partial-clone-lacks-in-one-fetch-with-the-user-s-own-git-before-specsync-reads-them",
+      "actor": "0xLeif",
+      "reason": "#1077's affected paths gain src/change/consider_accepted_evidence_anchor.rs (the one fetch runs at the top of run_git_bounded) and src/change/vanished_requirements.rs (the loss check gives the partial-clone refusal), so the record names every file the fix edits; no requirement or wording changes. Leif's standing OK for scope approvals (2026-11-20 dialog, relayed via t4c), confirmed by t4c at about 14:09Z (run by the builder on Leif's relayed word, via t4c, 2026-11-20)",
+      "timestamp": 1795183819,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-172",
+          "content": "When SpecSync reads an object of the repository's history in a partial clone and the object is not present, it SHALL first download every missing object that read needs in one fetch from the repository's promisor remote, run with the user's own Git environment and configuration and without prompting, and then read it as before. When that download fails, it SHALL refuse, saying the clone is partial and naming one `git fetch` command that downloads those objects.\n\nAcceptance Criteria\n- In a blobless clone of a repository whose promisor remote answers only with the user's configuration, `change review` of a change created in an earlier commit succeeds, and the objects it read are present afterwards.\n- The download is one fetch, whatever the number of objects.\n- When the remote cannot be reached, the refusal says the clone is partial and names a `git fetch … <oid> …` command that, run as printed, lets the same command succeed.\n- A full clone makes no fetch.\n- The fetch is one call bounded at 60 seconds. It never prompts: with no terminal, a credential that needs typing fails it, and the command then refuses as in option 2. Before it runs, one line on standard error says how many objects it downloads and from which remote.\n- `change status`, `change audit` and `change ship-status` in a partial clone fetch the same way. A full clone never fetches."
+        }
+      ],
+      "applied_modules": [
+        "change"
+      ]
+    }
+  ]
+}

@@ -44,3 +44,10 @@ Fully implemented and stable. Exercised end-to-end by many `tests/integration.rs
 - `check` saved the hash cache with `let _ = cache.save(root)`, so nothing told a person when the cache was not what it seemed. A cache refused because it is a symbolic link is now said once on stderr, and stdout, the verdict and the exit code stay those of a run with no cache.
 - The warning is printed first, before discovery. Printed where the cache is loaded, it never appeared for a linked `.specsync`, because source discovery refuses that directory and ends the run earlier.
 - A cache is an optimisation: when it cannot be trusted, drop it and say so. It never gets to change a verdict, and it never gets to fail the command.
+
+@plane z=7 label="Return the check result when a repair stops early (#475)"
+Automation parses stdout on failure as well as success. Result rendering must cover read, write and backup refusals that happen before ordinary spec validation. A mixed run can report a successful repair on stderr while returning the failed spec in the JSON errors.
+
+@plane z=8 label="Report a failed repair in the format the caller selected"
+An empty CSV cannot tell an automation which fixes failed. Each failure needs a finding row, including when a path contains a comma. Markdown and GitHub output list the errors even when repair stops before validation measures coverage.
+Requirements drift is already known when repair starts. Preserve that observation if a later read, write or backup fails.

@@ -1025,6 +1025,31 @@ fn print_record(
             println!("  Next: {next}");
             // The handoff line is literal prose plus the change ID; no digest reaches it.
             print_handoff_line(&change::handoff_summary(root, record));
+            // What an archive recorded as covered for now, and each covering change's present
+            // state (#657); paths, ids and states only.
+            let coverage =
+                change::archived_provisional_coverage(root, record).unwrap_or_else(|warning| {
+                    println!(
+                        "  {} {}",
+                        "warning:".yellow(),
+                        printable_claim_text(&warning)
+                    );
+                    Vec::new()
+                });
+            for entry in coverage {
+                let state = entry
+                    .change_state
+                    .map(|state| state.as_str())
+                    .unwrap_or("gone");
+                println!(
+                    "  Covered for now: {} by {} ({state})",
+                    printable_claim_text(&entry.path),
+                    entry.change
+                );
+                if let Some(warning) = &entry.warning {
+                    println!("  {} {warning}", "warning:".yellow());
+                }
+            }
             if let Some(retirement) = &retirement {
                 println!(
                     "Retired without implementation acceptance; historical transitions unproven."

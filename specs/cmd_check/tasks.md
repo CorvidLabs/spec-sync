@@ -17,6 +17,8 @@ spec: cmd_check.spec.md
 
 ## Done
 
+- [x] Cover failed repairs in CSV, table, Markdown and GitHub output under REQ-cmd-check-008.
+
 - [x] Initial spec creation with all required sections
 - [x] Requirements and acceptance criteria documented (now reflecting cache, `--fix`, `--backup`, `--dry-run`, `--stale`, formats)
 - [x] `--fix` paths covered by integration tests: add/dedupe exports, create Public API section, near-miss header fixes, JSON output, dry-run, backup

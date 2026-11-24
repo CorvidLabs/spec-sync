@@ -44,6 +44,7 @@ include!("change_tests/literal_guidance.rs");
 include!("change_tests/upstream_archive.rs");
 
 include!("change_tests/fast_finalize.rs");
+include!("change_tests/provisional_coverage.rs");
 include!("change_tests/approve_ownership_names_the_spec.rs");
 include!("change_tests/stale_modified_delta.rs");
 include!("change_tests/rebase_stale_delta.rs");
@@ -62,6 +63,7 @@ include!("change_tests/bounded_failure_output.rs");
 include!("change_tests/inert_ignored_paths.rs");
 include!("change_tests/commit_identity_guards.rs");
 include!("change_tests/unknown_members.rs");
+include!("change_tests/terminal_evidence_isolation.rs");
 include!("change_tests/journal_replay_targets.rs");
 include!("change_tests/committed_approvals.rs");
 include!("change_tests/git_environments.rs");

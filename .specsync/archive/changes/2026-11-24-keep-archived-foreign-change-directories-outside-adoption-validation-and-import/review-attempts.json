@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "keep-archived-foreign-change-directories-outside-adoption-validation-and-import",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "03c8994d1290a0124c84dc213262925309e0b195",
+      "contract_digest": "54abeda4ee982a0a77a584daa25cadcc0065cb6fab40f2c0b4e98163be86a72f",
+      "execution_digest": "7c328a5d9d99df62065774ad4410155971160bf6a42e18bb21b181f4cde43cb3",
+      "workspace_digest": "640dc24f25d36278489d10b9db70b2ddb49f8038040fedcaca319bbf765e675f",
+      "timestamp": 1795481873,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected #1151’s new scope and fixes. Approve the scope and archive when native verification passes.",
+        "where": "0xLeif confirmed the new adoption scope and implementation inspected in SpecSync PR #1151 at 01752687 on 2026-11-24 UTC and accepted archival once native verification passed.",
+        "recorded_by": "Codex"
+      }
+    }
+  ]
+}

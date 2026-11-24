@@ -135,6 +135,18 @@ impl RequirementScope {
         }
     }
 
+    /// Adds every directory and companion directory of `other`.
+    fn extend(&mut self, other: &RequirementScope) {
+        for directory in &other.directories {
+            self.add_directory(directory);
+        }
+        for companion in &other.companions {
+            if !self.companions.contains(companion) {
+                self.companions.push(companion.clone());
+            }
+        }
+    }
+
     /// The companion directories that no specs directory already covers.
     fn own_companions(&self) -> impl Iterator<Item = &str> {
         self.companions.iter().map(String::as_str).filter(|companion| {
@@ -497,97 +509,237 @@ fn historical_requirement_content(
     Ok((resolved, text))
 }
 
-/// Whether the scope directory `directory` is read: a directory that leads outside the project, or
-/// is itself a link, is not read (Codex on #1108, third round). The project root always is.
-fn readable_scope_directory(root: &Path, directory: &str) -> bool {
-    if directory.is_empty() || directory == "." {
-        return true;
-    }
-    safe_project_path(root, directory).is_ok()
-        && fs::symlink_metadata(root.join(directory))
-            .is_ok_and(|metadata| !metadata.file_type().is_symlink())
+/// How the working-tree scan treats a scope directory.
+enum ScopeDirectory {
+    Read,
+    Skip,
+    /// Its path or metadata could not be read, with the error (REQ-change-177).
+    Unreadable(String),
 }
 
+/// Whether the scope directory `directory` is read: a directory that leads outside the project, or
+/// is itself a link, is not read (Codex on #1108, third round), nor one that does not exist. The
+/// project root always is. One whose path or metadata cannot be read for another reason is named,
+/// so what it holds is never read as lost (Codex and corvid-agent on #1134).
+fn scope_directory(root: &Path, directory: &str) -> ScopeDirectory {
+    if directory.is_empty() || directory == "." {
+        return ScopeDirectory::Read;
+    }
+    let path = match safe_project_path(root, directory) {
+        Ok(path) => path,
+        Err(error) if error.starts_with("failed to resolve") => {
+            return ScopeDirectory::Unreadable(format!("{directory}: {error}"));
+        }
+        Err(_) => return ScopeDirectory::Skip,
+    };
+    match fs::symlink_metadata(path) {
+        Err(error)
+            if matches!(
+                error.kind(),
+                std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory
+            ) =>
+        {
+            ScopeDirectory::Skip
+        }
+        Err(error) => ScopeDirectory::Unreadable(format!("{directory}: {error}")),
+        Ok(metadata) if metadata.file_type().is_symlink() => ScopeDirectory::Skip,
+        Ok(_) => ScopeDirectory::Read,
+    }
+}
+
+/// One entry of a directory listing, as the working-tree scan reads it: its path and kind, or the
+/// path and the error that kept it from being read, whether the listing yielded the error or the
+/// entry's kind could not be read (Codex on #1134, second round; REQ-change-177).
+fn listed_entry(
+    directory: &Path,
+    entry: std::io::Result<(PathBuf, std::io::Result<fs::FileType>)>,
+) -> Result<(PathBuf, fs::FileType), (PathBuf, std::io::Error)> {
+    match entry {
+        Err(error) => Err((directory.to_path_buf(), error)),
+        Ok((path, Err(error))) => Err((path, error)),
+        Ok((path, Ok(kind))) => Ok((path, kind)),
+    }
+}
+
+/// What the working-tree scan found: each readable requirements file with its blocks, and errors
+/// that leave the contents of tracked requirements files uncertain (REQ-change-177).
 struct WorkingRequirements {
+    files: Vec<WorkingRequirementFile>,
+    unreadable: Vec<WorkingRequirementReadError>,
+}
+
+enum WorkingRequirementReadError {
+    Listing { path: String, message: String },
+    File { chain: Vec<String>, message: String },
+}
+
+struct WorkingRequirementFile {
     chain: Vec<String>,
     blocks: Vec<(String, String)>,
 }
 
 /// Every requirements file on disk in `scope`, with the paths needed to keep its content
 /// tracked. Walk directories without following links, and resolve canonical file links.
+/// Report an unreadable tracked file or directory before treating its contents as lost.
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
     excluded: &BTreeSet<String>,
-) -> Vec<WorkingRequirements> {
+) -> WorkingRequirements {
+    let mut unreadable = Vec::new();
+    let git_path = |path: &Path| {
+        let relative = path.strip_prefix(root).unwrap_or(path).to_string_lossy();
+        if cfg!(windows) {
+            relative.replace('\\', "/")
+        } else {
+            relative.into_owned()
+        }
+    };
+    let note_listing_error = |unreadable: &mut Vec<WorkingRequirementReadError>, path: &Path, error: std::io::Error| {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            let relative = git_path(path);
+            let message = format!("{relative}: {error}");
+            unreadable.push(WorkingRequirementReadError::Listing { path: relative, message });
+        }
+    };
     let mut files = Vec::new();
-    let mut pending: Vec<PathBuf> = scope
-        .directories
-        .iter()
-        .filter(|directory| readable_scope_directory(root, directory))
-        .map(|directory| root.join(directory))
-        .collect();
-    while let Some(directory) = pending.pop() {
-        let Ok(entries) = crate::util::read_project_dir_entries(root, &directory) else {
-            continue;
-        };
-        for entry in entries.flatten() {
-            let Ok(kind) = entry.file_type() else {
-                continue;
-            };
-            let name = entry.file_name();
-            let name = name.to_string_lossy();
-            if kind.is_dir() {
-                if !excluded.contains(name.as_ref()) {
-                    pending.push(entry.path());
-                }
-            } else if (kind.is_file() || kind.is_symlink()) && is_requirements_file(&name) {
-                files.push(entry.path());
+    let mut pending: Vec<PathBuf> = Vec::new();
+    for directory in &scope.directories {
+        match scope_directory(root, directory) {
+            ScopeDirectory::Read => pending.push(root.join(directory)),
+            ScopeDirectory::Skip => {}
+            ScopeDirectory::Unreadable(what) => {
+                unreadable.push(WorkingRequirementReadError::Listing { path: directory.clone(), message: what });
             }
         }
     }
-    for companion in scope
-        .own_companions()
-        .filter(|companion| readable_scope_directory(root, companion))
-    {
-        let Ok(entries) = crate::util::read_project_dir_entries(root, &root.join(companion)) else {
-            continue;
+    while let Some(directory) = pending.pop() {
+        let entries = match crate::util::read_project_dir_entries(root, &directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                note_listing_error(&mut unreadable, &directory, error);
+                continue;
+            }
         };
-        for entry in entries.flatten() {
-            if entry.file_type().is_ok_and(|kind| kind.is_file() || kind.is_symlink())
-                && is_requirements_file(&entry.file_name().to_string_lossy())
-            {
-                files.push(entry.path());
+        for entry in entries {
+            let entry = entry.map(|entry| (entry.path(), entry.file_type()));
+            let (path, kind) = match listed_entry(&directory, entry) {
+                Ok(listed) => listed,
+                Err((path, error)) => {
+                    note_listing_error(&mut unreadable, &path, error);
+                    continue;
+                }
+            };
+            let name = path.file_name().unwrap_or_default().to_string_lossy();
+            if kind.is_dir() {
+                if !excluded.contains(name.as_ref()) {
+                    pending.push(path);
+                }
+            } else if (kind.is_file() || kind.is_symlink()) && is_requirements_file(&name) {
+                files.push(path);
+            }
+        }
+    }
+    for companion in scope.own_companions() {
+        match scope_directory(root, companion) {
+            ScopeDirectory::Read => {}
+            ScopeDirectory::Skip => continue,
+            ScopeDirectory::Unreadable(what) => {
+                unreadable.push(WorkingRequirementReadError::Listing { path: companion.to_string(), message: what });
+                continue;
+            }
+        }
+        let directory = root.join(companion);
+        let entries = match crate::util::read_project_dir_entries(root, &directory) {
+            Ok(entries) => entries,
+            Err(error) => {
+                note_listing_error(&mut unreadable, &directory, error);
+                continue;
+            }
+        };
+        for entry in entries {
+            let entry = entry.map(|entry| (entry.path(), entry.file_type()));
+            match listed_entry(&directory, entry) {
+                Ok((path, kind)) => {
+                    if (kind.is_file() || kind.is_symlink())
+                        && is_requirements_file(&path.file_name().unwrap_or_default().to_string_lossy())
+                    {
+                        files.push(path);
+                    }
+                }
+                Err((path, error)) => note_listing_error(&mut unreadable, &path, error),
             }
         }
     }
     files.sort();
     files.dedup();
-    files
+    let files = files
         .into_iter()
         .filter_map(|path| {
-            let relative = portable_project_path(root, &path);
+            let relative = git_path(&path);
             if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
+            let mut read_failure = None;
+            let mut inspected = Vec::new();
             let chain = requirement_file_chain(&relative, excluded, |file| {
+                inspected.push(file.to_string());
                 let path = root.join(file);
                 let parent = path.parent().ok_or("requirements path has no parent")?;
-                reject_symlink_components_for(root, parent, "requirements directory")?;
-                let kind = fs::symlink_metadata(&path).map_err(|error| error.to_string())?.file_type();
-                if kind.is_symlink() {
-                    // not a project file read: reads the symbolic link's own pathname without following it
-                    let target = fs::read_link(&path).map_err(|error| error.to_string())?;
-                    return target.into_os_string().into_string().map(Some)
-                        .map_err(|_| "symbolic link target is not UTF-8".into());
+                if let Err(error) = reject_symlink_components_for(root, parent, "requirements directory") {
+                    read_failure = Some(format!("{file}: {error}"));
+                    return Err(error);
                 }
-                kind.is_file().then_some(None).ok_or_else(|| "requirements path is not a file".into())
-            }).ok()?;
-            let resolved = root.join(chain.last()?);
-            let text = crate::util::read_project_string(root, &resolved, crate::util::MAX_SPEC_FILE_BYTES).ok()?;
-            Some(WorkingRequirements { chain, blocks: requirement_blocks(&text) })
+                let inspect = || -> std::io::Result<Option<PathBuf>> {
+                    let kind = fs::symlink_metadata(&path)?.file_type();
+                    if kind.is_symlink() {
+                        // Read the link's pathname without following it.
+                        return fs::read_link(&path).map(Some);
+                    }
+                    if kind.is_file() {
+                        return Ok(None);
+                    }
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "requirements path is not a file",
+                    ))
+                };
+                match inspect() {
+                    Ok(target) => target
+                        .map(|target| target.into_os_string().into_string().map_err(|_| "symbolic link target is not UTF-8".to_string()))
+                        .transpose(),
+                    Err(error) => {
+                        if !matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory)
+                        {
+                            read_failure = Some(format!("{file}: {error}"));
+                        }
+                        Err(error.to_string())
+                    }
+                }
+            });
+            let chain = match chain {
+                Ok(chain) => chain,
+                Err(_) => {
+                    if let Some(message) = read_failure {
+                        unreadable.push(WorkingRequirementReadError::File { chain: inspected, message });
+                    }
+                    return None;
+                }
+            };
+            let resolved = chain.last()?;
+            match crate::util::read_project_string(root, &root.join(resolved), crate::util::MAX_SPEC_FILE_BYTES) {
+                Ok(text) => Some(WorkingRequirementFile { chain, blocks: requirement_blocks(&text) }),
+                Err(error) => {
+                    if error.kind() != std::io::ErrorKind::NotFound {
+                        let message = format!("{resolved}: {error}");
+                        unreadable.push(WorkingRequirementReadError::File { chain, message });
+                    }
+                    None
+                }
+            }
         })
-        .collect()
+        .collect();
+    WorkingRequirements { files, unreadable }
 }
 
 /// A lifecycle commit owns its selected workspace. A sibling authorizes a removal only
@@ -867,6 +1019,14 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
             partial_clone_download_refusal(root)
                 .unwrap_or_else(|| lost_requirements_way_out(root, record))
         ),
+        // A path in the working tree that could not be read may hold what reads as lost
+        // (REQ-change-177, #1117): name it, and the way out is to make it readable.
+        LostRequirementsRefusal::UnreadableWorkingTree(paths) => format!(
+            "cannot tell whether this branch lost canonical requirements: cannot read {}; make {} readable, then run `specsync change check {}` again",
+            paths.join("; cannot read "),
+            if paths.len() == 1 { "it" } else { "them" },
+            shell_word(&record.id)
+        ),
     })
 }
 
@@ -885,11 +1045,13 @@ fn ensure_no_lost_requirements_recording_refusal(
 }
 
 /// Why `lost_requirements_check` refuses: requirements were lost, the configuration names a
-/// specs directory outside the project, or Git could not be read.
+/// specs directory outside the project, Git could not be read, or a requirements path in the
+/// working tree could not be read where a loss would otherwise be reported.
 enum LostRequirementsRefusal {
     Lost(String),
     Misconfigured(String),
     Unreadable(String),
+    UnreadableWorkingTree(Vec<String>),
 }
 
 impl From<String> for LostRequirementsRefusal {
@@ -932,11 +1094,20 @@ fn lost_requirements_check(
     };
     let short = &reference[..reference.len().min(12)];
     let prefix = requirement_repo_prefix(root).map_err(|error| format!("cannot read Git: {error}"))?;
-    // What is canonical now, and what was canonical at the reference (Codex on #1108).
-    let mut scope = requirement_scope(root);
+    // What was canonical at the reference, on its own: only those files are read there
+    // (REQ-change-175, #1112). An id is looked for in what is canonical now or was then (Codex on
+    // #1108).
+    let mut reference_scope = RequirementScope::default();
     let excluded_at_reference =
-        add_reference_requirement_scope(root, &reference, &prefix, &mut scope)?;
-    let pathspecs = scope.pathspecs();
+        add_reference_requirement_scope(root, &reference, &prefix, &mut reference_scope)?;
+    let mut scope = requirement_scope(root);
+    scope.extend(&reference_scope);
+    let reference_pathspecs = reference_scope.pathspecs();
+    // Nothing was canonical at the reference, so nothing can be lost; an empty pathspec list
+    // would diff every path (corvid-agent and Codex on #1134).
+    if reference_pathspecs.is_empty() {
+        return Ok(None);
+    }
     let mut args = vec![
         "diff",
         "--relative",
@@ -946,11 +1117,11 @@ fn lost_requirements_check(
         reference.as_str(),
         "--",
     ];
-    args.extend(pathspecs.iter().map(String::as_str));
+    args.extend(reference_pathspecs.iter().map(String::as_str));
     let changed = git_raw_utf8(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
     let changed: BTreeSet<&str> = nul_separated(&changed).collect();
-    let modes = reference_requirement_modes(root, &reference, &scope, &excluded_at_reference)
+    let modes = reference_requirement_modes(root, &reference, &reference_scope, &excluded_at_reference)
         .ok_or_else(|| format!("cannot read the tree of {short}"))?;
     let mut at_reference = Vec::new();
     for (path, mode) in modes {
@@ -980,21 +1151,29 @@ fn lost_requirements_check(
         .intersection(&excluded_at_reference)
         .cloned()
         .collect();
-    let working = working_tree_requirement_blocks(root, &scope, &excluded_both);
     // Only the tracked ones count ("in none of the tracked ones in the working tree"): `change
     // check --commit` commits no file Git does not track, so a copy there keeps nothing (Codex on
     // #1108, fourth round; Leif's 'continue with 95% confidence').
+    let WorkingRequirements { files: working, unreadable } =
+        working_tree_requirement_blocks(root, &scope, &excluded_both);
     let mut args = vec!["ls-files", "-z", "--cached", "--"];
+    let pathspecs = scope.pathspecs();
     args.extend(pathspecs.iter().map(String::as_str));
     let link_targets: BTreeSet<_> = working
         .iter()
-        .flat_map(|entry| entry.chain.iter().skip(1))
+        .flat_map(|entry| entry.chain.iter().skip(1).map(String::as_str))
+        .chain(unreadable.iter().flat_map(|error| match error {
+            WorkingRequirementReadError::Listing { .. } => [].as_slice(),
+            WorkingRequirementReadError::File { chain, .. } => chain.as_slice(),
+        }).map(String::as_str))
         .map(|path| format!(":(literal){path}"))
         .collect();
     args.extend(link_targets.iter().map(String::as_str));
     let tracked_listing = git_raw_utf8(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
-    let tracked: BTreeSet<&str> = nul_separated(&tracked_listing).collect();
+    let tracked: BTreeSet<&str> = nul_separated(&tracked_listing)
+        .filter(|path| is_scanned_requirements_path(path, &excluded_both))
+        .collect();
     let present: BTreeSet<&str> = working
         .iter()
         .filter(|entry| entry.chain.iter().all(|path| tracked.contains(path.as_str())))
@@ -1014,6 +1193,29 @@ fn lost_requirements_check(
         .collect();
     if unaccounted.is_empty() {
         return Ok(None);
+    }
+    // An unreadable requirement file may account for what appears lost. Untracked files and
+    // directories with no tracked requirements cannot keep an ID.
+    let mut unreadable: Vec<_> = unreadable
+        .into_iter()
+        .filter_map(|error| match error {
+            WorkingRequirementReadError::File { chain, message } => chain
+                .iter()
+                .all(|path| tracked.contains(path.as_str()))
+                .then_some(message),
+            WorkingRequirementReadError::Listing { path, message } => {
+                let prefix = if matches!(path.as_str(), "" | ".") { String::new() } else { format!("{path}/") };
+                let tracked_canonical_descendant = tracked.range(prefix.as_str()..)
+                    .take_while(|candidate| candidate.starts_with(&prefix))
+                    .any(|candidate| is_requirements_file(candidate));
+                (tracked.contains(path.as_str()) || tracked_canonical_descendant).then_some(message)
+            }
+        })
+        .collect();
+    unreadable.sort_unstable();
+    unreadable.dedup();
+    if !unreadable.is_empty() {
+        return Err(LostRequirementsRefusal::UnreadableWorkingTree(unreadable));
     }
     unaccounted.sort_by(|a, b| natural_order(&a.id, &b.id).then_with(|| a.canonical_path.cmp(&b.canonical_path)));
     unaccounted.dedup_by(|a, b| a.id == b.id);
@@ -1141,8 +1343,13 @@ fn default_branch_requirement_ids(
     Some((default, held))
 }
 
-/// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042).
+/// The refusal REQ-change-169 gives `record`, for `change ship-status` (REQ-cmd-change-042):
+/// none for an archived or retired change, which cannot be checked, finalized or shipped again
+/// (REQ-cmd-change-045, #1113).
 pub fn lost_requirements_refusal(root: &Path, record: &ChangeRecord) -> Option<String> {
+    if matches!(record.state, ChangeState::Archived | ChangeState::Retired) {
+        return None;
+    }
     ensure_no_lost_requirements(root, record).err()
 }
 

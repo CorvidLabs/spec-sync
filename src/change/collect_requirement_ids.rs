@@ -3152,15 +3152,37 @@ fn write_prepared_files(root: &Path, prepared: &[(PathBuf, String)]) -> Result<(
 fn write_prepared_files_checked<Validate>(
     root: &Path,
     prepared: &[(PathBuf, String)],
+    validate: Validate,
+) -> Result<(), String>
+where
+    Validate: FnMut() -> Result<(), String>,
+{
+    publish_prepared_files(root, prepared, None, validate)
+}
+
+/// The optional removal is limited to an archived generation's receipt carried into the active
+/// directory by reopen. Its original bytes participate in the same journal as the state writes.
+fn publish_prepared_files<Validate>(
+    root: &Path,
+    prepared: &[(PathBuf, String)],
+    coverage_removal: Option<(&Path, &str)>,
     mut validate: Validate,
 ) -> Result<(), String>
 where
     Validate: FnMut() -> Result<(), String>,
 {
     let mut targets = BTreeSet::new();
+    if let Some((path, _)) = coverage_removal {
+        validate_prepared_transaction_target(root, path)?;
+        let relative = transaction_relative_path(root, path)?;
+        if !is_active_archive_coverage_receipt(&relative) {
+            return Err(format!("not an active archive coverage receipt: {relative}"));
+        }
+        targets.insert(path);
+    }
     for (path, _) in prepared {
         validate_prepared_transaction_target(root, path)?;
-        if !targets.insert(path) {
+        if !targets.insert(path.as_path()) {
             return Err(format!(
                 "transaction contains duplicate target {}",
                 path.display()
@@ -3183,7 +3205,7 @@ where
             Ok((path.clone(), original))
         })
         .collect::<Result<_, String>>()?;
-    let journal: Vec<TransactionEntry> = backups
+    let mut entries: Vec<TransactionEntry> = backups
         .iter()
         .map(|(path, original)| {
             Ok(TransactionEntry {
@@ -3192,11 +3214,27 @@ where
             })
         })
         .collect::<Result<_, String>>()?;
+    let check_receipt = |path: &Path, expected: Option<&[u8]>| {
+        validate_prepared_transaction_target(root, path)?;
+        let found = crate::util::read_project_file(root, path, crate::util::MAX_STATE_FILE_BYTES)
+            .map_err(|error| format!("cannot read archive coverage at {}: {error}", path.display()))?;
+        if found.as_deref() != expected {
+            return Err(format!("archive coverage changed at {}; review it before retrying reopen", path.display()));
+        }
+        Ok(())
+    };
+    if let Some((path, original)) = coverage_removal {
+        check_receipt(path, Some(original.as_bytes()))?;
+        entries.push(TransactionEntry {
+            path: transaction_relative_path(root, path)?,
+            original: Some(original.to_string()),
+        });
+    }
     let journal = TransactionJournal {
         schema_version: 1,
-        entry_count: journal.len(),
-        entries_digest: transaction_entries_digest(&journal)?,
-        entries: journal,
+        entry_count: entries.len(),
+        entries_digest: transaction_entries_digest(&entries)?,
+        entries,
         root: Some(journal_root(root)?),
     };
     validate_prepared_transaction_targets(root, prepared)?;
@@ -3212,6 +3250,13 @@ where
     run_transaction_after_journal_hook();
     if let Err(error) =
         validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    {
+        recover_pending_transaction(root)?;
+        return Err(error);
+    }
+    if let Some((path, original)) = coverage_removal
+        && let Err(error) = check_receipt(path, Some(original.as_bytes()))
+            .and_then(|()| remove_file_durable(root, path))
     {
         recover_pending_transaction(root)?;
         return Err(error);
@@ -3238,8 +3283,12 @@ where
             ));
         }
     }
-    if let Err(error) =
-        validate_prepared_transaction_targets(root, prepared).and_then(|()| validate())
+    if let Err(error) = validate_prepared_transaction_targets(root, prepared)
+        .and_then(|()| validate())
+        .and_then(|()| match coverage_removal {
+            Some((path, _)) => check_receipt(path, None),
+            None => Ok(()),
+        })
     {
         recover_pending_transaction(root)?;
         return Err(error);

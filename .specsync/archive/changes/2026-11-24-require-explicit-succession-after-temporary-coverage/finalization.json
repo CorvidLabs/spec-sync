@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "require-explicit-succession-after-temporary-coverage",
+  "implementation_commit": "8c4421a3bbf4655745dc2621514e5b6cb2858451",
+  "implementation_tree": "ab9028ec097310df19460342ddb4e29977ce219d",
+  "contract_digest": "1280af7d8c19cea827f913ae424a08a6a12084a1235b4cdbd496ff93f0eb9bc9",
+  "workspace_digest": "a459a193f5fdbc5cc7063f9d1440084267cc759c9769136053b3df3481fa70de",
+  "closing_digest": "18616be4dd2603ca611e56b0d48faead3c532141ab63197300427cfce9db2c42",
+  "review_digest": "b344fa9f09acf0f9950d2ff0de996f63bb4f3f43f68025a192dafe46c1a79048",
+  "finalization_digest": "12533b7907b119999c562d66f17f90e3afa86aa5646d49bf47e550059a31b321",
+  "timestamp": 1795480175
+}

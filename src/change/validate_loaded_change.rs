@@ -3,10 +3,11 @@
 /// authenticates as covering it. Every claimant that does not is recorded in
 /// `rejected_successors` with the reason it was refused, keyed by successor ID.
 #[allow(clippy::too_many_arguments)]
-fn successor_covers_input(
+fn successor_covers_input<'a>(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
+    candidates: impl IntoIterator<Item = &'a ChangeRecord>,
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
@@ -15,19 +16,13 @@ fn successor_covers_input(
     rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
     historically_reconciled: &mut bool,
 ) -> bool {
-    for candidate in records.values() {
+    for candidate in candidates {
         // Only a successor that declares this obligation can cover it: authenticated
         // succession tuples are one-to-one with the record's declared obligations,
         // and the legacy reconstruction requires the declaration too. Deciding that
         // first keeps every refusal recorded below about a successor that claimed
         // the input.
-        if candidate.id == record.id
-            || !matches!(
-                candidate.state,
-                ChangeState::Accepted | ChangeState::Archived
-            )
-            || candidate.no_spec_change
-            || !happens_after(candidate, record)
+        if !may_succeed(candidate, record)
             || !declares_succession_obligation(candidate, &record.id, expected, owner)
         {
             continue;
@@ -129,6 +124,11 @@ fn successor_covers_input(
         }
         match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
         {
+            // Its own currency is only deferred to an in-flight change, so it covers nothing yet
+            // (#657); the in-flight change itself may cover this input for now.
+            Ok(AcceptedInputValidity::ProvisionallyCovered) => reject(
+                "its own delivery inputs are covered only for now, by in-flight changes".into(),
+            ),
             Ok(validity) => {
                 if validity == AcceptedInputValidity::HistoricallyReconciled
                     || candidate.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
@@ -140,6 +140,20 @@ fn successor_covers_input(
         }
     }
     false
+}
+
+/// The first test `successor_covers_input` puts to a candidate successor of `record`: another
+/// change, accepted or archived, with spec content, created after `record`. A change that fails it
+/// could never cover one of `record`'s inputs, so a successor search does not name it either when
+/// its own records fail validation (`name_failed_candidates`).
+fn may_succeed(candidate: &ChangeRecord, record: &ChangeRecord) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
+        && !candidate.no_spec_change
+        && happens_after(candidate, record)
 }
 
 /// The modules under which later accepted or archived changes claim `predecessor_entry` of
@@ -183,6 +197,11 @@ struct RejectedSuccessor {
     reason: String,
 }
 
+/// What every changed-input remediation reason says about its input. `name_failed_candidates`
+/// knows a successor search by these words, so the writers below and that reader share them
+/// (#1104).
+const CHANGED_AFTER_ACCEPTANCE: &str = "changed after acceptance";
+
 fn stale_input_remediation_reason(
     record: &ChangeRecord,
     path: &str,
@@ -191,7 +210,7 @@ fn stale_input_remediation_reason(
 ) -> String {
     if rejected_successors.is_empty() {
         return format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE} and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         );
     }
@@ -211,13 +230,13 @@ fn stale_input_remediation_reason(
         .collect::<Vec<_>>();
     if record.workflow_version < 2 && !current_successors.is_empty() {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
             current_successors.join(", "),
             record.id
         )
     } else {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         )
     }
@@ -229,7 +248,7 @@ fn stale_input_remediation_reason(
 /// wherever the configuration can grant it.
 fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
     let mut reason = format!(
-        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+        "exact-only delivery input `{path}` {CHANGED_AFTER_ACCEPTANCE} and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id
     );
     if ownership_is_configurable(path) {
@@ -279,7 +298,8 @@ fn later_sequence_owner_covers_historical_input(
     }) {
         return Ok(false);
     }
-    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending).is_ok())
+    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending)
+        .is_ok_and(|validity| validity != AcceptedInputValidity::ProvisionallyCovered))
 }
 
 /// True when `candidate` declares the obligation that would let it cover `predecessor_entry`
@@ -500,6 +520,198 @@ fn list_all_change_metadata(
         }
     }
     Ok(records)
+}
+
+/// One change whose records fail validation, as terminal evidence sees it (#1104): its failure and
+/// the record when it still parsed. The verdict a failure gives is decided from the record asked
+/// about, not from where the roster found the failure (`own_failure_summary`).
+#[derive(Debug, Clone)]
+struct FailedChange {
+    reason: String,
+    record: Option<ChangeRecord>,
+}
+
+/// The roster terminal evidence judges against (#1104): every change that loads and validates, and
+/// every one that does not, each with its own failure.
+#[derive(Debug, Clone, Default)]
+struct TerminalRoster {
+    records: BTreeMap<String, ChangeRecord>,
+    failed: BTreeMap<String, FailedChange>,
+}
+
+/// The roster for terminal evidence. When every change loads, it is exactly
+/// `list_all_changes_checked`. When one fails, each change is loaded on its own instead, so the
+/// failure stays with the change it belongs to and the others are judged without it
+/// (REQ-change-119, REQ-change-012, REQ-change-024). A failure that cannot be put on one change,
+/// such as an archive directory that cannot be listed, still fails the whole read.
+fn terminal_evidence_roster(root: &Path) -> Result<TerminalRoster, String> {
+    match list_all_changes_checked(root) {
+        Ok(records) => Ok(TerminalRoster {
+            records,
+            failed: BTreeMap::new(),
+        }),
+        Err(_) => list_all_changes_one_by_one(root),
+    }
+}
+
+/// `list_all_change_metadata` with its history walk and the retirement checks, but each change
+/// loaded on its own: a change that fails is set aside with its reason instead of failing the rest.
+/// The archive walk keeps the roster load's history prefetch and deadline boundaries
+/// (REQ-change-149), and a failure that cannot be put on one change still fails the whole read.
+fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
+    fn fail(roster: &mut TerminalRoster, id: String, failed: FailedChange) {
+        roster.records.remove(&id);
+        roster.failed.entry(id).or_insert(failed);
+    }
+    let mut roster = TerminalRoster::default();
+    // Active changes load as `list_changes_checked` loads them, one unreadable workspace at a time.
+    let active = list_changes(root)?;
+    for unreadable in active.unreadable {
+        let failed = FailedChange {
+            reason: unreadable.reason,
+            record: None,
+        };
+        fail(&mut roster, unreadable.id, failed);
+    }
+    for record in active.records {
+        roster.records.insert(record.id.clone(), record);
+    }
+    let archive = root.join(ARCHIVE_PATH);
+    // With no archive directory there is nothing to walk, but the retirement checks below still
+    // run: a retirement rolled back to an open workspace is that change's own failure.
+    let entries: Vec<_> = match crate::util::read_project_dir_entries(root, &archive) {
+        Ok(entries) => entries.collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(format!("failed to read archived changes: {error}")),
+    };
+    prefetch_archived_workflow_histories(root, &entries);
+    let total = entries.len();
+    for (index, entry) in entries.into_iter().enumerate() {
+        check_read_deadline("archived change validation", index, total)?;
+        let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect archive entry: {error}"))?
+            .is_dir()
+        {
+            continue;
+        }
+        let directory = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path().join("state.json");
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && (is_positive_legacy_tombstone(root, &entry.path())
+                        || is_untrackable_husk(root, &entry.path())) =>
+            {
+                continue;
+            }
+            Err(error) => {
+                let reason = format!("failed to read archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let record: ChangeRecord = match serde_json::from_str(&content) {
+            Ok(record) => record,
+            Err(error) => {
+                let reason = format!("invalid archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let checked = validate_loaded_change(&record, &record.id, &path)
+            .and_then(|()| validate_workflow_version_history(root, &record));
+        if let Err(reason) = checked {
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        if roster.records.contains_key(&record.id) || roster.failed.contains_key(&record.id) {
+            let reason = format!(
+                "change `{}` exists in multiple active/archive locations",
+                record.id
+            );
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        roster.records.insert(record.id.clone(), record);
+    }
+    check_read_deadline("archived change validation", total, total)?;
+    // A retirement that does not validate is the failure of the change it names.
+    for (id, reason) in retirement_failures(root, &roster)? {
+        let record = roster.records.get(&id).cloned();
+        fail(&mut roster, id, FailedChange { reason, record });
+    }
+    Ok(roster)
+}
+
+/// The checks of `validate_retired_records`, each failure put on the change it names, for the
+/// per-change roster (#1104 review). The messages are `validate_retired_records`' own, word for
+/// word, so a change reads the same failure whichever roster found it. A committed retirement of a
+/// change the roster holds nowhere, loaded or failed, cannot be put on one change, so it fails the
+/// whole read, as the roster load does.
+fn retirement_failures(
+    root: &Path,
+    roster: &TerminalRoster,
+) -> Result<Vec<(String, String)>, String> {
+    let mut failures = Vec::new();
+    for (id, committed) in retirement_history(root)? {
+        let Some(record) = roster.records.get(&id) else {
+            if roster.failed.contains_key(&id) {
+                continue;
+            }
+            return Err(format!("committed retirement history for {id} was removed"));
+        };
+        if record.state != ChangeState::Retired {
+            failures.push((
+                id.clone(),
+                format!("committed retirement history for {id} was rolled back"),
+            ));
+            continue;
+        }
+        let receipt = find_change_dir(root, &id).and_then(|directory| {
+            crate::util::read_project_bytes(root, &directory.join(RETIREMENT_FILE), crate::util::MAX_STATE_FILE_BYTES)
+                .map_err(|e| format!("committed retirement receipt is missing: {e}"))
+        });
+        match receipt {
+            Ok(bytes) if bytes == committed => {}
+            Ok(_) => failures.push((
+                id.clone(),
+                format!(
+                    "committed retirement history for {id} was edited; restore its exact anchored bytes"
+                ),
+            )),
+            Err(reason) => failures.push((id, reason)),
+        }
+    }
+    let named: BTreeSet<String> = failures.iter().map(|(id, _)| id.clone()).collect();
+    for record in roster
+        .records
+        .values()
+        .filter(|record| record.state == ChangeState::Retired && !named.contains(&record.id))
+    {
+        if let Err(reason) = validate_retirement_with_records(root, record, &roster.records) {
+            failures.push((record.id.clone(), reason));
+        }
+    }
+    Ok(failures)
 }
 
 /// True when `path` is a directory holding no regular file at any depth.
@@ -2461,8 +2673,11 @@ fn detect_foreign_source(root: &Path) -> Option<String> {
     None
 }
 
-fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, String)>, String> {
-    let mut prepared = Vec::new();
+fn prepare_foreign_import(
+    root: &Path,
+    source: &str,
+    mut collect_file: impl FnMut(PathBuf, String),
+) -> Result<(), String> {
     let provenance = root.join(".specsync/import-provenance.json");
     let value = serde_json::json!({
         "source": source,
@@ -2470,7 +2685,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "scope": "active_plus_canonical",
         "archives": "preserved_in_place"
     });
-    prepared.push((provenance, json_content(&value)?));
+    collect_file(provenance, json_content(&value)?);
     let import_root = root.join(".specsync/imports").join(source);
     match source {
         "openspec" => {
@@ -2488,7 +2703,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                         root,
                         &canonical,
                         &import_root.join("canonical"),
-                        &mut prepared,
+                        &mut collect_file,
                     )?;
                 }
                 Ok(_) => {
@@ -2514,7 +2729,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                 Ok(metadata) if metadata.is_file() => {
                     let content = crate::util::read_project_string(root, &constitution, crate::util::MAX_SPEC_FILE_BYTES)
                         .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
-                    prepared.push((import_root.join("constitution.md"), content));
+                    collect_file(import_root.join("constitution.md"), content);
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -2533,30 +2748,9 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "speckit" => root.join("specs"),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    reject_symlink_components(root, &source_changes)?;
-    match fs::symlink_metadata(&source_changes) {
-        Ok(metadata) if metadata.file_type().is_symlink() => {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                source_changes.display()
-            ));
-        }
-        Ok(metadata) if metadata.is_dir() => {}
-        Ok(_) => {
-            return Err(format!(
-                "foreign changes path is not a directory: {}",
-                source_changes.display()
-            ));
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(prepared),
-        Err(error) => return Err(error.to_string()),
-    }
-    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
-    let mut entries = fs::read_dir(source_changes)
-        .map_err(|error| error.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| error.to_string())?;
-    entries.sort_by_key(|entry| entry.file_name());
+    let Some(entries) = foreign_change_directories(root, &source_changes)? else {
+        return Ok(());
+    };
     let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
         .into_iter()
         .map(|record| record.description)
@@ -2564,18 +2758,6 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
     let mut minted_ids: BTreeSet<String> = BTreeSet::new();
     for entry in entries {
         let entry_path = entry.path();
-        reject_symlink_components(root, &entry_path)?;
-        let file_type = entry.file_type().map_err(|error| error.to_string())?;
-        if file_type.is_symlink() {
-            return Err(format!(
-                "refusing symlinked foreign import path: {}",
-                entry_path.display()
-            ));
-        }
-        if !file_type.is_dir() || entry.file_name() == "archive" {
-            continue;
-        }
-        validate_foreign_tree(&entry_path)?;
         let is_active_change = match source {
             "openspec" => {
                 entry_path.join("proposal.md").exists()
@@ -2639,61 +2821,93 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
             answers: BTreeMap::new(),
         };
         let record_dir = change_dir(root, &record.id);
-        prepared.push((record_dir.join("state.json"), json_content(&record)?));
-        prepared.push((
-            record_dir.join("change.md"),
-            change_markdown_content(&record),
-        ));
-        prepared.push((
-            record_dir.join("approvals.json"),
-            json_content(&ApprovalLedger::default())?,
-        ));
+        collect_file(record_dir.join("state.json"), json_content(&record)?);
+        collect_file(record_dir.join("change.md"), change_markdown_content(&record));
+        collect_file(record_dir.join("approvals.json"), json_content(&ApprovalLedger::default())?);
         for artifact in &record.selected_artifacts {
-            prepared.push((
-                record_dir.join(artifact.file_name()),
-                artifact_template(root, artifact, &record),
-            ));
+            collect_file(record_dir.join(artifact.file_name()), artifact_template(root, artifact, &record));
         }
         let destination = change_dir(root, &record.id).join("imported");
-        prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
+        prepare_markdown_files(root, &entry_path, &destination, &mut collect_file)?;
         known_descriptions.insert(description);
     }
-    Ok(prepared)
+    Ok(())
+}
+
+fn foreign_change_directories(
+    root: &Path,
+    source_changes: &Path,
+) -> Result<Option<Vec<fs::DirEntry>>, String> {
+    reject_symlink_components(root, source_changes)?;
+    match fs::symlink_metadata(source_changes) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                source_changes.display()
+            ));
+        }
+        Ok(metadata) if metadata.is_dir() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign changes path is not a directory: {}",
+                source_changes.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.to_string()),
+    }
+    // not a project file read: lists the other project the person names to import from; each entry's type is read without following a link
+    let mut entries = fs::read_dir(source_changes)
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    entries.sort_by_key(|entry| entry.file_name());
+    let mut active = Vec::new();
+    for entry in entries {
+        let entry_path = entry.path();
+        reject_symlink_components(root, &entry_path)?;
+        let file_type = entry.file_type().map_err(|error| error.to_string())?;
+        if file_type.is_symlink() {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                entry_path.display()
+            ));
+        }
+        if !file_type.is_dir() || entry.file_name() == "archive" {
+            continue;
+        }
+        validate_foreign_tree(&entry_path)?;
+        active.push(entry);
+    }
+    Ok(Some(active))
 }
 
 fn validate_foreign_import(root: &Path, source: &str) -> Result<(), String> {
-    let candidates = match source {
-        "openspec" => vec![root.join("openspec/specs"), root.join("openspec/changes")],
-        "speckit" => vec![
-            root.join(".specify/memory/constitution.md"),
-            root.join("specs"),
-        ],
+    let (canonical, changes) = match source {
+        "openspec" => (root.join("openspec/specs"), root.join("openspec/changes")),
+        "speckit" => (root.join(".specify/memory/constitution.md"), root.join("specs")),
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
-    for candidate in candidates {
-        reject_symlink_components(root, &candidate)?;
-        match fs::symlink_metadata(&candidate) {
-            Ok(metadata) if metadata.file_type().is_symlink() => {
-                return Err(format!(
-                    "refusing symlinked foreign import path: {}",
-                    candidate.display()
-                ));
-            }
-            Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&candidate)?,
-            Ok(metadata)
-                if source == "speckit"
-                    && candidate.ends_with("constitution.md")
-                    && metadata.is_file() => {}
-            Ok(_) => {
-                return Err(format!(
-                    "foreign import path is not the expected regular file or directory: {}",
-                    candidate.display()
-                ));
-            }
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-            Err(error) => return Err(error.to_string()),
+    reject_symlink_components(root, &canonical)?;
+    match fs::symlink_metadata(&canonical) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            return Err(format!(
+                "refusing symlinked foreign import path: {}",
+                canonical.display()
+            ));
         }
+        Ok(metadata) if metadata.is_dir() => validate_foreign_tree(&canonical)?,
+        Ok(metadata) if source == "speckit" && metadata.is_file() => {}
+        Ok(_) => {
+            return Err(format!(
+                "foreign import path is not the expected regular file or directory: {}",
+                canonical.display()
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.to_string()),
     }
+    foreign_change_directories(root, &changes)?;
     Ok(())
 }
 
@@ -2701,7 +2915,7 @@ fn prepare_markdown_files(
     project_root: &Path,
     source: &Path,
     destination: &Path,
-    prepared: &mut Vec<(PathBuf, String)>,
+    collect_file: &mut impl FnMut(PathBuf, String),
 ) -> Result<(), String> {
     reject_symlink_components(project_root, source)?;
     let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
@@ -2731,14 +2945,14 @@ fn prepare_markdown_files(
                 project_root,
                 &path,
                 &destination.join(entry.file_name()),
-                prepared,
+                collect_file,
             )?;
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
             let content = crate::util::read_project_string(project_root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                 .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
-            prepared.push((destination.join(entry.file_name()), content));
+            collect_file(destination.join(entry.file_name()), content);
         }
     }
     Ok(())

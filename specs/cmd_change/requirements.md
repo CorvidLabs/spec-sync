@@ -14,7 +14,7 @@ Acceptance Criteria
 - `change supersede` records explicit predecessor/path/module/digest obligations only before definition approval.
 - `change approve --portable-5-0-1` records one atomic marked pair and renders it as one definition transition.
 - Audited reopen returns the verifying change and its versioned supersession event in deterministic JSON.
-- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, or stale; archived status renders authenticated-history or corrupt-history.
+- Active accepted check/status/reopen/archive eligibility render exact, successor-covered, provisionally-covered, or stale; archived status renders authenticated-history or corrupt-history.
 
 ### REQ-cmd-change-002
 
@@ -650,6 +650,14 @@ Acceptance Criteria
 - With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
 - With the file restored, `ready_to_finalize` is true again.
 
+### REQ-cmd-change-archived-coverage-diagnostics-001
+
+For an archived change, `change status`, `change show`, and `change audit --archives` SHALL report a present invalid `coverage.json` as an advisory warning, naming the affected archive, receipt path and safe restore action. Status and show SHALL expose the diagnostic in an optional JSON field and render the same warning in text. Archive audit SHALL include it in its existing warning list. A genuinely absent receipt SHALL produce no diagnostic. Successful coverage rows, the independently authenticated terminal state, and the exit conventions for archive warnings SHALL remain unchanged. These commands SHALL NOT repair or remove the receipt.
+
+Acceptance Criteria
+- The commands expose a warning for truncated, oversized, wrongly identified, unsupported, or unreadable receipts in both formats. Valid and genuinely absent controls preserve their current outputs.
+- For an otherwise valid archive, reporting invalid auxiliary coverage does not change the terminal integrity classification or itself fail archive audit. Reporting it makes no project writes.
+
 ### REQ-cmd-change-042
 
 `change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
@@ -665,4 +673,12 @@ Text `change status` in a shallow clone SHALL give REQ-change-173's refusal inst
 Acceptance Criteria
 - In a shallow clone deep enough for the project's workflow-v2 baseline but not for a change's recorded base commit, text `change status <id>` says the clone is shallow and names `git fetch --unshallow origin`, not "correction ledger integrity is invalid".
 - In a full clone, a corrupt correction ledger keeps its own text.
+
+### REQ-cmd-change-045
+
+`change ship-status` SHALL list the blocker of REQ-cmd-change-042 only for a change that can still be checked, finalized or shipped, and SHALL NOT list it for an archived or retired change (#1113).
+
+Acceptance Criteria
+- On a branch that lost a requirement after its change was archived, `change ship-status <archived-id>` lists no lost-requirements blocker.
+- An active change on the same branch still lists it.
 

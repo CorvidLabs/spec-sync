@@ -37,6 +37,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request that named this scope: raise the qualify limit from 75 to 120 in .github/workflows/release.yml, with a note in the 6.4.2 handoff, as its own small change, archived once its scoped check, the release contract tests, pre-push and Trust pass, with no further native Verify lane.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795545867,
+      "digest": "5d8f1aeba6e565e4f06962f1ea2c3b08db201b6a2bc7dd6ab7e04d1a54e10183",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

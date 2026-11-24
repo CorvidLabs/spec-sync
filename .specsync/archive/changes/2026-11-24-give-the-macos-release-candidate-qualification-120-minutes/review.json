@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "give-the-macos-release-candidate-qualification-120-minutes",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "ffca9ef0a6e5147522a7db883b1a56103d18d25e",
+  "contract_digest": "0ca412acc287f384b1514dbadd2c56f60310fd5b825545cef75eb626fbb821e1",
+  "execution_digest": "ff8a986beb3b3bce566924f04bebdeb8a03312a70f3d784eadcf6d6f54bfcc77",
+  "workspace_digest": "5ba918ab6af5f2f3e9b52f218e576874ef5ce864f4e4b46705d08a7353ec20be",
+  "timestamp": 1795545855,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "yes raise it to 120 and cut rc.2",
+    "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request that named this scope and said the change would be archived once its scoped check, the release contract tests, pre-push and Trust pass. They passed at ffca9ef0a6e5147522a7db883b1a56103d18d25e.",
+    "recorded_by": "claude-code-t14v"
+  }
+}

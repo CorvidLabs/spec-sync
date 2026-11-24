@@ -25,6 +25,11 @@ waiting_on_human:
     opened: 2026-11-24T18:43:39Z
 run_consents: []
 next: Commit, scoped check with commit, pre-push and Trust, then ship on 0xLeif's recorded decision
+title: "6.4.2: 120 minutes for the macOS candidate lane"
+summary:
+  - v6.4.2-rc.1 passed all 4,176 tests on macOS and was cancelled at the 75-minute qualify limit, so the limit is 120 for v6.4.2-rc.2. One value in release.yml and a handoff note; no product, test or spec file changes.
+  - The validators and all six contract suites pass, the parsed workflow is otherwise identical to main, and scoped check, pre-push and Trust pass.
+  - "Next: bring every test lane under 30 minutes (#1161)."
 ---
 # v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 minutes instead of 75, as a stopgap until the lane fits in 30 (#1161)
 

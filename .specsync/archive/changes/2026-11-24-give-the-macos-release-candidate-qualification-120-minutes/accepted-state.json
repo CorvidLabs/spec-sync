@@ -7,11 +7,11 @@
   "title": "Give the macOS release-candidate qualification 120 minutes",
   "description": "Give the macOS release-candidate qualification 120 minutes",
   "kind": "operations",
-  "state": "verifying",
+  "state": "accepted",
   "canonical_applied": true,
   "base_commit": "b114d09fd1b102ddbb57dd4032769d6c854e5c52",
   "created_at": 1795545714,
-  "updated_at": 1795545826,
+  "updated_at": 1795545867,
   "affected_specs": [],
   "affected_paths": [
     ".github/workflows/release.yml",

@@ -2206,6 +2206,9 @@ fn default_policy(root: &Path, verification_commands: Vec<String>) -> SddPolicy 
 }
 
 pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<ChangeRecord, String> {
+    // Acquiring the lock may create it and replay an interrupted write. A shallow
+    // checkout with incomplete baseline history must refuse before either happens.
+    ensure_baseline_history_for_change_new(root)?;
     let _lock = acquire_project_lock(root)?;
     validate_change_sequences(root)?;
     let CreateChangeRequest {
@@ -2258,8 +2261,7 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             None => 2,
         }
     };
-    // REQ-change-173: a shallow clone that cannot check the baseline's history refuses here,
-    // before anything is written.
+    // Recheck the baseline after synchronization and any permitted journal recovery.
     ensure_baseline_history_for_change_new(root)?;
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;

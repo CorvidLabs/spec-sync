@@ -1753,6 +1753,47 @@ fn finalization_digest(finalization: &FinalizationRecord) -> String {
     digest.finish()
 }
 
+const FINALIZATION_IMPLEMENTATION_MISSING: &str =
+    "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it";
+
+/// Check the recorded implementation independently of the surviving archive-tree fallback.
+fn finalization_implementation_is_available(
+    root: &Path,
+    finalization: &FinalizationRecord,
+) -> Result<bool, String> {
+    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
+    let resolved = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &implementation_expression,
+        ],
+    );
+    let Some(resolved) = resolved else {
+        return Ok(false);
+    };
+    if resolved != finalization.implementation_commit {
+        return Err("finalization implementation commit is not canonical".into());
+    }
+    let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
+    let tree = git_output(
+        root,
+        &[
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            &tree_expression,
+        ],
+    )
+    .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
+    if tree != finalization.implementation_tree {
+        return Err("finalization implementation tree does not match its commit".into());
+    }
+    Ok(true)
+}
+
 fn validate_finalization_evidence(
     root: &Path,
     record: &ChangeRecord,
@@ -1779,45 +1820,13 @@ fn validate_finalization_evidence_with_review_binding(
     {
         return Err("same-PR finalization does not bind the accepted verification evidence".into());
     }
-    let implementation_expression = format!("{}^{{commit}}", finalization.implementation_commit);
-    let resolved = git_output(
-        root,
-        &[
-            "rev-parse",
-            "--verify",
-            "--end-of-options",
-            &implementation_expression,
-        ],
-    );
-    let implementation_commit_available = if let Some(resolved) = resolved {
-        if resolved != finalization.implementation_commit {
-            return Err("finalization implementation commit is not canonical".into());
-        }
-        let tree_expression = format!("{}^{{tree}}", finalization.implementation_commit);
-        let tree = git_output(
-            root,
-            &[
-                "rev-parse",
-                "--verify",
-                "--end-of-options",
-                &tree_expression,
-            ],
-        )
-        .ok_or_else(|| "finalization implementation tree is unavailable".to_string())?;
-        if tree != finalization.implementation_tree {
-            return Err("finalization implementation tree does not match its commit".into());
-        }
-        true
-    } else if record.state == ChangeState::Archived
-        && archived_finalization_tree_is_recorded(root, record)?
+    let implementation_commit_available = finalization_implementation_is_available(root, &finalization)?;
+    if !implementation_commit_available
+        && (record.state != ChangeState::Archived
+            || !archived_finalization_tree_is_recorded(root, record)?)
     {
-        false
-    } else {
-        return Err(
-            "finalization implementation commit is unavailable and no exact surviving archive tree authenticates it"
-                .into(),
-        );
-    };
+        return Err(FINALIZATION_IMPLEMENTATION_MISSING.into());
+    }
     let review = load_scoped_review(root, record)?;
     if review.schema_version != 2
         || review.change_id != record.id
@@ -2968,6 +2977,44 @@ fn accept_change_with_gate(
     Ok(record)
 }
 
+/// Whether `change finalize` would resume this accepted change: the checks it makes before it
+/// resumes an interrupted finalization, without writing (#933). Open tasks are asked apart, as
+/// ship-status and `change ship` already do.
+pub(crate) fn finalization_would_resume(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    require_state(record, &[ChangeState::Accepted], "resume the finalization")?;
+    if let Some(upstream) = upstream_archive_of(root, record) {
+        return Err(upstream_archive_message(&record.id, &upstream));
+    }
+    if record.workflow_version < 2 {
+        return Err(format!("{} uses the legacy workflow", record.id));
+    }
+    if !record.canonical_applied {
+        return Err("canonical deltas are not materialized".into());
+    }
+    let verification = load_verification(root, record)?;
+    validate_finalization_evidence(root, record, &verification)
+        .map(|_| ())
+        .map_err(|error| format!("cannot resume interrupted same-PR finalization: {error}"))
+}
+
+#[cfg(test)]
+thread_local! {
+    static STOP_FINALIZE_AFTER_ACCEPTANCE: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Test-only: `finalize_change`, stopped after acceptance and before the archive move, as an
+/// interrupted finalization leaves the change (#933).
+#[cfg(test)]
+pub(crate) fn finalize_change_stopping_after_acceptance(
+    root: &Path,
+    id: &str,
+) -> Result<PathBuf, String> {
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(true));
+    let result = finalize_change(root, id);
+    STOP_FINALIZE_AFTER_ACCEPTANCE.with(|stop| stop.set(false));
+    result
+}
+
 pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
     let _history_cache = begin_history_cache_scope(root);
     // Recover a process-interrupted archive transaction before inspecting the
@@ -3023,6 +3070,12 @@ pub fn finalize_change(root: &Path, id: &str) -> Result<PathBuf, String> {
         let verification = load_verification(root, &record)?;
         ensure_verification_commit_contains_change_work(root, &record, &verification)?;
         accept_change_with_gate(root, id, None, None, "finalization", true, true)?;
+        #[cfg(test)]
+        if STOP_FINALIZE_AFTER_ACCEPTANCE.with(std::cell::Cell::get) {
+            return Err(
+                "test: the finalization stopped after acceptance, before the archive move".into(),
+            );
+        }
     } else {
         // REQ-change-166 (#428): a resumed finalization archives only approvals that Git history
         // holds; the uncommitted `finalization` approval is the accepting step's own record.
@@ -4612,24 +4665,56 @@ pub fn classify_handoff(id: &str, signals: &HandoffSignals) -> HandoffSummary {
 /// away; when the damage is committed, the commit that archived the package holds them; when the
 /// package is intact, the failing evidence is elsewhere and the status JSON names it. Built from
 /// literals, the change ID and the package path only — never a digest — and every interpolated
-/// word is shell-quoted, because a change ID or archive directory may carry `;`, `$` or spaces and
-/// the step is meant to be copied into a shell (#901 review).
+/// word is quoted as one shell word, because a change ID or archive directory may carry `;`, `$`
+/// or spaces and the step is meant to be copied into a shell (#901 review). Each package path is a
+/// literal Git pathspec (#929), each status command puts `--` before the ID so an ID that begins
+/// with `-` is not read as a flag (#930), and a control byte in a directory name is printed as an
+/// escape that bash still reads as that byte (#931, CHANGE-7.b).
 fn corrupt_archive_recovery(id: &str, corrupt: &CorruptArchive) -> String {
-    let status = format!("specsync change status {}", shell_quote(id));
+    let id = printable_shell_word(id);
+    let status = format!("specsync change status -- {id}");
+    let literal = |path: &str| printable_shell_word(&literal_pathspec(path));
     match corrupt {
         CorruptArchive::DiffersFromHead { package } => format!(
             "run `git restore --source=HEAD --staged --worktree -- {}` to put back the committed archive, then `{status}`",
-            shell_quote(package)
+            literal(package)
         ),
         CorruptArchive::DamageCommitted { package } => format!(
             "run `git restore --source=<commit> --staged --worktree -- {}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {}`), commit the restore, then run `{status}`",
-            shell_quote(package),
-            shell_quote(&format!("{package}/state.json"))
+            literal(package),
+            literal(&format!("{package}/state.json"))
         ),
         CorruptArchive::OutsidePackage => format!(
-            "run `{status} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
+            "run `specsync change status --json -- {id}`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `{status}`"
         ),
     }
+}
+
+/// `text` as one shell word for a printed step: what `shell_quote` gives when it holds no control
+/// character. Otherwise it is written in `$'...'` quoting, with `\\`, `\'` and a `\xHH` escape for
+/// each byte of each control character, so the printed step holds no control byte and cannot add
+/// lines or terminal commands to the output, while bash still reads the exact name (#931,
+/// CHANGE-7.b).
+fn printable_shell_word(text: &str) -> String {
+    if !text.chars().any(char::is_control) {
+        return shell_quote(text);
+    }
+    let mut word = String::from("$'");
+    for character in text.chars() {
+        match character {
+            '\\' => word.push_str("\\\\"),
+            '\'' => word.push_str("\\'"),
+            control if control.is_control() => {
+                let mut bytes = [0_u8; 4];
+                for byte in control.encode_utf8(&mut bytes).as_bytes() {
+                    word.push_str(&format!("\\x{byte:02x}"));
+                }
+            }
+            other => word.push(other),
+        }
+    }
+    word.push('\'');
+    word
 }
 
 /// Single-quotes `text` as one POSIX shell word: nothing inside single quotes is expanded, and an
@@ -4678,23 +4763,21 @@ fn corrupt_archive_signal(
     let Some(package) = package.filter(|_| git_repository_present(root).unwrap_or(false)) else {
         return Some(CorruptArchive::OutsidePackage);
     };
-    // Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly when the
-    // package's tracked content differs from that commit, staged or not.
-    let differs_from = |commit: &str| {
-        crate::git_utils::status_without_inherited_output(
-            Command::new("git")
-                .args(["diff", "--quiet", commit, "--", &package])
-                .current_dir(root),
-        )
-        .is_ok_and(|status| status.code() == Some(1))
-    };
+    let differs_from = |commit: &str| archive_package_differs_from(root, commit, &package);
     if differs_from("HEAD") {
         return Some(CorruptArchive::DiffersFromHead { package });
     }
     let state = format!("{package}/state.json");
     let archiving_commit = crate::git_utils::output_after_child_exits(
         Command::new("git")
-            .args(["log", "-1", "--diff-filter=A", "--format=%H", "--", &state])
+            .args([
+                "log",
+                "-1",
+                "--diff-filter=A",
+                "--format=%H",
+                "--",
+                &literal_pathspec(&state),
+            ])
             .current_dir(root),
     )
     .ok()
@@ -4707,6 +4790,23 @@ fn corrupt_archive_signal(
         Some(commit) if differs_from(&commit) => Some(CorruptArchive::DamageCommitted { package }),
         _ => Some(CorruptArchive::OutsidePackage),
     }
+}
+
+/// Whether the tracked content of `package` (relative to `root`) differs from `commit`, staged
+/// or not. Inside a work tree, `git diff --quiet <commit> -- <package>` exits 1 exactly then. The
+/// package is one literal path, so `*`, `?` and `[` in it match only that package (#929).
+fn archive_package_differs_from(root: &Path, commit: &str, package: &str) -> bool {
+    crate::git_utils::status_without_inherited_output(
+        Command::new("git")
+            .args(["diff", "--quiet", commit, "--", &literal_pathspec(package)])
+            .current_dir(root),
+    )
+    .is_ok_and(|status| status.code() == Some(1))
+}
+
+/// `path` as one literal Git pathspec, relative to the directory Git runs in (#929).
+fn literal_pathspec(path: &str) -> String {
+    format!(":(literal){path}")
 }
 
 /// True when `git status` reports uncommitted changes under the change's `affected_paths`,

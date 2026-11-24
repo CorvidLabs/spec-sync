@@ -122,3 +122,5 @@ Failing-first commit `355f1d69` reproduces the red run
 parse; the complete site suite passes 48 tests with Bun 1.3.14, with zero Astro diagnostics
 and a successful 43-page build. Live external links remain dated audit observations, not
 network-dependent CI gates. Re-run the site lane after any additional documentation change.
+
+ArchiveGateHistoryTests in .github/scripts/test-required-ci-gate.py checks both workflows. A negative control removes fetch-depth from the preceding checkout and requires the configuration check to fail.

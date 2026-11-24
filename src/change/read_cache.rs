@@ -279,11 +279,17 @@ fn download_partial_clone_objects(root: &Path) -> Result<(), String> {
     args.extend(revisions.iter().map(String::as_str));
     args.extend(["--", ":(glob)**/requirements.md", ":(glob)**/*.req.md"]);
     let historical = list(&args, None)?;
+    // Git paths are bytes. An invalid UTF-8 name cannot become a project path, but it must
+    // not discard the other names in the listing.
+    let historical_paths = historical
+        .split(|byte| *byte == 0)
+        .filter_map(|path| std::str::from_utf8(path).ok())
+        .filter(|path| !path.is_empty());
     let mut pathspecs: BTreeSet<String> = [
         ".specsync", ".specsync.toml", "specsync.json", "specsync-registry.toml",
     ]
     .into_iter()
-    .chain(nul_separated(&historical))
+    .chain(historical_paths)
     .map(|path| format!(":(literal){path}"))
     .collect();
     pathspecs.extend(requirement_scope(root).pathspecs());
@@ -332,7 +338,7 @@ fn partial_clone_history_listing(
     root: &Path,
     args: &[&str],
     input: Option<Vec<u8>>,
-) -> Result<String, String> {
+) -> Result<Vec<u8>, String> {
     let mut command = configured_git_command(root);
     command.env("GIT_NO_LAZY_FETCH", "1");
     let output = run_git_command_bounded(&mut command, args, input, MAX_GIT_COMMAND_OUTPUT_BYTES)?;
@@ -341,22 +347,26 @@ fn partial_clone_history_listing(
         return Err(stderr.lines().rev().find(|line| !line.is_empty())
             .unwrap_or("Git could not list the history objects").to_string());
     }
-    String::from_utf8(output.stdout).map_err(|error| format!("Git's history listing is not UTF-8: {error}"))
+    Ok(output.stdout)
 }
 
-fn missing_git_objects(listing: &str) -> impl Iterator<Item = &str> {
-    listing.lines().filter_map(|line| line.strip_prefix('?')).filter(|oid| {
-        matches!(oid.len(), 40 | 64) && oid.bytes().all(|byte| byte.is_ascii_hexdigit())
+fn missing_git_objects(listing: &[u8]) -> impl Iterator<Item = &str> {
+    listing.split(|byte| *byte == b'\n').filter_map(|line| {
+        let oid = line.strip_prefix(b"?")?;
+        if matches!(oid.len(), 40 | 64) && oid.iter().all(u8::is_ascii_hexdigit) {
+            std::str::from_utf8(oid).ok()
+        } else {
+            None
+        }
     })
 }
 
 fn partial_clone_fetch_command(root: &Path, remote: &str, ids: &[&str], filter: &str) -> String {
-    format!(
-        "printf '%s\\n' {} | git -C {} fetch --no-tags --no-write-fetch-head {filter} --stdin -- {}",
+    shell_command_with_path(root, |directory| format!(
+        "printf '%s\\n' {} | git -C {directory} fetch --no-tags --no-write-fetch-head {filter} --stdin -- {}",
         ids.join(" "),
-        shell_word(&root.display().to_string()),
         shell_word(remote),
-    )
+    ))
 }
 
 /// Missing trees prevent a path-limited walk. The unrestricted walk can still name the missing
@@ -372,11 +382,10 @@ fn partial_clone_listing_refusal(
     let listing = partial_clone_history_listing(root, &args, None).unwrap_or_default();
     let missing: Vec<&str> = missing_git_objects(&listing).collect();
     let recovery = if missing.is_empty() {
-        format!(
-            "git -C {} fetch --refetch --no-filter --no-tags --no-write-fetch-head -- {}",
-            shell_word(&root.display().to_string()),
+        shell_command_with_path(root, |directory| format!(
+            "git -C {directory} fetch --refetch --no-filter --no-tags --no-write-fetch-head -- {}",
             shell_word(remote),
-        )
+        ))
     } else {
         // An unfiltered fetch of a missing tree also brings the objects below it.
         partial_clone_fetch_command(root, remote, &missing, "--no-filter")

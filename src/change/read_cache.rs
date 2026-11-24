@@ -196,7 +196,8 @@ fn read_cache_folder(
 
 /// What one process decided for each partial clone it read (REQ-change-172): the download is
 /// asked once, and a failed one is the refusal every later read that fails gives.
-static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, Result<(), String>>> =
+type PartialCloneDownload = std::sync::Arc<std::sync::OnceLock<Result<(), String>>>;
+static PARTIAL_CLONE_DOWNLOADS: std::sync::Mutex<BTreeMap<PathBuf, PartialCloneDownload>> =
     std::sync::Mutex::new(BTreeMap::new());
 
 /// How long the one download may take: inside Chough's 120 s bound on each SpecSync call.
@@ -210,21 +211,22 @@ const PARTIAL_CLONE_FETCH_SECONDS: u64 = 60;
 /// `git fetch` that downloads those objects, given by a read that then fails
 /// (`partial_clone_download_refusal`); a read that needs none of them still succeeds.
 fn ensure_partial_clone_objects(root: &Path) {
-    // The entry is taken before the download runs Git, so a read the download makes itself
-    // finds it and goes on, instead of starting a second download or waiting on this one.
-    {
+    ensure_partial_clone_objects_with(root, || download_partial_clone_objects(root));
+}
+
+fn ensure_partial_clone_objects_with(root: &Path, download: impl FnOnce() -> Result<(), String>) {
+    let slot = {
         let mut downloads =
             PARTIAL_CLONE_DOWNLOADS.lock().unwrap_or_else(|poison| poison.into_inner());
-        if downloads.contains_key(root) {
-            return;
+        if let Some(slot) = downloads.get(root) {
+            slot.clone()
+        } else {
+            downloads.entry(root.to_path_buf()).or_default().clone()
         }
-        downloads.insert(root.to_path_buf(), Ok(()));
-    }
-    let result = download_partial_clone_objects(root);
-    PARTIAL_CLONE_DOWNLOADS
-        .lock()
-        .unwrap_or_else(|poison| poison.into_inner())
-        .insert(root.to_path_buf(), result);
+    };
+    // The initializer uses metadata queries or direct Git runners, so it cannot re-enter
+    // this history-read hook. Keep the map unlocked while this root's readers wait.
+    slot.get_or_init(download);
 }
 
 /// The refusal a failed partial-clone download gave this process, if one did.
@@ -233,7 +235,9 @@ fn partial_clone_download_refusal(root: &Path) -> Option<String> {
         .lock()
         .unwrap_or_else(|poison| poison.into_inner())
         .get(root)
-        .and_then(|result| result.clone().err())
+        .and_then(|slot| slot.get())
+        .and_then(|result| result.as_ref().err())
+        .cloned()
 }
 
 fn download_partial_clone_objects(root: &Path) -> Result<(), String> {

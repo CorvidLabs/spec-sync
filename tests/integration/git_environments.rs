@@ -430,6 +430,70 @@ fn a_repository_the_user_trusts_passes_and_one_it_does_not_names_the_command() {
     assert_eq!(safe_directory_entries(&tmpdir).len(), 0);
 }
 
+// Linux filesystems can store repository names with bytes macOS APFS rejects.
+#[cfg(target_os = "linux")]
+#[test]
+fn the_printed_safe_directory_command_trusts_a_non_utf8_unix_checkout() {
+    use std::ffi::OsString;
+    use std::os::unix::ffi::{OsStrExt, OsStringExt};
+
+    let temp = TempDir::new().unwrap();
+    let initial = temp.path().join("project");
+    let id = adopted_project(&initial);
+    let root = temp
+        .path()
+        .canonicalize()
+        .unwrap()
+        .join(OsString::from_vec(b"user's repo \xff\n".to_vec()));
+    fs::rename(initial, &root).unwrap();
+    let config = user_config(temp.path(), &[]);
+    let status = || {
+        specsync()
+            .env("GIT_TEST_ASSUME_DIFFERENT_OWNER", "1")
+            .env("GIT_CONFIG_NOSYSTEM", "1")
+            .env("GIT_CONFIG_GLOBAL", &config)
+            .arg("--root")
+            .arg(&root)
+            .args(["change", "status", &id])
+            .output()
+            .unwrap()
+    };
+    let refused = status();
+    let diagnostic = combined(&refused);
+    assert!(!refused.status.success(), "{diagnostic}");
+    let command = diagnostic
+        .split_once("If you trust it, run `")
+        .and_then(|(_, suffix)| suffix.split_once("`, then run the command again."))
+        .map(|(command, _)| command)
+        .unwrap_or_else(|| panic!("no safe.directory command: {diagnostic}"));
+    let repair = Command::new("sh")
+        .current_dir(temp.path())
+        .args(["-c", command])
+        .env("GIT_CONFIG_GLOBAL", &config)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .output()
+        .unwrap();
+    assert!(repair.status.success(), "{}", combined(&repair));
+    let stored = Command::new("git")
+        .args([
+            "config",
+            "--global",
+            "--null",
+            "--get-all",
+            "safe.directory",
+        ])
+        .env("GIT_CONFIG_GLOBAL", &config)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .output()
+        .unwrap();
+    assert!(stored.status.success(), "{}", combined(&stored));
+    let mut expected = root.as_os_str().as_bytes().to_vec();
+    expected.push(0);
+    assert_eq!(stored.stdout, expected);
+    let retried = status();
+    assert!(retried.status.success(), "{}", combined(&retried));
+}
+
 // ---- #1077 (REQ-change-172) ----
 
 /// A blobless clone of `source` at `clone`, whose remote is `https://example.invalid/project`:

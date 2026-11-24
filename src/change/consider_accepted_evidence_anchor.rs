@@ -595,12 +595,37 @@ fn untrusted_repository_refusal(root: &Path) -> Option<String> {
         }
         _ => return None,
     };
-    let path = repository_work_tree(root)
-        .map_or_else(|| root.display().to_string(), |top| top.display().to_string());
+    let path = repository_work_tree(root).unwrap_or(root);
+    let command = safe_directory_recovery_command(path);
     Some(format!(
-        "Git refuses this repository because it is owned by another user (detected dubious ownership at {path}). If you trust it, run `git config --global --add safe.directory {}`, then run the command again.{reason}",
-        shell_word(&path)
+        "Git refuses this repository because it is owned by another user (detected dubious ownership at {}). If you trust it, run `{command}`, then run the command again.{reason}",
+        path.display()
     ))
+}
+
+fn safe_directory_recovery_command(path: &Path) -> String {
+    if let Some(path) = path.to_str() {
+        return format!("git config --global --add safe.directory {}", shell_word(path));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+
+        // POSIX printf writes exact bytes. The final x keeps command substitution from
+        // stripping trailing newlines from the path before the shell passes it to Git.
+        let octal: String = path
+            .as_os_str()
+            .as_bytes()
+            .iter()
+            .map(|byte| format!("\\0{byte:03o}"))
+            .collect();
+        format!("(specsync_dir=$(printf '%b' '{octal}x'); git config --global --add safe.directory \"${{specsync_dir%x}}\")")
+    }
+    #[cfg(not(unix))]
+    format!(
+        "git config --global --add safe.directory {}",
+        shell_word(&path.to_string_lossy())
+    )
 }
 
 fn configured_git_command(root: &Path) -> Command {

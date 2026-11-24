@@ -533,23 +533,28 @@ extern "C" fn remove_safe_directory_files() {
 /// new owner-only directory under the system temporary directory holding one owner-only file,
 /// created new, never inside the project or its Git directory, removed when the process exits.
 fn write_safe_directory_file(root: &Path, top: &[u8]) -> Result<PathBuf, String> {
-    let dir = tempfile::Builder::new()
-        .prefix("specsync-safe-directory-")
-        .tempdir()
-        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
-    let canonical_dir = fs::canonicalize(dir.path()).map_err(|error| error.to_string())?;
     let work_tree = repository_work_tree(root);
-    let inside = work_tree
+    let protected: Vec<_> = work_tree
         .into_iter()
         .map(Path::to_path_buf)
         .chain(std::iter::once(root.to_path_buf()))
         .chain(work_tree.map(repository_git_dirs).unwrap_or_default())
         .filter_map(|path| fs::canonicalize(path).ok())
-        .any(|path| canonical_dir.starts_with(&path));
-    if inside {
-        return Err(
-            "the temporary directory lies inside the project or its Git directory".to_string(),
-        );
+        .collect();
+    let inside = |directory: &Path| protected.iter().any(|path| directory.starts_with(path));
+    let inside_refusal = "the temporary directory lies inside the project or its Git directory";
+    let parent = fs::canonicalize(std::env::temp_dir())
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
+    if inside(&parent) {
+        return Err(inside_refusal.to_string());
+    }
+    let dir = tempfile::Builder::new()
+        .prefix("specsync-safe-directory-")
+        .tempdir_in(&parent)
+        .map_err(|error| format!("the temporary directory cannot hold it: {error}"))?;
+    let canonical_dir = fs::canonicalize(dir.path()).map_err(|error| error.to_string())?;
+    if inside(&canonical_dir) {
+        return Err(inside_refusal.to_string());
     }
     // Git's config quoting, on the path's own bytes.
     let mut quoted = Vec::with_capacity(top.len());
@@ -604,8 +609,12 @@ fn untrusted_repository_refusal(root: &Path) -> Option<String> {
 }
 
 fn safe_directory_recovery_command(path: &Path) -> String {
+    shell_command_with_path(path, |word| format!("git config --global --add safe.directory {word}"))
+}
+
+fn shell_command_with_path(path: &Path, command: impl FnOnce(&str) -> String) -> String {
     if let Some(path) = path.to_str() {
-        return format!("git config --global --add safe.directory {}", shell_word(path));
+        return command(&shell_word(path));
     }
     #[cfg(unix)]
     {
@@ -619,13 +628,11 @@ fn safe_directory_recovery_command(path: &Path) -> String {
             .iter()
             .map(|byte| format!("\\0{byte:03o}"))
             .collect();
-        format!("(specsync_dir=$(printf '%b' '{octal}x'); git config --global --add safe.directory \"${{specsync_dir%x}}\")")
+        let command = command("\"${specsync_dir%x}\"");
+        format!("(specsync_dir=$(printf '%b' '{octal}x'); {command})")
     }
     #[cfg(not(unix))]
-    format!(
-        "git config --global --add safe.directory {}",
-        shell_word(&path.to_string_lossy())
-    )
+    command(&shell_word(&path.to_string_lossy()))
 }
 
 fn configured_git_command(root: &Path) -> Command {

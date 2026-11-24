@@ -3620,12 +3620,12 @@ pub(crate) fn correction_ledger_refusal(root: &Path, ledger_text: &str) -> Strin
 /// REQ-change-173: in a shallow clone of an adopted project, `change new` checks the baseline's
 /// history before it writes anything, and refuses naming the fetch when it cannot.
 fn ensure_baseline_history_for_change_new(root: &Path) -> Result<(), String> {
-    let Some((baseline, current_bytes)) = read_workflow_v2_baseline(root)? else {
-        return Ok(());
-    };
     if !clone_is_shallow(root) {
         return Ok(());
     }
+    let Some((baseline, current_bytes)) = read_workflow_v2_baseline(root)? else {
+        return Ok(());
+    };
     let Some(head) = git_output(root, &["rev-parse", "--verify", "HEAD"]) else {
         return Ok(());
     };

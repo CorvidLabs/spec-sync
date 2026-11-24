@@ -13,7 +13,7 @@ fn partial_clone_recovery_accepts_only_complete_missing_object_ids() {
     .join("\n");
 
     assert_eq!(
-        missing_git_objects(&listing).collect::<Vec<_>>(),
+        missing_git_objects(listing.as_bytes()).collect::<Vec<_>>(),
         [sha1, sha256]
     );
 }
@@ -120,4 +120,77 @@ fn a_partial_clone_history_reader_waits_for_the_running_download() {
         let readable = run_git_required(root, &["show", "HEAD:tracked.txt"], None, 1_024).unwrap();
         assert_eq!(readable, b"locally readable\n");
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn partial_clone_recovery_keeps_the_raw_root_in_both_fetch_commands() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::PermissionsExt;
+
+    let scratch = TempDir::new().unwrap();
+    let git = scratch.path().join("git");
+    fs::write(&git, "#!/bin/sh\nprintf '%s\\0' \"$@\"\n").unwrap();
+    fs::set_permissions(&git, fs::Permissions::from_mode(0o755)).unwrap();
+    let raw = b"/specsync nonexisting path's \xff\n";
+    let root = Path::new(OsStr::from_bytes(raw));
+    let oid = "1234567890abcdef1234567890abcdef12345678";
+    let recovery = partial_clone_listing_refusal(root, "origin", &["HEAD".into()], "no tree");
+    let refetch = recovery.split('`').nth(1).unwrap();
+    let missing = partial_clone_fetch_command(root, "origin", &[oid], "--no-filter");
+
+    for (command, expected_option) in [
+        (&missing[..], b"--stdin".as_slice()),
+        (refetch, b"--refetch".as_slice()),
+    ] {
+        let output = Command::new("/bin/sh")
+            .args(["-c", command])
+            .env("PATH", scratch.path())
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+        let args = output.stdout.split(|byte| *byte == 0).collect::<Vec<_>>();
+        assert_eq!(args[..3], [b"-C".as_slice(), raw.as_slice(), b"fetch".as_slice()]);
+        assert!(args.contains(&expected_option), "{args:?}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn partial_clone_download_tolerates_non_utf8_historical_requirement_paths() {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let scratch = TempDir::new().unwrap();
+    let root = scratch.path();
+    let git = git_in(root);
+    git(&["init", "-q", "-b", "main"]);
+    git(&["config", "user.email", "test@example.com"]);
+    git(&["config", "user.name", "Test"]);
+    let write_object = |args: &[&str], input: &[u8]| {
+        let mut child = Command::new("git")
+            .current_dir(root)
+            .args(args)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        child.stdin.take().unwrap().write_all(input).unwrap();
+        let output = child.wait_with_output().unwrap();
+        assert!(output.status.success(), "{output:?}");
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
+    };
+    let blob = write_object(&["hash-object", "-w", "--stdin"], b"# Requirement history\n");
+    let file = format!("100644 blob {blob}\trequirements.md\0");
+    let files = write_object(&["mktree", "-z"], file.as_bytes());
+    let mut dirs = format!("040000 tree {files}\tspecs\0").into_bytes();
+    dirs.extend_from_slice(format!("040000 tree {files}\tignored-").as_bytes());
+    dirs.extend_from_slice(b"\xff\0");
+    let tree = write_object(&["mktree", "-z"], &dirs);
+    let commit = write_object(&["commit-tree", &tree], b"Requirements in two directories\n");
+    git(&["update-ref", "refs/heads/main", &commit]);
+    git(&["config", "remote.origin.promisor", "true"]);
+
+    assert_eq!(download_partial_clone_objects(root), Ok(()));
 }

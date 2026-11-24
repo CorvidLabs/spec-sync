@@ -86,7 +86,11 @@ fn adopted_project(root: &Path) -> String {
         "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/auth.rs\n---\n\n# Auth\n\n## Purpose\n\nAuthentication.\n\n## Public API\n\nNone.\n\n## Invariants\n\nStable.\n\n## Behavioral Examples\n\nWorks.\n\n## Error Cases\n\nNone.\n\n## Dependencies\n\nNone.\n\n## Change Log\n\n| Date | Change |\n|------|--------|\n| 2026-01-01 | Initial |\n",
     );
     write(root, "specs/auth/requirements.md", BASE_REQUIREMENTS);
-    write(root, ".gitignore", ".specsync/hashes.json\n");
+    write(
+        root,
+        ".gitignore",
+        ".specsync/hashes.json\n.specsync/change.lock\n",
+    );
     write(
         root,
         ".specsync/sdd.json",
@@ -182,6 +186,8 @@ fn a_shallow_clone_names_the_unshallow_fetch_and_change_new_writes_nothing() {
         let before = fs::read_dir(clone.join(".specsync/changes"))
             .unwrap()
             .count();
+        let lock = clone.join(".specsync/change.lock");
+        assert!(!lock.exists(), "fresh depth-{depth} checkout");
 
         let created = invoke(
             &clone,
@@ -210,6 +216,10 @@ fn a_shallow_clone_names_the_unshallow_fetch_and_change_new_writes_nothing() {
                 .count(),
             before,
             "depth {depth}"
+        );
+        assert!(
+            !lock.exists(),
+            "a refused change created the lock at depth {depth}"
         );
         for args in [
             vec!["change", "status", id.as_str()],
@@ -757,6 +767,13 @@ fn a_temporary_directory_inside_the_git_directory_is_refused_from_a_linked_workt
     let config = user_config(temp.path(), &[worktree_top.as_str()]);
     let inside = root.join(".git/specsync-tmp");
     fs::create_dir_all(&inside).unwrap();
+    #[cfg(unix)]
+    let untouched = {
+        let file = fs::File::open(&inside).unwrap();
+        file.set_modified(std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_700_000_000))
+            .unwrap();
+        file.metadata().unwrap().modified().unwrap()
+    };
 
     let refused = invoke(
         &worktree,
@@ -777,6 +794,12 @@ fn a_temporary_directory_inside_the_git_directory_is_refused_from_a_linked_workt
     );
     let files = safe_directory_entries(&inside);
     assert!(files.is_empty(), "{text} left these entries: {files:?}");
+    #[cfg(unix)]
+    assert_eq!(
+        fs::metadata(&inside).unwrap().modified().unwrap(),
+        untouched,
+        "{text} changed the directory despite removing the temporary entry"
+    );
 }
 
 /// Codex on #1122 (P2): the trusted top level is passed byte for byte, so a project whose

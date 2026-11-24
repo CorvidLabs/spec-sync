@@ -13,4 +13,4 @@ artifact: testing
 
 | Requirement | Evidence |
 |---|---|
-| REQ-cmd-check-018 | `tests/integration/check.rs`: `an_unparseable_3md_is_a_check_warning_and_fails_strict` |
+| REQ-cmd-check-023 | `tests/integration/check.rs`: `an_unparseable_3md_is_a_check_warning_and_fails_strict` |

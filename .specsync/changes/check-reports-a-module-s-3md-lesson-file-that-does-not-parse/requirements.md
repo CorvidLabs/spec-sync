@@ -5,7 +5,7 @@ artifact: requirements
 
 # Requirements
 
-REQ-cmd-check-018 is added (`deltas/cmd_check.md`): `check` warns on a module's
+REQ-cmd-check-023 is added (`deltas/cmd_check.md`): `check` warns on a module's
 `<module>.3md` that cannot be read or parsed, naming the file, the parser's error and that
 `context.md` is used instead, so `--strict` fails. A parsing `.3md`, or none, adds no finding.
 REQ-change-106 is unchanged: lifecycle reads still fall back and never fail.

@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "in-a-shallow-clone-name-git-fetch-unshallow-origin-in-every-lifecycle-history-refusal-and-refuse-change-new-before",
+  "implementation_commit": "6217fc589342ac4753c8396476e720f9016756f2",
+  "implementation_tree": "79e5604b8ebff2ecf42ce54b276128bda41cce88",
+  "contract_digest": "f2e4b86c3a9668ae527fb3c4f90fd82abeccddc829f60bb118bf98ddcb166940",
+  "workspace_digest": "a2af879dbbede53b0c423ac59b53959e9d800360a90140c0fcdfd02226f5bd2d",
+  "closing_digest": "3ac0438dd3ac9b5edde6333fdff0ca39b4d941fffa55d586897d049efc7a145a",
+  "review_digest": "709fbf28526e5a271896e5188debb05b04413ce15ef3108eaa38a58217cc7fca",
+  "finalization_digest": "8a62b65eae87d7544a3233bf8853f32490806f945c7e910a587ca092bd42f5a6",
+  "timestamp": 1795478373
+}

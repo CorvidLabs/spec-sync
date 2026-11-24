@@ -37,4 +37,6 @@ spec: cmd_change.spec.md
 
 - [x] Name a sequence-ledger freeze before the upstream archive in text `Next:` and in ship-status (first blocker and next step) (#908, REQ-cmd-change-034).
 - [x] Read project files only through the bounded project read of `util` (REQ-cmd-change-038). Evidence: `tests/integration/project_reads.rs`.
+- [x] Show shallow-history recovery on lifecycle and correction-ledger refusals (REQ-cmd-change-044, #1072).
+
 - [x] Show a separate advisory warning for invalid archive coverage in text and JSON (REQ-cmd-change-archived-coverage-diagnostics-001).

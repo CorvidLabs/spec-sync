@@ -168,6 +168,7 @@ Acceptance Criteria
 - A no-spec declaration cannot accompany a declared public-contract change.
 - OpenSpec and Spec Kit imports reject symlinked files and directories.
 - Rejected foreign imports leave no partial adoption policy, report, or imported content.
+- Preview and import both ignore descendants of the foreign changes directory named `archive` and reject symbolic links in active changes. Preview writes no files.
 - The exact schema-v1 self-adoption record is the sole migration exception to the
   no-spec/public-contract rule.
 - A legacy archive baseline authority that covers the baseline ledger signs that exact ledger path

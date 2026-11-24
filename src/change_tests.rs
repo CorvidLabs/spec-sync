@@ -40,6 +40,7 @@ include!("change_tests/historical_reconciliation.rs");
 include!("change_tests/approval_dry_run.rs");
 
 include!("change_tests/fast_archived_reads.rs");
+include!("change_tests/literal_guidance.rs");
 include!("change_tests/upstream_archive.rs");
 
 include!("change_tests/fast_finalize.rs");

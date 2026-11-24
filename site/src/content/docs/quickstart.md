@@ -261,6 +261,8 @@ Then run `specsync check` again until everything passes.
 
 ### GitHub Action
 
+Use these pins after the 6.4.2 assets are published. Until then, pin `@v6.4.1` and `version: '6.4.1'`.
+
 ```yaml
 # .github/workflows/specsync.yml
 name: SpecSync
@@ -273,9 +275,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: CorvidLabs/spec-sync@v6.4.1
+      - uses: CorvidLabs/spec-sync@v6.4.2
         with:
-          version: '6.4.1'
+          version: '6.4.2'
           strict: true
           require-coverage: 80
 ```

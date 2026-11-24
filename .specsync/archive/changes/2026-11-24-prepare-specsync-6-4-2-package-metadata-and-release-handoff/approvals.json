@@ -1,0 +1,57 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795459512,
+      "digest": "232c18cbd5b9ee48140736af7b9a162481eafcf6dc9de1afe5e45fdf6f72f3d4",
+      "note": "Direction to proceed with the proposed 6.4.2 release preparation scope.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "prepare-specsync-6-4-2-package-metadata-and-release-handoff",
+        "title": "Prepare SpecSync 6.4.2 package metadata and release handoff",
+        "description": "Prepare SpecSync 6.4.2 package metadata and release handoff",
+        "kind": "operations",
+        "affected_specs": [],
+        "affected_paths": [
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/trust.yml",
+          "CHANGELOG.md",
+          "Cargo.lock",
+          "Cargo.toml",
+          "README.md",
+          "docs/releases/6.4.2.md",
+          "site/src/content/"
+        ],
+        "no_spec_change": true,
+        "no_spec_change_rationale": "The patch release packages merged bug fixes using the existing release contract. Its changes cover version metadata, examples, verification fixtures and operator documentation.",
+        "acceptance_criteria": [
+          "Cargo metadata and the self-built CI and Trust pins select 6.4.2. Action examples name the explicit candidate version. The installed binary default and current-install guidance select published 6.4.1 until publication. The changelog and release handoff account for user-visible fixes actually merged since v6.4.1. The version validator, workflow-pin validator, release-candidate contract tests and project gates pass on the prepared revision."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {},
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "continue merging and all and get a release out",
+        "where": "Codex conversation on 2026-11-23, immediately after the 6.4.2 release preparation proposal and PR #1156 were presented",
+        "recorded_by": "agent:codex"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795534389,
+      "digest": "5d2cda2d4d2283cace73bec574f61e945b0728fba536d5a65ced5a481bf6adfc",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

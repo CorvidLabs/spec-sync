@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "prepare-specsync-6-4-2-package-metadata-and-release-handoff",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "7fb04e62b05b2355db13b2bd54568a9ef6be7982",
+  "contract_digest": "232c18cbd5b9ee48140736af7b9a162481eafcf6dc9de1afe5e45fdf6f72f3d4",
+  "execution_digest": "40c8ef4a9c7e31b9e47a57c367426c1fb40fd019b3399fc9f11513db8fd2c910",
+  "workspace_digest": "3a1888ea59f01fef737d9f01f3dc1f173ea8d23307d71b0eff5ff365a708c64d",
+  "timestamp": 1795534375,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+    "where": "SpecSync 6.4.2 maintainer release conversation, 2026-11-23 UTC, relayed by the release coordinator; its recorded scope lists #1156. Carried in the private handoff 0xLeif gave the succeeding release lead on 2026-11-24 UTC. Recorded after the full native Verify lane passed at 7fb04e62b05b2355db13b2bd54568a9ef6be7982.",
+    "recorded_by": "agent:claude:release-lead"
+  }
+}

@@ -3,10 +3,11 @@
 /// authenticates as covering it. Every claimant that does not is recorded in
 /// `rejected_successors` with the reason it was refused, keyed by successor ID.
 #[allow(clippy::too_many_arguments)]
-fn successor_covers_input(
+fn successor_covers_input<'a>(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
+    candidates: impl IntoIterator<Item = &'a ChangeRecord>,
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
@@ -15,7 +16,7 @@ fn successor_covers_input(
     rejected_successors: &mut BTreeMap<String, RejectedSuccessor>,
     historically_reconciled: &mut bool,
 ) -> bool {
-    for candidate in records.values() {
+    for candidate in candidates {
         // Only a successor that declares this obligation can cover it: authenticated
         // succession tuples are one-to-one with the record's declared obligations,
         // and the legacy reconstruction requires the declaration too. Deciding that
@@ -123,6 +124,11 @@ fn successor_covers_input(
         }
         match validate_accepted_inputs_recursive(root, candidate, records, visiting, memo, pending)
         {
+            // Its own currency is only deferred to an in-flight change, so it covers nothing yet
+            // (#657); the in-flight change itself may cover this input for now.
+            Ok(AcceptedInputValidity::ProvisionallyCovered) => reject(
+                "its own delivery inputs are covered only for now, by in-flight changes".into(),
+            ),
             Ok(validity) => {
                 if validity == AcceptedInputValidity::HistoricallyReconciled
                     || candidate.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
@@ -292,7 +298,8 @@ fn later_sequence_owner_covers_historical_input(
     }) {
         return Ok(false);
     }
-    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending).is_ok())
+    Ok(validate_accepted_inputs_recursive(root, owner, records, visiting, memo, pending)
+        .is_ok_and(|validity| validity != AcceptedInputValidity::ProvisionallyCovered))
 }
 
 /// True when `candidate` declares the obligation that would let it cover `predecessor_entry`

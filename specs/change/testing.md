@@ -375,6 +375,17 @@ REQ-change-170 (#1090) is covered in `src/change_tests/stale_modified_delta.rs`.
 - `change_check_repairs_an_older_verifying_summary_and_keeps_its_notes` retries an older workspace and checks the CRLF Markdown body byte for byte.
 - `failed_verification_publication_restores_the_summary_state_and_evidence` injects a failure at the last transaction write, checks rollback, and retries successfully. `missing_requirement_evidence_refusal_records_the_attempt` confirms an earlier refusal keeps both state projections.
 
+The provisional coverage tests in `src/change_tests/provisional_coverage.rs` cover an approval that has become stale, a historical sequence owner whose coverage is provisional, and the status shown when the original transition is unproven.
+
+The CLI regression `deleting_an_exact_only_input_names_the_later_delivery_that_removed_it` checks both archive refusals after a later delivery deletes the earlier change’s signed README.
+Archive tests also check that a stray coverage file survives refusal, that a moved package can retry with matching coverage, and that a failed integrity check rolls back newly written coverage.
+
+`an_archived_predecessor_warns_after_a_plain_coverer_closes` and `explicit_succession_clears_the_archived_predecessor_warning` check recorded coverers with and without an explicit obligation in both the accepted and archived states. `accepting_a_plain_coverer_leaves_the_active_predecessor_stale` exercises the matching active-change rule.
+
+The archive coverage regressions in `src/change_tests/provisional_coverage.rs` exercise a shared input with two signed owners. One explicit successor leaves a warning for the missing owner. Two independently approved successors can cover the owners separately. The same fixture checks both receipt entries as the first successor becomes Accepted and the other remains Implementing, then checks both again after the second acceptance. The tests also check that changing the recorded coverer’s approved definition restores the warning, and that an unrelated unreadable archive does not invalidate a directly covered input. A three-owner fixture verifies that one change covering the first and last owners produces only one receipt row. Another fixture changes a shared input before the later accepted change begins and checks that the archive refusal names it through its declared scope for the second owner.
+
+`reopened_covered_archive_recomputes_coverage_at_finalization` exercises reopen, verification, review, and re-finalization with the original receipt retained byte-for-byte in Git. `reopen_rollback_restores_the_receipt_and_preserves_replacements` checks the original archive after an injected post-removal failure and after replacement of the receipt following journal preparation. `reopened_archive_preserves_untracked_and_edited_valid_coverage` protects actual working copies even if their receipts parse. The existing active-source and post-move retry controls check unexpected coverage refusals.
+
 ## Lost-requirement refusals (REQ-change-169)
 
 - The tracked requirements link tests compare content outside the specs directory, retain an unchanged tracked link and two-link chain, name the Git content path for restoration, and require the working-tree link target to be indexed before it can preserve an ID.

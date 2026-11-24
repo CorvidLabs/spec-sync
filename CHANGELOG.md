@@ -7,15 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- One change whose records fail validation, such as a change a merge left both open and archived at one commit, no longer makes every other change's terminal evidence read `corrupt-history` or `stale` with its reason. Each change is judged on its own records and on the changes it selects as successors; the broken change still reports its own failure in its status, in `change audit` while it is active and in `change audit --archives` once it is only an archive (#1104).
+- An accepted change no longer goes stale because a later change still in flight edits a delivery input they share. When an approved, implementing or verifying change created after it declares the input's owning module and a path scope that covers it, the accepted change's terminal evidence reads `provisionally-covered`, naming that change, and `change audit` and `change audit --strict` report a warning naming both instead of an error; `specsync doctor` lists no drift for it. It may archive, through `change archive` or `change finalize`, and its archive keeps `coverage.json` (`schema_version`, `change_id`, and one `{path, change}` entry per input covered for now). The archive reads `authenticated-history` whatever becomes of the covering change; `change status`, `change show` and `change audit --archives` print each entry with that change's present state and warn, naming `specsync change reopen <id> --actor <name> --reason <text>`, once it has been sent back or closed. A provisionally covered change neither covers another change's input nor stands as a retirement replacement, and `change reopen` still accepts it. `provisionally-covered` is a new value of `summary.terminal_evidence.validity`. Released 6.3.0 and 6.4.0 read an archive that holds `coverage.json` as before, but still report such an accepted change stale, so a repository that pins SpecSync moves its pin with this release (REQ-change-167, REQ-cmd-change-001, #657).
+- When two accepted changes stop each other from being archived over one stale delivery input, each refusal names the other change and says it is blocked too, beside the `change reopen` it already names, which frees both (REQ-change-168, #688).
 
 ### Changed
 
 - Advance the main Action binary default to published 6.4.1 after supported-platform asset and Action checks. Immutable `@v6.4.1` remains at its qualified candidate SHA (`3f0985e8`) with default 6.4.0; select `version: '6.4.1'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.1.
 
 ### Fixed
+
+- One change whose records fail validation, such as a change a merge left both open and archived at one commit, no longer makes every other change's terminal evidence read `corrupt-history` or `stale` with its reason. Each change is judged on its own records and on the changes it selects as successors; the broken change still reports its own failure in its status, in `change audit` while it is active and in `change audit --archives` once it is only an archive (#1104).
 
 - The `watch` tests read each run through to the line `watch` prints after it, so a later line of the same run is part of what they judge (#1055).
 

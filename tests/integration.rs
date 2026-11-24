@@ -153,3 +153,6 @@ mod repository_inputs;
 
 #[path = "integration/hardening_641.rs"]
 mod hardening_641;
+
+#[path = "integration/stale_input_refusals.rs"]
+mod stale_input_refusals;

@@ -270,7 +270,7 @@ fn retirement_custody(
         return Err("retirement replacement cannot depend on the obligation it retires".into());
     }
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(
+    let validity = validate_accepted_inputs_recursive(
         root,
         replacement,
         records,
@@ -279,6 +279,12 @@ fn retirement_custody(
         None,
     )
     .map_err(|e| format!("retirement replacement has stale or unauthenticated evidence: {e}"))?;
+    if validity == AcceptedInputValidity::ProvisionallyCovered {
+        return Err(
+            "retirement replacement's delivery inputs are covered only for now, by in-flight changes; accept those first"
+                .into(),
+        );
+    }
     let verification = memo.authenticate(root, replacement, None)?;
     let current = verification
         .acceptance_manifest

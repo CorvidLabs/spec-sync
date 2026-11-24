@@ -5,7 +5,7 @@ aliases: [1161-rc-qualify-120-minutes]
 objective: "v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 minutes instead of 75, as a stopgap until the lane fits in 30 (#1161)"
 intent_scope: SPEED
 modules: []
-stage: plan
+stage: accept
 stage_status: active
 iteration: 1
 callers: []
@@ -15,12 +15,16 @@ requirements: []
 cases: []
 design: []
 files: []
-observations: []
+observations: [2026-11-24-1161-contract-suites-pass-on-the-edit]
 bugs: []
 blockers: []
-waiting_on_human: []
+waiting_on_human:
+  - gate: Implementation review of give-the-macos-release-candidate-qualification-120-minutes
+    holds: accept
+    drives: review
+    opened: 2026-11-24T18:43:39Z
 run_consents: []
-next: "Gate \"Scope approval of give-the-macos-release-candidate-qualification-120-minutes\" closed (approved); run `chough stage advance` to move on."
+next: Commit, scoped check with commit, pre-push and Trust, then ship on 0xLeif's recorded decision
 ---
 # v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 minutes instead of 75, as a stopgap until the lane fits in 30 (#1161)
 
@@ -31,6 +35,7 @@ v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 mi
 ## Where it stands
 
 - Drafted the native change (operations, no spec change): context, plan and testing written; ready reports nothing missing
+- Edited the qualify limit to 120 with its comment and added the handoff paragraph; the parsed workflow is otherwise identical
 
 ## Decisions and why
 
@@ -38,6 +43,8 @@ v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 mi
 - 0xLeif decided "Scope approval of give-the-macos-release-candidate-qualification-120-minutes": "yes raise it to 120 and cut rc.2" (Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request that named this scope: raise the qualify limit from 75 to 120 in .github/workflows/release.yml, with a note in the 6.4.2 handoff, as its own small change, archived once its scoped check, the release contract tests, pre-push and Trust pass, with no further native Verify lane.); recorded by claude-code-t14v; a relayed claim, not authenticated; ran specsync change approve give-the-macos-release-candidate-qualification-120-minutes as 0xLeif
 
 ## What was verified
+
+- [With timeout-minutes for the qualify job at 120: validate-release-version and validate-workflow-runtime-pins pass, test-validate-release-candidate passes 67 tests, test-required-ci-gate 38, test-linux-baseline 35, test-ci-trigger-paths 3, test-ci-attest-and-summary 9, test-clippy-all-targets 5, test-classify-ci-paths passes, and actionlint reports nothing. Parsed as YAML the workflow is identical to main apart from that one value. No product, test or spec file is changed, and no test is dropped or weakened.](evidence/2026-11-24-1161-contract-suites-pass-on-the-edit.md)
 
 ## Open threads
 
@@ -68,4 +75,25 @@ v6.4.2 can qualify on macOS today: the release-candidate qualify job gets 120 mi
     - recorded_by: claude-code-t14v
     - native: specsync change approve give-the-macos-release-candidate-qualification-120-minutes
     - actor: 0xLeif
+  - by: claude-code (hc t14v)
+- 2026-11-24T18:42:34Z · advance · plan → build · native:approved ^t-d2de6f
+  - native_change: give-the-macos-release-candidate-qualification-120-minutes
+  - gate: native:approved
+  - revision: 1dfd0dbf5cd9eed09cfbc5ef49b3351cc696646c
+  - by: claude-code (hc t14v)
+- 2026-11-24T18:43:23Z · advance · build → test · native:approved ^t-290c91
+  - native_change: give-the-macos-release-candidate-qualification-120-minutes
+  - gate: native:approved
+  - revision: 1dfd0dbf5cd9eed09cfbc5ef49b3351cc696646c
+  - by: claude-code (hc t14v)
+- 2026-11-24T18:43:24Z · advance · test → accept · native:approved ^t-954b0f
+  - native_change: give-the-macos-release-candidate-qualification-120-minutes
+  - gate: native:approved
+  - revision: 1dfd0dbf5cd9eed09cfbc5ef49b3351cc696646c
+  - by: claude-code (hc t14v)
+- 2026-11-24T18:43:39Z · gate-opened · accept → accept · Implementation review of give-the-macos-release-candidate-qualification-120-minutes ^t-d59e72
+  - native_change: give-the-macos-release-candidate-qualification-120-minutes
+  - revision: 1dfd0dbf5cd9eed09cfbc5ef49b3351cc696646c
+  - holds: accept
+  - drives: review
   - by: claude-code (hc t14v)

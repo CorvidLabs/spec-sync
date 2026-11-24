@@ -38,6 +38,7 @@ files:
   - src/change_tests/fast_finalize.rs
   - src/change_tests/git_environments.rs
   - src/change_tests/historical_reconciliation.rs
+  - src/change_tests/literal_guidance.rs
   - src/change_tests/open_task_gate.rs
   - src/change_tests/recorded_review_recovery.rs
   - src/change_tests/recovery_retirement.rs
@@ -49,6 +50,7 @@ files:
   - src/change_tests/rebase_stale_delta.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
+  - src/change_tests/fenced_requirement_example_delta.rs
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs
   - src/change_tests/unknown_members.rs

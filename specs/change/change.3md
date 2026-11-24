@@ -819,11 +819,17 @@ Moving an approved package into the archive leaves new paths outside the index u
 @plane z=68 label="Distinguish loss history from proposal history (#1089)"
 The loss check reads every retained requirement at the merge-base. A stale-delta proposal can also need an older approval-time body. Keeping one Git object readable while removing the other makes the CI and interactive guarantees independently testable.
 
+@plane z=69 label="Fenced headings in canonical delta blocks (#1050)"
+Canonical delta matching uses the parser's byte-preserving fenced-code blanker. A heading in a fenced example can neither start nor end the target block. Use the resulting offsets to read, compare, and rewrite the original Markdown so the real block keeps its existing heading and neighboring examples keep their bytes.
+
+@plane z=70 label="Share the fence rules for canonical deltas (#1144)"
+The first fence-aware matcher used a copy with fenced lines blanked. The review found that the general blanker and the requirement reader classify backticks in a fence info string differently. Canonical delta matching now uses the requirement reader's CommonMark recognizer for both target types and tracks byte offsets into the original file. Cover both already-applied checks whenever changing block discovery, since replay uses the same range.
+
 @plane z=71 label="Keep checkout support and Git isolation together (#1122)"
 Read linked-worktree pointers with a regular-file bound. A trusted checkout's private Git configuration belongs in a private system temporary directory outside the worktree and Git directories. For partial clones, find historical requirements names before asking Git for missing object IDs. An incomplete tree walk gives a recovery fetch that can target missing objects below a local commit. When a baseline refusal occurs in a shallow partial clone, name the fetch that restores commit history first.
 
-@plane z=74 label="Readers wait for fetched objects, and recovery preserves the path (#1122)"
+@plane z=72 label="Readers wait for fetched objects, and recovery preserves the path (#1122)"
 A history read shares the result of the first download for its root. A placeholder success let other workers reach isolated Git before the user-configured fetch finished. Store the terminal result in one per-root initializer and release the map lock before starting the fetch or waiting. The ownership refusal still prints a single command. Encode raw Unix path bytes only when the path cannot be printed as UTF-8, and preserve trailing newlines through shell substitution.
 
-@plane z=77 label="Check checkout boundaries before any write (#1122)"
+@plane z=73 label="Check checkout boundaries before any write (#1122)"
 Check the canonical temporary parent before creating a private Git directory. Reject insufficient shallow history before opening the lifecycle lock, since opening it can create the lock and recover a journal. Use a single path renderer for recovery commands that need raw Unix bytes. Read Git's NUL-delimited paths independently so a name outside SpecSync's supported path representation cannot prevent recovery of otherwise readable history.

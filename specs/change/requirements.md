@@ -1292,18 +1292,26 @@ Acceptance Criteria
 - An accepted workflow-v2 change and an archived change whose terminal evidence authenticates
   (including `historical-transition-unproven`) are `safe`.
 - For an archived change whose terminal evidence is `corrupt-history`, the step before clearing
-  and the summary's next action are one string ending with `specsync change status <id>`:
-  `git restore --source=HEAD --staged --worktree -- <package>` when the package's tracked files
-  differ from `HEAD`; the same restore from the commit that archived the package (named by
-  `git log -1 --diff-filter=A --format=%H -- <package>/state.json`) followed by a commit when the
-  package matches `HEAD` but not that commit; and, when the package still matches the commit
-  that archived it or no package or repository can answer, `specsync change status <id> --json`
+  and the summary's next action are one string ending with `specsync change status -- <id>`:
+  `git restore --source=HEAD --staged --worktree -- :(literal)<package>` when the package's tracked
+  files differ from `HEAD`; the same restore from the commit that archived the package (named by
+  `git log -1 --diff-filter=A --format=%H -- :(literal)<package>/state.json`) followed by a commit
+  when the package matches `HEAD` but not that commit; and, when the package still matches the
+  commit that archived it or no package or repository can answer,
+  `specsync change status --json -- <id>`
   to read what `summary.terminal_evidence.reason` names and restore that from trusted Git history, since
   a package restore would change nothing. Running the named step through a shell on a tampered
   archive returns `authenticated-history` and `safe`.
-- Every change ID and path interpolated into a printed command is single-quoted as one shell
-  word, so a change ID or archive directory carrying shell metacharacters cannot turn the
-  copied step into a different command.
+- Every change ID and path interpolated into a printed command is quoted as one shell word, so a
+  change ID or archive directory carrying shell metacharacters cannot turn the copied step into a
+  different command. Each archive path is a literal Git pathspec, in the printed step and in the
+  probes that choose it, so `*`, `?` and `[` in a package path match only that package. Each
+  printed `specsync` command puts `--` before the change ID, so an ID that begins with `-` is read
+  as the ID, not as a flag.
+- A package path that holds a control byte, such as a newline or an escape, is printed in `$'…'`
+  quoting with each control byte written as an escape. The printed step then holds no control
+  byte and cannot add lines or terminal commands to the output (CHANGE-7.b), and run through bash
+  it still restores that exact directory.
 - `handoff_summary` judges an archived record from the same terminal-evidence verdict
   `ChangeSummary` carries, so the text line cannot call an archive `safe` that JSON reports as
   `corrupt-history`.

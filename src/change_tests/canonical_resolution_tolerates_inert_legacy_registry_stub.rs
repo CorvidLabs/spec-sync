@@ -3110,7 +3110,7 @@ fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
     assert_eq!(
         uncommitted.before_clearing,
         vec![format!(
-            "run `git restore --source=HEAD --staged --worktree -- '{package}'` to put back the committed archive, then `specsync change status 'add-passkeys'`"
+            "run `git restore --source=HEAD --staged --worktree -- ':(literal){package}'` to put back the committed archive, then `specsync change status -- 'add-passkeys'`"
         )]
     );
     assert_handoff_has_no_digest(&uncommitted);
@@ -3123,7 +3123,7 @@ fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
     assert_eq!(
         committed.before_clearing,
         vec![format!(
-            "run `git restore --source=<commit> --staged --worktree -- '{package}'` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- '{package}/state.json'`), commit the restore, then run `specsync change status 'add-passkeys'`"
+            "run `git restore --source=<commit> --staged --worktree -- ':(literal){package}'` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- ':(literal){package}/state.json'`), commit the restore, then run `specsync change status -- 'add-passkeys'`"
         )]
     );
     assert_handoff_has_no_digest(&committed);
@@ -3134,7 +3134,7 @@ fn handoff_corrupt_archive_is_not_yet_and_names_the_restore() {
     assert_eq!(
         elsewhere.before_clearing,
         vec![
-            "run `specsync change status 'add-passkeys' --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status 'add-passkeys'`"
+            "run `specsync change status --json -- 'add-passkeys'`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status -- 'add-passkeys'`"
                 .to_string()
         ]
     );
@@ -3240,9 +3240,9 @@ fn corrupt_archive_restore_quotes_every_interpolated_word() {
                 "--staged".into(),
                 "--worktree".into(),
                 "--".into(),
-                package.clone(),
+                format!(":(literal){package}"),
             ],
-            vec!["change".to_string(), "status".into(), id.into()],
+            vec!["change".to_string(), "status".into(), "--".into(), id.into()],
         ],
         "{step}"
     );
@@ -3252,7 +3252,7 @@ fn corrupt_archive_restore_quotes_every_interpolated_word() {
     });
     let step = classify_handoff(id, &signals).before_clearing[0].clone();
     assert!(
-        step.contains(&format!("-- {}`", expected_shell_word(&package))),
+        step.contains(&format!("-- {}`", expected_shell_word(&format!(":(literal){package}")))),
         "{step}"
     );
     assert_eq!(
@@ -3264,9 +3264,9 @@ fn corrupt_archive_restore_quotes_every_interpolated_word() {
                 "--diff-filter=A".into(),
                 "--format=%H".into(),
                 "--".into(),
-                format!("{package}/state.json"),
+                format!(":(literal){package}/state.json"),
             ],
-            vec!["change".to_string(), "status".into(), id.into()],
+            vec!["change".to_string(), "status".into(), "--".into(), id.into()],
         ],
         "{step}"
     );
@@ -3301,12 +3301,12 @@ fn corrupt_archive_restore_names_the_package_only_when_the_package_changed() {
         )
     };
     let id = expected_shell_word(&record.id);
-    let quoted_package = expected_shell_word(&package);
+    let quoted_package = expected_shell_word(&format!(":(literal){package}"));
 
     assert_eq!(
         step(),
         format!(
-            "run `specsync change status {id} --json`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status {id}`"
+            "run `specsync change status --json -- {id}`, restore what its `summary.terminal_evidence.reason` names from trusted Git history, then run `specsync change status -- {id}`"
         ),
         "an intact package is not what failed"
     );
@@ -3317,16 +3317,16 @@ fn corrupt_archive_restore_names_the_package_only_when_the_package_changed() {
     assert_eq!(
         step(),
         format!(
-            "run `git restore --source=HEAD --staged --worktree -- {quoted_package}` to put back the committed archive, then `specsync change status {id}`"
+            "run `git restore --source=HEAD --staged --worktree -- {quoted_package}` to put back the committed archive, then `specsync change status -- {id}`"
         )
     );
 
     quiet_git(root, &["commit", "-am", "commit the damage"]);
-    let state = expected_shell_word(&format!("{package}/state.json"));
+    let state = expected_shell_word(&format!(":(literal){package}/state.json"));
     assert_eq!(
         step(),
         format!(
-            "run `git restore --source=<commit> --staged --worktree -- {quoted_package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {state}`), commit the restore, then run `specsync change status {id}`"
+            "run `git restore --source=<commit> --staged --worktree -- {quoted_package}` with the commit that archived it (`git log -1 --diff-filter=A --format=%H -- {state}`), commit the restore, then run `specsync change status -- {id}`"
         )
     );
 }

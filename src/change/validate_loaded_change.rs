@@ -2456,8 +2456,11 @@ fn detect_foreign_source(root: &Path) -> Option<String> {
     None
 }
 
-fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, String)>, String> {
-    let mut prepared = Vec::new();
+fn prepare_foreign_import(
+    root: &Path,
+    source: &str,
+    mut collect_file: impl FnMut(PathBuf, String),
+) -> Result<(), String> {
     let provenance = root.join(".specsync/import-provenance.json");
     let value = serde_json::json!({
         "source": source,
@@ -2465,7 +2468,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         "scope": "active_plus_canonical",
         "archives": "preserved_in_place"
     });
-    prepared.push((provenance, json_content(&value)?));
+    collect_file(provenance, json_content(&value)?);
     let import_root = root.join(".specsync/imports").join(source);
     match source {
         "openspec" => {
@@ -2483,7 +2486,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                         root,
                         &canonical,
                         &import_root.join("canonical"),
-                        &mut prepared,
+                        &mut collect_file,
                     )?;
                 }
                 Ok(_) => {
@@ -2509,7 +2512,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
                 Ok(metadata) if metadata.is_file() => {
                     let content = crate::util::read_project_string(root, &constitution, crate::util::MAX_SPEC_FILE_BYTES)
                         .map_err(|error| format!("failed to read foreign constitution: {error}"))?;
-                    prepared.push((import_root.join("constitution.md"), content));
+                    collect_file(import_root.join("constitution.md"), content);
                 }
                 Ok(_) => {
                     return Err(format!(
@@ -2529,7 +2532,7 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
         _ => return Err(format!("unsupported adoption source `{source}`")),
     };
     let Some(entries) = foreign_change_directories(root, &source_changes)? else {
-        return Ok(prepared);
+        return Ok(());
     };
     let mut known_descriptions: BTreeSet<String> = list_changes_checked(root)?
         .into_iter()
@@ -2601,26 +2604,17 @@ fn prepare_foreign_import(root: &Path, source: &str) -> Result<Vec<(PathBuf, Str
             answers: BTreeMap::new(),
         };
         let record_dir = change_dir(root, &record.id);
-        prepared.push((record_dir.join("state.json"), json_content(&record)?));
-        prepared.push((
-            record_dir.join("change.md"),
-            change_markdown_content(&record),
-        ));
-        prepared.push((
-            record_dir.join("approvals.json"),
-            json_content(&ApprovalLedger::default())?,
-        ));
+        collect_file(record_dir.join("state.json"), json_content(&record)?);
+        collect_file(record_dir.join("change.md"), change_markdown_content(&record));
+        collect_file(record_dir.join("approvals.json"), json_content(&ApprovalLedger::default())?);
         for artifact in &record.selected_artifacts {
-            prepared.push((
-                record_dir.join(artifact.file_name()),
-                artifact_template(root, artifact, &record),
-            ));
+            collect_file(record_dir.join(artifact.file_name()), artifact_template(root, artifact, &record));
         }
         let destination = change_dir(root, &record.id).join("imported");
-        prepare_markdown_files(root, &entry_path, &destination, &mut prepared)?;
+        prepare_markdown_files(root, &entry_path, &destination, &mut collect_file)?;
         known_descriptions.insert(description);
     }
-    Ok(prepared)
+    Ok(())
 }
 
 fn foreign_change_directories(
@@ -2704,7 +2698,7 @@ fn prepare_markdown_files(
     project_root: &Path,
     source: &Path,
     destination: &Path,
-    prepared: &mut Vec<(PathBuf, String)>,
+    collect_file: &mut impl FnMut(PathBuf, String),
 ) -> Result<(), String> {
     reject_symlink_components(project_root, source)?;
     let metadata = fs::symlink_metadata(source).map_err(|error| error.to_string())?;
@@ -2734,14 +2728,14 @@ fn prepare_markdown_files(
                 project_root,
                 &path,
                 &destination.join(entry.file_name()),
-                prepared,
+                collect_file,
             )?;
         } else if file_type.is_file()
             && path.extension().and_then(|value| value.to_str()) == Some("md")
         {
             let content = crate::util::read_project_string(project_root, &path, crate::util::MAX_SPEC_FILE_BYTES)
                 .map_err(|error| format!("failed to read foreign Markdown: {error}"))?;
-            prepared.push((destination.join(entry.file_name()), content));
+            collect_file(destination.join(entry.file_name()), content);
         }
     }
     Ok(())

@@ -910,6 +910,132 @@ fn adopt_dry_run_and_import_skip_archive_descendants_but_refuse_active_symlinks(
 }
 
 #[test]
+fn adopt_preview_reads_the_same_bounded_markdown_as_import() {
+    const MAX_SPEC_BYTES: u64 = 8 * 1024 * 1024;
+    for (source, changes, entry_name, canonical, imported_canonical) in [
+        (
+            "openspec",
+            "openspec/changes",
+            "proposal.md",
+            "openspec/specs/identity/spec.md",
+            "imports/openspec/canonical/identity/spec.md",
+        ),
+        (
+            "speckit",
+            "specs",
+            "spec.md",
+            ".specify/memory/constitution.md",
+            "imports/speckit/constitution.md",
+        ),
+    ] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path();
+        let native = root.join(".specsync");
+        let active = root.join(changes).join("active-passkeys");
+        let canonical = root.join(canonical);
+        let nested = active.join("archive/nested.md");
+        let ignored = root.join(changes).join("archive/old-passkeys");
+        for directory in [
+            canonical.parent().unwrap(),
+            nested.parent().unwrap(),
+            &ignored,
+        ] {
+            fs::create_dir_all(directory).unwrap();
+        }
+        fs::write(active.join(entry_name), "# Active passkeys\n").unwrap();
+        fs::write(ignored.join(entry_name), [0xff]).unwrap();
+        fs::File::create(ignored.join("large.md"))
+            .unwrap()
+            .set_len(MAX_SPEC_BYTES + 1)
+            .unwrap();
+        let healthy = "# Imported Markdown\n";
+        fs::write(&canonical, healthy).unwrap();
+        fs::write(&nested, healthy).unwrap();
+
+        let adopt = |dry_run| {
+            let mut command = specsync();
+            command.args([
+                "--root",
+                root.to_str().unwrap(),
+                "change",
+                "adopt",
+                "--source",
+                source,
+            ]);
+            if dry_run {
+                command.arg("--dry-run");
+            }
+            command.output().unwrap()
+        };
+        let assert_no_import = || {
+            for path in [
+                "sdd.json",
+                "import-provenance.json",
+                "adoption-report.json",
+                "changes",
+                "imports",
+            ] {
+                assert!(!native.join(path).exists(), "{source}: created {path}");
+            }
+        };
+        for path in [&canonical, &nested] {
+            for oversized in [false, true] {
+                let expected_error = if oversized {
+                    fs::File::create(path)
+                        .unwrap()
+                        .set_len(MAX_SPEC_BYTES + 1)
+                        .unwrap();
+                    "8388608"
+                } else {
+                    fs::write(path, [0xff]).unwrap();
+                    "valid UTF-8"
+                };
+                let preview = adopt(true);
+                assert_no_import();
+                let actual = adopt(false);
+                assert_no_import();
+                assert_eq!(actual.status.code(), Some(1), "{source}: {actual:?}");
+                assert_eq!(preview.status.code(), Some(1), "{source}: {preview:?}");
+                assert_eq!(
+                    preview.stderr,
+                    actual.stderr,
+                    "{source}: {}",
+                    path.display()
+                );
+                assert!(
+                    String::from_utf8_lossy(&preview.stderr).contains(expected_error),
+                    "{preview:?}"
+                );
+                assert!(preview.stdout.is_empty(), "{preview:?}");
+                fs::write(path, healthy).unwrap();
+            }
+        }
+
+        let preview = adopt(true);
+        assert!(preview.status.success(), "{source}: {preview:?}");
+        assert_no_import();
+        let actual = adopt(false);
+        assert!(actual.status.success(), "{source}: {actual:?}");
+        let mut imports = fs::read_dir(native.join("changes")).unwrap();
+        let imported = imports.next().unwrap().unwrap().path().join("imported");
+        assert!(imports.next().is_none());
+        assert_eq!(
+            fs::read_to_string(imported.join("archive/nested.md")).unwrap(),
+            healthy
+        );
+        assert_eq!(
+            fs::read_to_string(native.join(imported_canonical)).unwrap(),
+            healthy
+        );
+        assert_eq!(fs::read(ignored.join(entry_name)).unwrap(), [0xff]);
+        assert_eq!(
+            fs::metadata(ignored.join("large.md")).unwrap().len(),
+            MAX_SPEC_BYTES + 1
+        );
+    }
+}
+
+#[test]
 fn adopt_existing_4x_project_is_idempotent() {
     let temp = TempDir::new().unwrap();
     let root = temp.path();

@@ -830,3 +830,6 @@ A reopen moves the package out of the archive. The remote default can later rena
 
 @plane z=72 label="Preview the same foreign directories adoption imports (#432)"
 Preview and adoption share the changes-directory scan. Both leave a real top-level archive directory in place without walking inside it, and reject symlinks on the active import paths. Keep the directory entry checks ahead of the archive exclusion so a link named `archive` is still refused.
+
+@plane z=73 label="Preview reads the actual foreign Markdown (#432)"
+Adoption preview traverses the same active and canonical inputs through the same bounded UTF-8 reader as adoption. Discard each prepared preview payload immediately. Keep Markdown under an active change eligible even when one of its nested directories is named archive.

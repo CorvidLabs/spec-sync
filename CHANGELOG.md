@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The `Archive` jobs in `ci.yml` and `trust.yml` check out full history, so the archive gate sees the default branch and never tells a stale copy of a change the remote default already archived to ship; `test-required-ci-gate.py` fails when a job that runs the gate checks out a single commit, and the gate script itself still never fetches (REQ-cmd-change-029, #965).
+
+- The upstream archive lookup reads archive tree entries as bytes, so an unrelated archive package with a non-UTF-8 directory name on the remote default branch no longer makes the lookup answer "cannot tell"; a non-UTF-8 package that does hold this change's record still does (#961). An archive that HEAD's history already holds, including one `change reopen` moved back out of the archive, is no longer reported as remote-only after the remote default branch renames its package (#945).
+
+- After a finalization that stopped between acceptance and the archive move, `specsync change ship-status` reports the accepted change ready to finalize and `specsync change ship` archives it, as the open-task refusal and text status already promised; an accepted change that `change finalize` would refuse to resume is not reported ready (REQ-cmd-change-031, #933).
+
+- `specsync change ship-status` names `change reopen` for an accepted or archived change only when `change reopen` would run: when the change's own accepted evidence is stale. After a commit that changes only an unrelated file, the product-tip stage is done; with stale evidence the product-tip stage and `Next:` name the reopen, never `change check`, which refuses such a change; and an archived change whose `verification.json` cannot be read is told to restore it (REQ-cmd-change-033, #922).
+
 - A `## MODIFIED` delta now replaces the canonical requirement when a fenced example above it quotes the same ID. Headings inside a fenced example also leave the surrounding block intact during matching. If `change check` reports stale approval for an in-flight delta after upgrading, compare the approved delta with the full canonical requirement, edit the delta body, and request fresh approval (#1050).
 
 - A workflow-v2 baseline that was never committed reads as absent in a project directory whose name looks like pathspec magic, not as deleted, because the baseline history probe now reads the path literally (#1074).

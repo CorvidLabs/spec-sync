@@ -3818,6 +3818,163 @@ fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvid
     }
 }
 
+/// What `change reopen` would find in an accepted or archived change's own accepted evidence,
+/// asked read-only of the validator that judges accepted and archived inputs (#922).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum OwnAcceptedEvidence {
+    /// Exact, successor-covered or historically reconciled: `change reopen` refuses.
+    Current,
+    /// An input of the change's own changed and nothing covers it: `change reopen` accepts.
+    Stale,
+    /// The current delivery evidence cannot be reopened in this checkout.
+    ReopenUnavailable(String),
+    /// Reopen rejects an accepted workspace before it reaches delivery input staleness.
+    ReopenBlocked(String),
+    /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
+    Unreadable(String),
+    /// The terminal evidence reads `corrupt-history`: the restore the lifecycle next action names
+    /// recovers it, not a reopen (REQ-change-093).
+    Corrupt,
+}
+
+/// The change's own accepted evidence, as `change reopen` judges it, without writing (#922).
+pub(crate) fn own_accepted_evidence(
+    root: &Path,
+    record: &ChangeRecord,
+) -> Result<OwnAcceptedEvidence, String> {
+    if record.state == ChangeState::Accepted
+        && let Err(reason) = ensure_definition_approval_valid(root, record)
+    {
+        let reason = if reason.contains("definition approval is stale") {
+            format!(
+                "{reason}; run `specsync change approve {} --actor <name>` while the change is still accepted, then reopen",
+                shell_word(&record.id)
+            )
+        } else {
+            reason
+        };
+        return Ok(OwnAcceptedEvidence::ReopenBlocked(reason));
+    }
+    let verification = match load_verification(root, record) {
+        Ok(verification) => verification,
+        Err(error) => return Ok(OwnAcceptedEvidence::Unreadable(error)),
+    };
+    if record.state == ChangeState::Accepted {
+        match accepted_reopen_preflight(root, record, &verification) {
+            Ok(AcceptedReopenPreflight::CanReopen) => return Ok(OwnAcceptedEvidence::Stale),
+            Ok(AcceptedReopenPreflight::Current) => {
+                // Reopen refuses current inputs without consulting siblings. A resumed
+                // finalization still needs the archive mutation's structural roster.
+                list_all_changes_structural(root)?;
+                return Ok(OwnAcceptedEvidence::Current);
+            }
+            Ok(AcceptedReopenPreflight::CheckSuccessors) => {}
+            Err(reason) => return Ok(OwnAcceptedEvidence::ReopenBlocked(reason)),
+        }
+    }
+    // A roster error makes the verdict unavailable. The terminal summary also uses this cached
+    // result, but would otherwise turn the error into a corrupt-history verdict for an archive.
+    let records = list_all_changes_checked(root)?;
+    if record.state == ChangeState::Archived
+        && terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+    {
+        return Ok(OwnAcceptedEvidence::Corrupt);
+    }
+    let mut visiting = BTreeSet::new();
+    let mut memo = AcceptedInputValidationMemo::default();
+    if validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)
+        .is_ok()
+    {
+        return Ok(OwnAcceptedEvidence::Current);
+    }
+
+    // An exact surviving archive tree can authenticate a squash-merged record in place.
+    // Reopen moves the workspace out of the archive before validating its current closing
+    // evidence. That check needs the actual implementation and cannot use the archive fallback.
+    if record.state == ChangeState::Archived
+        && record.workflow_version >= 2
+        && verification.passed
+        && load_approvals(root, record).is_ok_and(|ledger| {
+            latest_terminal_approval(&ledger)
+                .is_some_and(|approval| approval.digest == closing_digest(record, &verification))
+        })
+    {
+        let history = load_finalization(root, record)
+            .and_then(|finalization| finalization_implementation_is_available(root, &finalization));
+        match history {
+            Ok(true) => {}
+            Ok(false) => {
+                return Ok(OwnAcceptedEvidence::ReopenUnavailable(
+                    FINALIZATION_IMPLEMENTATION_MISSING.into(),
+                ));
+            }
+            Err(error) => return Ok(OwnAcceptedEvidence::ReopenUnavailable(error)),
+        }
+    }
+    Ok(OwnAcceptedEvidence::Stale)
+}
+
+enum AcceptedReopenPreflight {
+    CanReopen,
+    Current,
+    CheckSuccessors,
+}
+
+/// The record-local checks of reopen for an active accepted workspace. Only an
+/// anchored closing receipt with drifted inputs can need the successor roster.
+fn accepted_reopen_preflight(
+    root: &Path,
+    record: &ChangeRecord,
+    current: &VerificationRecord,
+) -> Result<AcceptedReopenPreflight, String> {
+    let ledger = load_approvals(root, record)?;
+    let closing = latest_terminal_approval(&ledger)
+        .ok_or("accepted change is missing closing approval (acceptance or finalization)")?;
+    let prior = verification_for_closing_approval(root, record, closing, current)?;
+    if !definition_digest_matches(root, record, &prior.contract_digest)? {
+        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence, or run `specsync change approve` to refresh a drifted definition while accepted".into());
+    }
+    validate_verification_execution_digest(root, record, &prior)?;
+    let expected = prior
+        .acceptance_input_digest
+        .as_deref()
+        .ok_or("accepted change is missing current delivery-input evidence")?;
+    let present = if let Some(manifest) = &prior.acceptance_manifest {
+        let live = acceptance_manifest_with_signed_owners(root, record, &[], manifest)?;
+        acceptance_manifest_digest(&live)?
+    } else {
+        acceptance_input_digest(root, record, &[])?
+    };
+
+    let tip_matches_closing = current.passed && closing.digest == closing_digest(record, current);
+    let anchored = if tip_matches_closing {
+        match authenticate_accepted_evidence_with_anchor(root, record, None) {
+            Ok((_, anchored)) => anchored,
+            Err(reason) if reason == "finalization scoped review does not bind the accepted verification" => {
+                recorded_review_workspace_mismatch_anchor(root, record, current)?;
+                return Ok(AcceptedReopenPreflight::CanReopen);
+            }
+            Err(reason) => return Err(reason),
+        }
+    } else {
+        accepted_evidence_is_anchored(root, record, &prior)
+    };
+    let legacy_unreconstructible = record.workflow_version < 2
+        && prior.acceptance_manifest.is_none()
+        && reconstruct_legacy_acceptance_manifest(root, record, expected).is_err();
+    if !anchored || legacy_unreconstructible {
+        return Ok(AcceptedReopenPreflight::CanReopen);
+    }
+    if present == expected {
+        return Ok(AcceptedReopenPreflight::Current);
+    }
+    if tip_matches_closing {
+        Ok(AcceptedReopenPreflight::CheckSuccessors)
+    } else {
+        Ok(AcceptedReopenPreflight::CanReopen)
+    }
+}
+
 /// Whether an archived change's scoped review is settled by its finalization: finalize required a
 /// current review to archive the change, and the archive still authenticates, so ship-status never
 /// asks for another review of an archived change, which `change review` refuses (#1038).
@@ -5394,12 +5551,25 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
     let Ok(archive_root) = git_repo_relative_path(root, ARCHIVE_PATH) else {
         return Some(cannot_tell());
     };
-    let Some(state_paths) = archived_state_paths_for(root, &reference, &archive_root, &record.id)
+    let Some(state_records) = archived_state_paths_for(root, &reference, &archive_root, &record.id)
     else {
         return Some(cannot_tell());
     };
+    // An archived record does not change when its package directory is renamed, so HEAD's history
+    // holding the same `state.json` blob under the archive root is HEAD containing this archive,
+    // whatever the remote default did to its path afterwards (#945). History, not HEAD's tree: a
+    // real `change reopen` moves the package back to `.specsync/changes/`, so the tree no longer
+    // holds the archive that HEAD's history added (the tester's run on f740d0a2).
     let mut unreadable = false;
-    for state_path in state_paths {
+    for (state_path, object) in state_records {
+        match archive_object_in_head_history(root, &archive_root, &object) {
+            Some(true) => continue,
+            Some(false) => {}
+            None => {
+                unreadable = true;
+                continue;
+            }
+        }
         match upstream_addition_outside_head(root, &reference, &state_path) {
             Some(Some(commit)) => {
                 return Some(UpstreamArchive::Archived {
@@ -5412,6 +5582,28 @@ pub(crate) fn upstream_archive_of(root: &Path, record: &ChangeRecord) -> Option<
         }
     }
     unreadable.then(cannot_tell)
+}
+
+/// Whether a commit reachable from `HEAD` held this blob as an archived package's state.
+/// The package may have changed names. Copies in other files do not establish containment.
+/// `None` means Git could not determine the answer (REQ-change-142).
+fn archive_object_in_head_history(root: &Path, archive_root: &str, object: &str) -> Option<bool> {
+    let find_object = format!("--find-object={object}");
+    let pathspec = format!(":(top,glob){}/*/state.json", escape_glob_pathspec(archive_root));
+    let found = git_output_allow_empty(
+        root,
+        &[
+            "log",
+            "-1",
+            "--format=%H",
+            "--no-renames",
+            find_object.as_str(),
+            "HEAD",
+            "--",
+            pathspec.as_str(),
+        ],
+    )?;
+    Some(!found.trim().is_empty())
 }
 
 /// The commit on `reference` that added `state_path`, when `HEAD` does not contain it:
@@ -5445,19 +5637,22 @@ fn upstream_addition_outside_head(
     Some(Some(commit))
 }
 
-/// The `state.json` paths under `archive_root` at `reference` whose record carries `id`.
+/// The `state.json` paths under `archive_root` at `reference` whose record carries `id`, each with
+/// its blob id.
 ///
 /// Packages are matched by the id inside `state.json`, as `find_change_dir` does, so a renamed or
 /// undated package counts (REQ-change-139). `None` means Git could not list or read them (a failed or
 /// truncated listing or batch, or a record it did not return), which the caller reports as
 /// cannot-tell (REQ-change-142). Two Git processes however many packages there are:
-/// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes.
+/// one `ls-tree -r` for the blob ids and one `cat-file --batch` for their bytes. Entries are read as
+/// bytes, so an unrelated package whose name is not UTF-8 is skipped rather than ending the lookup;
+/// one that does hold this change's record still cannot be told (#961).
 fn archived_state_paths_for(
     root: &Path,
     reference: &str,
     archive_root: &str,
     id: &str,
-) -> Option<Vec<String>> {
+) -> Option<Vec<(String, String)>> {
     let listing = run_git_bounded(
         root,
         &[
@@ -5476,27 +5671,7 @@ fn archived_state_paths_for(
     if !listing.status.success() {
         return None;
     }
-    let prefix = format!("{archive_root}/");
-    let mut candidates = Vec::new();
-    for entry in listing.stdout.split(|byte| *byte == 0) {
-        let entry = std::str::from_utf8(entry).ok()?;
-        let Some((meta, path)) = entry.split_once('\t') else {
-            continue;
-        };
-        let Some(package) = path
-            .strip_prefix(&prefix)
-            .and_then(|rest| rest.strip_suffix("/state.json"))
-        else {
-            continue;
-        };
-        if package.is_empty() || package.contains('/') {
-            continue;
-        }
-        let mut fields = meta.split(' ');
-        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
-            candidates.push((object.to_string(), path.to_string()));
-        }
-    }
+    let candidates = archived_state_entries(&listing.stdout, archive_root);
     if candidates.is_empty() {
         return Some(Vec::new());
     }
@@ -5517,17 +5692,52 @@ fn archived_state_paths_for(
     }
     let mut rest = batch.stdout.as_slice();
     let mut matches = Vec::new();
-    for (_, path) in &candidates {
+    for (object, path) in &candidates {
         let header_end = rest.iter().position(|byte| *byte == b'\n')?;
         let header = std::str::from_utf8(&rest[..header_end]).ok()?;
         let size: usize = header.rsplit(' ').next()?.parse().ok()?;
         let body = rest.get(header_end + 1..header_end + 1 + size)?;
         rest = rest.get(header_end + 1 + size + 1..).unwrap_or_default();
         if archived_record_id(body)? == id {
-            matches.push(path.clone());
+            // A package of this change whose path is not UTF-8 cannot be handed to the history
+            // queries that follow, so the lookup cannot tell (#961).
+            matches.push((path.clone()?, object.clone()));
         }
     }
     Some(matches)
+}
+
+/// The `(blob id, path)` of every `<archive_root>/<package>/state.json` blob in a `ls-tree -r -z`
+/// listing, read as bytes. The path is `None` when it is not UTF-8 (#961).
+fn archived_state_entries(listing: &[u8], archive_root: &str) -> Vec<(String, Option<String>)> {
+    let prefix = format!("{archive_root}/");
+    let mut entries = Vec::new();
+    for entry in listing.split(|byte| *byte == 0) {
+        let Some(tab) = entry.iter().position(|byte| *byte == b'\t') else {
+            continue;
+        };
+        let (meta, path) = (&entry[..tab], &entry[tab + 1..]);
+        let Some(package) = path
+            .strip_prefix(prefix.as_bytes())
+            .and_then(|rest| rest.strip_suffix(b"/state.json"))
+        else {
+            continue;
+        };
+        if package.is_empty() || package.contains(&b'/') {
+            continue;
+        }
+        let Ok(meta) = std::str::from_utf8(meta) else {
+            continue;
+        };
+        let mut fields = meta.split(' ');
+        if let (Some(_mode), Some("blob"), Some(object)) = (fields.next(), fields.next(), fields.next()) {
+            entries.push((
+                object.to_string(),
+                std::str::from_utf8(path).ok().map(str::to_string),
+            ));
+        }
+    }
+    entries
 }
 
 /// The `id` an archived `state.json` carries: from the change record, or, for a record this

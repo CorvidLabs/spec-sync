@@ -1,0 +1,326 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795098565,
+      "digest": "ead79c0a688ee2c09265f348f49e11259ada01176f720205828b5f2d6c43b072",
+      "note": "Approved by 0xLeif at the Chough gate \"Approve the scope of finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold\": \"Approve as written\" (Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md (the requirements REQ-change-166 and REQ-cmd-change-041, the six change criteria and the choices in its section 6), its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-19T14:29:23Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+        "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change_tests.rs",
+          "src/change_tests/committed_approvals.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+          "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed by `change repair-relays` in an approval or in the approval a reopening embeds, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know.",
+          "The usual flow, approve, `check --commit`, review and finalize, archives as before.",
+          "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a change deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know.",
+          "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+          "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "4b621b11a61b7ad61680efb66f9690fb6c49b259f6e090818694eb63a8b0e7d8",
+        "cmd_change": "547111737f05c3ec168a821b6ec6481b3d6fea5fe26d9751da07545ff455096b"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "Approve as written",
+        "where": "Claude Code chat with his planning session (hc t4c), 2026-11-19 about 14:17Z, on the frozen ss-lead/gates/428-definition.md (the requirements REQ-change-166 and REQ-cmd-change-041, the six change criteria and the choices in its section 6), its intent sentences shown to him as the builder's draft; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795146795,
+      "digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of #428's option 3, its two reworded sentences and its three declared test files (relayed by hc t4c through ss-lead t58)\": \"\"All as recommended\" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; \"yes to all 3\" for the three test files\" (Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md (the older check's new message, REQ-change-166's new fourth criterion, the change's new second criterion and the added path src/change/validate_loaded_change.rs), with the builder running the send-back; relayed through ss-lead (hc t58). The two sentences (REQ-change-166's still-finalizes criterion and the change's third criterion): a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to these exact texts on 2026-11-19; these are not his words about these texts. The three test files: his one-time yes, \"yes to all 3\", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-20T03:53:12Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+        "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/committed_approvals.rs",
+          "src/change_tests/recorded_review_recovery.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+          "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed in an approval, as `change repair-relays` does, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know. A relay restored or removed in the approval a reopening embeds still finalizes too.",
+          "The usual flow, approve, `check --commit`, review and finalize, archives as before.",
+          "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a ledger deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know. A whole workspace deleted and created again is refused before that, by the workflow-version history.",
+          "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+          "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "1b672ae5d92d9bb0743a784ac7c0c74843945e7cd48a0791868968c16af3e140",
+        "cmd_change": "547111737f05c3ec168a821b6ec6481b3d6fea5fe26d9751da07545ff455096b"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"All as recommended\" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; \"yes to all 3\" for the three test files",
+        "where": "Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md (the older check's new message, REQ-change-166's new fourth criterion, the change's new second criterion and the added path src/change/validate_loaded_change.rs), with the builder running the send-back; relayed through ss-lead (hc t58). The two sentences (REQ-change-166's still-finalizes criterion and the change's third criterion): a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z through ss-lead (hc t58): (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to these exact texts on 2026-11-19; these are not his words about these texts. The three test files: his one-time yes, \"yes to all 3\", in a Claude Code chat message to his planning session (hc t4c) on 2026-11-20 at about 01:00Z, answering item 1, '#1104 and #428 edit four test files their scope doesn't list. May the builder add those paths in the send-backs already planned? No wording or behaviour changes.'; relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795184146,
+      "digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "note": "Approved by 0xLeif at the Chough gate \"Leif's relayed approval of #428's option 3, its two reworded sentences, its three declared test files and the check --commit refusal (relayed by hc t4c through ss-lead t58)\": \"\"Yes (Recommended)\" for the check --commit refusal; \"All as recommended\" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; \"yes to all 3\" for the three test files\" (The check --commit refusal: a question dialog in his planning session (hc t4c), 2026-11-20 about 14:13Z, on ss-lead/gates/428-check-commit-addition-draft.md, asked as 'SpecSync #428 (PR #1120), one new refusal. ... Add: change check --commit refuses to commit a record whose working copy rewrites a committed one, and names the restore git checkout HEAD -- <path>. Add it?'; it adds to REQ-change-166 exactly the draft's sentence and criterion, with the builder running the send-back. Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md. The two sentences: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z: (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to those exact texts on 2026-11-19; not his words about these texts. The three test files: his one-time 'yes to all 3', Claude Code chat to his planning session (hc t4c), 2026-11-20 about 01:00Z. All relayed by hc t4c through ss-lead (hc t58)). Relayed and recorded by claude-code-t59 at 2026-11-20T14:15:44Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+        "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/committed_approvals.rs",
+          "src/change_tests/recorded_review_recovery.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+          "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed in an approval, as `change repair-relays` does, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know. A relay restored or removed in the approval a reopening embeds still finalizes too.",
+          "The usual flow, approve, `check --commit`, review and finalize, archives as before.",
+          "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a ledger deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know. A whole workspace deleted and created again is refused before that, by the workflow-version history.",
+          "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+          "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7ad83dcef9e668433bce135afa0bc56f9c1b572656796ec398eb97a3dbfcd01b",
+        "cmd_change": "547111737f05c3ec168a821b6ec6481b3d6fea5fe26d9751da07545ff455096b"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "\"Yes (Recommended)\" for the check --commit refusal; \"All as recommended\" for option 3; Leif's six rules, rule 6 (a) and (c), for the two sentences; \"yes to all 3\" for the three test files",
+        "where": "The check --commit refusal: a question dialog in his planning session (hc t4c), 2026-11-20 about 14:13Z, on ss-lead/gates/428-check-commit-addition-draft.md, asked as 'SpecSync #428 (PR #1120), one new refusal. ... Add: change check --commit refuses to commit a record whose working copy rewrites a committed one, and names the restore git checkout HEAD -- <path>. Add it?'; it adds to REQ-change-166 exactly the draft's sentence and criterion, with the builder running the send-back. Option 3: Claude Code chat with his planning session (hc t4c), 2026-11-19 about 19:43Z, on the frozen ss-lead/gates/428-criterion4.md. The two sentences: a standing OK in Leif's six rules, relayed by hc t4c on 2026-11-19 at about 14:35Z: (a) a wording fix that only makes an approved sentence match tested code, and (c) the send-back it needs; applied by ss-lead to those exact texts on 2026-11-19; not his words about these texts. The three test files: his one-time 'yes to all 3', Claude Code chat to his planning session (hc t4c), 2026-11-20 about 01:00Z. All relayed by hc t4c through ss-lead (hc t58)",
+        "recorded_by": "claude-code-t59"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795477968,
+      "digest": "fe0a9dd295d1ff8b30636111c160364dddd18064db6c27cd7774a1e276424e47",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+        "title": "Finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "description": "finalize, ship and archive refuse an approvals ledger that Git history does not hold",
+        "kind": "feature",
+        "affected_specs": [
+          "change",
+          "cmd_change"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "site/src/content/docs/",
+          "specs/change/",
+          "specs/cmd_change/",
+          "src/change/consider_accepted_evidence_anchor.rs",
+          "src/change/historical_definition_digest_matches.rs",
+          "src/change/validate_loaded_change.rs",
+          "src/change_tests.rs",
+          "src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs",
+          "src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs",
+          "src/change_tests/committed_approvals.rs",
+          "src/change_tests/recorded_review_recovery.rs",
+          "src/commands/change.rs",
+          "tests/integration.rs",
+          "tests/integration/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "An accepted change archives with the closing records its accepting step wrote and has not committed, and no other uncommitted approval.",
+          "Every rewrite the tool itself makes still finalizes: a reopen, a send-back and fresh approval, a relay restored or removed in an approval, as `change repair-relays` does, the reopening members `specsync migrate 5.0` backfills, and a ledger member this version does not know. A relay restored or removed in the approval a reopening embeds still finalizes too.",
+          "The usual flow, approve, `check --commit`, review and finalize, archives as before.",
+          "They refuse when a committed version of the ledger rewrites or drops an earlier approval, reopening or send-back, naming the commit that did it, the commit before it and the record; that covers a ledger deleted and created again under the same id, and a record an older SpecSync rewrote without a member it did not know. A whole workspace deleted and created again is refused before that, by the workflow-version history.",
+          "`change finalize`, `change ship` and `change archive` refuse, writing nothing, a change whose `approvals.json` is not committed at `HEAD` or differs from the committed version, naming the file and the way out: the commit when the working copy only adds records, the restore when it changes a committed one.",
+          "`change ship-status` lists the refusal as a blocker and does not report the change ready, and `change ship --dry-run` refuses with it."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "CHANGE-16 to CHANGE-16.c and Leif's choice 'Every committed version' (2026-11-13); REQ-change-relay-repair-001: repair-relays restores or removes relays, so relayed_by is not compared, in an approval and in a reopening's embedded approval; the change lesson that one rule kept in two places drifts, so the comparison reuses the #660 relay-blind projection; the change lesson that a printed recovery command must run as printed, so each way out is a command that does what the refusal says; #1044: lifecycle rewrites keep members they do not know, so a newer top-level member is not a rewrite",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "change": "7ad83dcef9e668433bce135afa0bc56f9c1b572656796ec398eb97a3dbfcd01b",
+        "cmd_change": "f60b39839d7bd0387219690d74d77b5506b9d2975207e335b9e0b594954d4b59"
+      },
+      "approved_delta_bases": {},
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "SpecSync 6.4.2 release conversation on 2026-11-23, in response to the two permanent-ID renewal proposals linked in the remaining-PR review question.",
+        "recorded_by": "Codex"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795478932,
+      "digest": "3a6b783fb990a83fa9ad43f243282448374c5815adc313b2fb84ea682bf9d148",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": [],
+  "send_backs": [
+    {
+      "schema_version": 1,
+      "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+      "actor": "0xLeif",
+      "reason": "Option 3: the older check's refusal of a workspace deleted and created again names the commit and the two ways out, REQ-change-166's fourth criterion and the change's second criterion say so, and src/change/validate_loaded_change.rs joins the scope (run by the builder on Leif's relayed word, via t4c, 2026-11-19); REQ-change-166's still-finalizes criterion and the change's third criterion say what the tests show for the superseded_approval of a reopening (standing OK, relayed via t4c); and the change declares the three existing tests it edits, src/change_tests/approve_rejects_a_declared_path_owned_by_an_undeclared_module.rs, src/change_tests/archive_post_move_failure_restores_exact_source_bytes_without_residue.rs and src/change_tests/recorded_review_recovery.rs (Leif's one-time yes, relayed via t4c)",
+      "timestamp": 1795146735,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 1,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-166",
+          "content": "`change finalize`, `change ship` and `change archive` SHALL archive only an approvals ledger that Git history holds. Before any of them writes, the change's `approvals.json` SHALL be committed at `HEAD` and the working copy SHALL equal that committed version. For a change that is already `accepted`, the working copy MAY add, after the records committed at `HEAD`, only the closing records its accepting step wrote and has not committed: the one `finalization` approval of a finalization that stopped before the archive move, or the `acceptance` approval of `change accept` and the normalizing `definition` approval it may write before it. Every committed version of the ledger along the first-parent history of `HEAD` SHALL extend the version committed before it: each record of `approvals`, `reopenings` and `send_backs` SHALL stay at its position, unchanged. Two differences SHALL NOT count as a change: the `relayed_by` of an approval, whether that approval is a record of `approvals` or the `superseded_approval` a record of `reopenings` embeds, which `change repair-relays` restores or removes; and the `stale_acceptance_input_digest` and `current_acceptance_input_digest` members `specsync migrate 5.0` adds to a reopening that lacked them. A commit that removed the ledger, as an archive move removes it, SHALL be skipped, so the version committed after it is compared with the last one committed before it; a change that was removed and created again under the same id, other than by an archive and a reopen, therefore SHALL be refused. Members of the ledger other than those three lists SHALL NOT be compared. A refusal SHALL be made before anything is written and SHALL name the file and the way out. When the working copy only adds records to the version at `HEAD`, or the file is not committed at all, the way out is to commit it, which `specsync change check <id> --commit` does. When the working copy changes or drops a committed record, it is `git checkout HEAD -- <path>`. For a committed rewrite, the refusal SHALL name the commit that made it, the commit it rewrote and the record; and because a commit already in history cannot be made to extend the one before it, it SHALL say the two ways out: take the rewriting commit out of the branch's history, or make the change again under a new id.\n\nAcceptance Criteria\n- After review, with one approval's actor rewritten in the working tree, `change finalize` and `change ship` refuse, name `approvals.json`, `HEAD` and the restore, and archive nothing; restoring the file lets the same command archive.\n- With that rewrite committed before verification and review, they refuse and name the commit that rewrote the ledger; a dropped approval, a rewritten reopening and a dropped send-back are refused the same way.\n- A ledger that was never committed is refused, and so is one whose working copy only adds records the tool wrote, as after `change reopen` and a plain `change check` with nothing committed; both name the commit as the way out, never the restore, which would drop those records.\n- A change whose workspace was deleted in one commit and created again under the same id in a later one is refused, naming the commit that last held the earlier ledger and the two ways out. A change reopened out of its archive is not: its ledger extends the last one committed before the archive move.\n- A committed version in which an older SpecSync dropped a member of an earlier record is refused like any other rewrite, with the same two ways out; a dropped `relayed_by`, the member 6.2.0 and older are known to drop, is not compared and passes, in an approval and in the approval a reopening embeds.\n- Each of these still finalizes: a change reopened and verified again; a change sent back and approved again; a relay committed and then removed, and one restored, as `change repair-relays` does, in an approval and in the `superseded_approval` of a reopening; a reopening that gains the two digest members `specsync migrate 5.0` adds; and a ledger that gains a member this version does not know.\n- An accepted change archives with the closing records `change accept` wrote and has not committed, and a finalization that stopped after acceptance resumes; an accepted change whose working copy adds any other approval, or changes a committed one, is refused.\n- A rewrite made on a branch that was merged in is refused at the merge commit that brought it onto the first-parent history.\n- The usual flow (approve, `check --commit`, review, finalize) archives as before."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-041",
+          "content": "`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.\n\nAcceptance Criteria\n- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.\n- With the file restored, `ready_to_finalize` is true again."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    },
+    {
+      "schema_version": 1,
+      "change_id": "finalize-ship-and-archive-refuse-an-approvals-ledger-that-git-history-does-not-hold",
+      "actor": "0xLeif",
+      "reason": "REQ-change-166 adds that change check --commit refuses, before writing anything, to commit a ledger whose working copy changes or drops a committed record, naming the same restore, with its criterion (run by the builder on Leif's relayed word, via t4c, 2026-11-20)",
+      "timestamp": 1795184114,
+      "from_state": "verifying",
+      "to_state": "draft",
+      "cancelled_approvals": 2,
+      "cancelled_review_attempts": 0,
+      "canonical_applied": true,
+      "applied_items": [
+        {
+          "module": "change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-change-166",
+          "content": "`change finalize`, `change ship` and `change archive` SHALL archive only an approvals ledger that Git history holds. Before any of them writes, the change's `approvals.json` SHALL be committed at `HEAD` and the working copy SHALL equal that committed version. For a change that is already `accepted`, the working copy MAY add, after the records committed at `HEAD`, only the closing records its accepting step wrote and has not committed: the one `finalization` approval of a finalization that stopped before the archive move, or the `acceptance` approval of `change accept` and the normalizing `definition` approval it may write before it. Every committed version of the ledger along the first-parent history of `HEAD` SHALL extend the version committed before it: each record of `approvals`, `reopenings` and `send_backs` SHALL stay at its position, unchanged. Two differences SHALL NOT count as a change: the `relayed_by` of an approval, whether that approval is a record of `approvals` or the `superseded_approval` a record of `reopenings` embeds, which `change repair-relays` restores or removes; and the `stale_acceptance_input_digest` and `current_acceptance_input_digest` members `specsync migrate 5.0` adds to a reopening that lacked them. A commit that removed the ledger, as an archive move removes it, SHALL be skipped, so the version committed after it is compared with the last one committed before it; a change that was removed and created again under the same id, other than by an archive and a reopen, therefore SHALL be refused. Members of the ledger other than those three lists SHALL NOT be compared. A refusal SHALL be made before anything is written and SHALL name the file and the way out. When the working copy only adds records to the version at `HEAD`, or the file is not committed at all, the way out is to commit it, which `specsync change check <id> --commit` does. When the working copy changes or drops a committed record, it is `git checkout HEAD -- <path>`. For a committed rewrite, the refusal SHALL name the commit that made it, the commit it rewrote and the record; and because a commit already in history cannot be made to extend the one before it, it SHALL say the two ways out: take the rewriting commit out of the branch's history, or make the change again under a new id.\n\nAcceptance Criteria\n- After review, with one approval's actor rewritten in the working tree, `change finalize` and `change ship` refuse, name `approvals.json`, `HEAD` and the restore, and archive nothing; restoring the file lets the same command archive.\n- With that rewrite committed before verification and review, they refuse and name the commit that rewrote the ledger; a dropped approval, a rewritten reopening and a dropped send-back are refused the same way.\n- A ledger that was never committed is refused, and so is one whose working copy only adds records the tool wrote, as after `change reopen` and a plain `change check` with nothing committed; both name the commit as the way out, never the restore, which would drop those records.\n- A change whose workspace was deleted in one commit and created again under the same id in a later one is refused as the change loads, by the workflow-version history, naming the commit that removed the workspace and the two ways out. A change whose `approvals.json` alone was deleted and created again is refused by this check, naming the commit that last held the earlier ledger and the two ways out. A change reopened out of its archive is not refused: its ledger extends the last one committed before the archive move.\n- A committed version in which an older SpecSync dropped a member of an earlier record is refused like any other rewrite, with the same two ways out; a dropped `relayed_by`, the member 6.2.0 and older are known to drop, is not compared and passes, in an approval and in the approval a reopening embeds.\n- Each of these still finalizes: a change reopened and verified again; a change sent back and approved again; a relay committed and then removed, and one restored, as `change repair-relays` does for an approval, and the same two edits in the `superseded_approval` of a reopening; a reopening that gains the two digest members `specsync migrate 5.0` adds; and a ledger that gains a member this version does not know.\n- An accepted change archives with the closing records `change accept` wrote and has not committed, and a finalization that stopped after acceptance resumes; an accepted change whose working copy adds any other approval, or changes a committed one, is refused.\n- A rewrite made on a branch that was merged in is refused at the merge commit that brought it onto the first-parent history.\n- The usual flow (approve, `check --commit`, review, finalize) archives as before."
+        },
+        {
+          "module": "cmd_change",
+          "operation": "added",
+          "target": "requirement",
+          "key": "REQ-cmd-change-041",
+          "content": "`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.\n\nAcceptance Criteria\n- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.\n- With the file restored, `ready_to_finalize` is true again."
+        }
+      ],
+      "applied_modules": [
+        "change",
+        "cmd_change"
+      ]
+    }
+  ]
+}

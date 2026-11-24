@@ -1751,9 +1751,12 @@ fn ship_status_report_with_lost_requirements(
             ChangeState::Verifying => {
                 verification_present && verification_current && review_status.current()
             }
-            // #933: an accepted change is ready when `change finalize` would resume it, by the
-            // check finalize itself makes before it resumes (REQ-cmd-change-031).
-            ChangeState::Accepted => change::finalization_would_resume(root, record).is_ok(),
+            // #933: resuming finalization needs both current delivery inputs and a matching
+            // recorded finalization (REQ-cmd-change-031).
+            ChangeState::Accepted => {
+                own_evidence == Some(change::OwnAcceptedEvidence::Current)
+                    && change::finalization_would_resume(root, record).is_ok()
+            }
             _ => false,
         };
 
@@ -2410,6 +2413,9 @@ fn own_evidence_step(
         change::OwnAcceptedEvidence::ReopenUnavailable(reason) => Some(format!(
             "reopen is unavailable: {reason}; use a checkout that retains the original implementation history"
         )),
+        change::OwnAcceptedEvidence::ReopenBlocked(reason) => {
+            Some(format!("reopen is unavailable: {reason}"))
+        }
         change::OwnAcceptedEvidence::Unreadable(_) => Some(format!(
             "`{verification_display}` cannot be read; restore it from Git history, then run `specsync change ship-status {}`",
             record.id

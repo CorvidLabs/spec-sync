@@ -3828,6 +3828,8 @@ pub(crate) enum OwnAcceptedEvidence {
     Stale,
     /// The current delivery evidence cannot be reopened in this checkout.
     ReopenUnavailable(String),
+    /// Reopen rejects an accepted workspace before it reaches delivery input staleness.
+    ReopenBlocked(String),
     /// `verification.json` cannot be loaded, so neither this nor `change reopen` can judge it.
     Unreadable(String),
     /// The terminal evidence reads `corrupt-history`: the restore the lifecycle next action names
@@ -3840,14 +3842,41 @@ pub(crate) fn own_accepted_evidence(
     root: &Path,
     record: &ChangeRecord,
 ) -> Result<OwnAcceptedEvidence, String> {
+    if record.state == ChangeState::Accepted
+        && let Err(reason) = ensure_definition_approval_valid(root, record)
+    {
+        let reason = if reason.contains("definition approval is stale") {
+            format!(
+                "{reason}; run `specsync change approve {} --actor <name>` while the change is still accepted, then reopen",
+                shell_word(&record.id)
+            )
+        } else {
+            reason
+        };
+        return Ok(OwnAcceptedEvidence::ReopenBlocked(reason));
+    }
     let verification = match load_verification(root, record) {
         Ok(verification) => verification,
         Err(error) => return Ok(OwnAcceptedEvidence::Unreadable(error)),
     };
+    if record.state == ChangeState::Accepted {
+        match accepted_reopen_preflight(root, record, &verification) {
+            Ok(AcceptedReopenPreflight::CanReopen) => return Ok(OwnAcceptedEvidence::Stale),
+            Ok(AcceptedReopenPreflight::Current) => {
+                // Reopen refuses current inputs without consulting siblings. A resumed
+                // finalization still needs the archive mutation's structural roster.
+                list_all_changes_structural(root)?;
+                return Ok(OwnAcceptedEvidence::Current);
+            }
+            Ok(AcceptedReopenPreflight::CheckSuccessors) => {}
+            Err(reason) => return Ok(OwnAcceptedEvidence::ReopenBlocked(reason)),
+        }
+    }
     // A roster error makes the verdict unavailable. The terminal summary also uses this cached
     // result, but would otherwise turn the error into a corrupt-history verdict for an archive.
     let records = list_all_changes_checked(root)?;
-    if terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+    if record.state == ChangeState::Archived
+        && terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
     {
         return Ok(OwnAcceptedEvidence::Corrupt);
     }
@@ -3862,7 +3891,8 @@ pub(crate) fn own_accepted_evidence(
     // An exact surviving archive tree can authenticate a squash-merged record in place.
     // Reopen moves the workspace out of the archive before validating its current closing
     // evidence. That check needs the actual implementation and cannot use the archive fallback.
-    if record.workflow_version >= 2
+    if record.state == ChangeState::Archived
+        && record.workflow_version >= 2
         && verification.passed
         && load_approvals(root, record).is_ok_and(|ledger| {
             latest_terminal_approval(&ledger)
@@ -3882,6 +3912,67 @@ pub(crate) fn own_accepted_evidence(
         }
     }
     Ok(OwnAcceptedEvidence::Stale)
+}
+
+enum AcceptedReopenPreflight {
+    CanReopen,
+    Current,
+    CheckSuccessors,
+}
+
+/// The record-local checks of reopen for an active accepted workspace. Only an
+/// anchored closing receipt with drifted inputs can need the successor roster.
+fn accepted_reopen_preflight(
+    root: &Path,
+    record: &ChangeRecord,
+    current: &VerificationRecord,
+) -> Result<AcceptedReopenPreflight, String> {
+    let ledger = load_approvals(root, record)?;
+    let closing = latest_terminal_approval(&ledger)
+        .ok_or("accepted change is missing closing approval (acceptance or finalization)")?;
+    let prior = verification_for_closing_approval(root, record, closing, current)?;
+    if !definition_digest_matches(root, record, &prior.contract_digest)? {
+        return Err("accepted change verification contract is stale; restore the accepted definition before reopening delivery evidence, or run `specsync change approve` to refresh a drifted definition while accepted".into());
+    }
+    validate_verification_execution_digest(root, record, &prior)?;
+    let expected = prior
+        .acceptance_input_digest
+        .as_deref()
+        .ok_or("accepted change is missing current delivery-input evidence")?;
+    let present = if let Some(manifest) = &prior.acceptance_manifest {
+        let live = acceptance_manifest_with_signed_owners(root, record, &[], manifest)?;
+        acceptance_manifest_digest(&live)?
+    } else {
+        acceptance_input_digest(root, record, &[])?
+    };
+
+    let tip_matches_closing = current.passed && closing.digest == closing_digest(record, current);
+    let anchored = if tip_matches_closing {
+        match authenticate_accepted_evidence_with_anchor(root, record, None) {
+            Ok((_, anchored)) => anchored,
+            Err(reason) if reason == "finalization scoped review does not bind the accepted verification" => {
+                recorded_review_workspace_mismatch_anchor(root, record, current)?;
+                return Ok(AcceptedReopenPreflight::CanReopen);
+            }
+            Err(reason) => return Err(reason),
+        }
+    } else {
+        accepted_evidence_is_anchored(root, record, &prior)
+    };
+    let legacy_unreconstructible = record.workflow_version < 2
+        && prior.acceptance_manifest.is_none()
+        && reconstruct_legacy_acceptance_manifest(root, record, expected).is_err();
+    if !anchored || legacy_unreconstructible {
+        return Ok(AcceptedReopenPreflight::CanReopen);
+    }
+    if present == expected {
+        return Ok(AcceptedReopenPreflight::Current);
+    }
+    if tip_matches_closing {
+        Ok(AcceptedReopenPreflight::CheckSuccessors)
+    } else {
+        Ok(AcceptedReopenPreflight::CanReopen)
+    }
 }
 
 /// Whether an archived change's scoped review is settled by its finalization: finalize required a

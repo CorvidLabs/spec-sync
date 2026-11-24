@@ -392,7 +392,27 @@ fn utc_today() -> String {
 /// and `change ship` archives it.
 #[test]
 fn change_ship_finishes_a_finalization_that_stopped_before_the_archive_move() {
-    let (_temp, root) = reviewed_project();
+    let (_temp, root) = interrupted_project();
+    let report = ship_status(&root);
+    assert_eq!(report["ready_to_finalize"], true, "{report}");
+    assert!(
+        report["ship_next"]
+            .as_str()
+            .unwrap_or_default()
+            .contains(&format!("specsync change ship {ID}")),
+        "{report}"
+    );
+    let blocked = add_unreadable_retirement(&root);
+    assert_finalization_refuses_unreadable_sibling(&root);
+
+    fs::remove_dir_all(blocked).unwrap();
+    assert_eq!(ship_status(&root)["ready_to_finalize"], true);
+    run_ok(&root, &["change", "ship", ID]);
+    assert_eq!(state(&root), "archived");
+}
+
+fn interrupted_project() -> (TempDir, PathBuf) {
+    let (temp, root) = reviewed_project();
     let blocking = root
         .join(".specsync/archive/changes")
         .join(format!("{}-{ID}", utc_today()));
@@ -411,16 +431,10 @@ fn change_ship_finishes_a_finalization_that_stopped_before_the_archive_move() {
             .join("finalization.json")
             .is_file()
     );
+    (temp, root)
+}
 
-    let report = ship_status(&root);
-    assert_eq!(report["ready_to_finalize"], true, "{report}");
-    assert!(
-        report["ship_next"]
-            .as_str()
-            .unwrap_or_default()
-            .contains(&format!("specsync change ship {ID}")),
-        "{report}"
-    );
+fn add_unreadable_retirement(root: &Path) -> PathBuf {
     let blocked = root
         .join(".specsync/archive/changes")
         .join(format!("{}-broken-retirement", utc_today()));
@@ -437,13 +451,16 @@ fn change_ship_finishes_a_finalization_that_stopped_before_the_archive_move() {
         serde_json::to_vec(&sibling).unwrap(),
     )
     .unwrap();
+    blocked
+}
 
-    let (finalized, refusal) = run(&root, &["change", "finalize", ID]);
+fn assert_finalization_refuses_unreadable_sibling(root: &Path) {
+    let (finalized, refusal) = run(root, &["change", "finalize", ID]);
     assert!(
         !finalized && refusal.contains("retirement.json"),
         "{refusal}"
     );
-    let report = ship_status(&root);
+    let report = ship_status(root);
     assert_eq!(report["ready_to_finalize"], false, "{report}");
     assert!(
         report["blockers"].to_string().contains("retirement.json"),
@@ -463,13 +480,118 @@ fn change_ship_finishes_a_finalization_that_stopped_before_the_archive_move() {
             .contains(&format!("change ship {ID}")),
         "{report}"
     );
-    let (shipped, refusal) = run(&root, &["change", "ship", ID]);
+    let (shipped, refusal) = run(root, &["change", "ship", ID]);
     assert!(!shipped && refusal.contains("retirement.json"), "{refusal}");
+}
 
-    fs::remove_dir_all(blocked).unwrap();
+#[test]
+fn ship_status_names_scope_renewal_before_reopen() {
+    let (_temp, root) = interrupted_project();
+    let workspace = root.join(".specsync/changes").join(ID);
+    let state_path = workspace.join("state.json");
+    let mut change: Value = serde_json::from_slice(&fs::read(&state_path).unwrap()).unwrap();
+    change["affected_paths"]
+        .as_array_mut()
+        .unwrap()
+        .push(Value::from("src/another.rs"));
+    fs::write(state_path, serde_json::to_vec(&change).unwrap()).unwrap();
+    let (reopened, refusal) = reopen(&root);
+    let reason = "scope approval requires renewal";
+    assert!(!reopened && refusal.contains(reason), "{refusal}");
+
+    let report = ship_status(&root);
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    for action in [&report["stages"][0]["action"], &report["ship_next"]] {
+        let action = action.as_str().unwrap();
+        assert!(
+            action.contains(reason) && !action.contains("specsync change reopen"),
+            "{report}"
+        );
+    }
+    assert!(next_line(&root).contains(reason));
+    assert_eq!(state(&root), "accepted");
+}
+
+#[test]
+fn ship_status_reports_a_stale_definition_artifact_before_reopen() {
+    let (_temp, root) = interrupted_project();
+    let testing = root.join(".specsync/changes").join(ID).join("testing.md");
+    let mut content = fs::read_to_string(&testing).unwrap();
+    content.push_str("\nA different testing plan was written after finalization began.\n");
+    fs::write(testing, content).unwrap();
+    let (reopened, refusal) = reopen(&root);
+    let reason = "verification execution/evidence digest is stale";
+    assert!(!reopened && refusal.contains(reason), "{refusal}");
+
+    let report = ship_status(&root);
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    for action in [&report["stages"][0]["action"], &report["ship_next"]] {
+        let action = action.as_str().unwrap();
+        assert!(
+            action.contains(reason) && !action.contains("specsync change reopen"),
+            "{report}"
+        );
+    }
+    assert!(next_line(&root).contains(reason));
+    assert_eq!(state(&root), "accepted");
+}
+
+#[test]
+fn ship_status_refuses_readiness_after_an_accepted_delivery_input_changes() {
+    let (_temp, root) = interrupted_project();
     assert_eq!(ship_status(&root)["ready_to_finalize"], true);
-    run_ok(&root, &["change", "ship", ID]);
-    assert_eq!(state(&root), "archived");
+    commit_file(
+        &root,
+        "src/auth.rs",
+        "// A changed delivery input.\n",
+        "edit accepted source",
+    );
+    let report = ship_status(&root);
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    assert!(
+        report["ship_next"]
+            .as_str()
+            .unwrap()
+            .contains("specsync change reopen"),
+        "{report}"
+    );
+    let (shipped, refusal) = run(&root, &["change", "ship", ID]);
+    assert!(
+        !shipped && (refusal.contains("src/auth.rs") || refusal.contains("change reopen")),
+        "{refusal}"
+    );
+    let (reopened, reason) = reopen(&root);
+    assert!(reopened, "{reason}");
+    assert_eq!(state(&root), "verifying");
+}
+
+#[test]
+fn ship_status_names_reopen_for_unanchored_accepted_evidence_before_loading_siblings() {
+    let (_temp, root) = interrupted_project();
+    git(&root, &["add", "--all"]);
+    git(&root, &["commit", "-qm", "record interrupted acceptance"]);
+    git(&root, &["branch", "fixture-original"]);
+    let base = git(&root, &["rev-list", "--max-parents=0", "HEAD"]);
+    git(&root, &["reset", "--soft", &base]);
+    git(&root, &["commit", "-qm", "squash accepted content"]);
+
+    add_unreadable_retirement(&root);
+    let report = ship_status(&root);
+    assert!(
+        !report["blockers"].to_string().contains("sequence"),
+        "{report}"
+    );
+    let (reopened, state_change) = reopen(&root);
+    assert!(reopened, "{state_change}");
+    assert_eq!(state(&root), "verifying");
+    assert_eq!(report["ready_to_finalize"], false, "{report}");
+    assert!(
+        report["ship_next"]
+            .as_str()
+            .unwrap()
+            .contains("specsync change reopen"),
+        "{report}"
+    );
 }
 
 /// #938: with and without a freeze, ship-status's blockers, `ship_next` and lifecycle next action

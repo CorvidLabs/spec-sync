@@ -464,3 +464,196 @@ fn the_cannot_tell_recovery_quotes_the_change_id_for_the_status_rerun() {
     );
     assert!(!temp.path().join("pwned").exists());
 }
+
+// #945 (REQ-change-129). HEAD already holds this change's archive, the reopen-and-rearchive
+// shape, and the remote default later renames that package. With renames off, the rename commit
+// reads as the archive's addition and is not an ancestor of HEAD, so the archive HEAD contains
+// was reported as remote-only. HEAD holding the same archived state record is the answer.
+#[test]
+fn an_upstream_rename_of_an_archive_head_already_contains_is_not_reported() {
+    let temp = TempDir::new().unwrap();
+    let (root, _base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let contained = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+    let origin = temp.path().join("origin.git");
+    quiet_git(
+        temp.path(),
+        &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+    );
+    quiet_git(&root, &["remote", "add", "origin", origin.to_str().unwrap()]);
+    let dated = format!("{ARCHIVE_PATH}/2026-07-14-{}", archived.id);
+    quiet_git(&root, &["mv", &dated, &format!("{ARCHIVE_PATH}/renamed-package")]);
+    quiet_git(&root, &["commit", "-m", "upstream renames the archived package"]);
+    quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+    quiet_git(&root, &["fetch", "origin"]);
+    quiet_git(&root, &["remote", "set-head", "origin", "main"]);
+    quiet_git(&root, &["checkout", "-q", "-b", "reopen", &contained]);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    assert_eq!(
+        upstream_archive_of(&root, &unarchived),
+        None,
+        "HEAD already contains this archive; a later rename upstream is not a new archive"
+    );
+}
+
+// Copies of the state bytes outside an archived package's state.json do not make
+// the branch an ancestor of an archive found only on the remote default.
+#[test]
+fn a_copy_of_archive_state_in_notes_does_not_hide_a_remote_only_archive() {
+    let temp = TempDir::new().unwrap();
+    let (root, base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let state = fs::read(root.join(format!("{ARCHIVE_PATH}/2026-07-14-{}/state.json", archived.id))).unwrap();
+    publish_and_branch_from(&temp, &root, &base);
+
+    let notes = root.join(ARCHIVE_PATH).join("notes");
+    fs::create_dir_all(notes.join("copies")).unwrap();
+    fs::write(notes.join("backup.json"), &state).unwrap();
+    fs::write(notes.join("copies/state.json"), &state).unwrap();
+    quiet_git(&root, &["add", "--all"]);
+    quiet_git(&root, &["commit", "-m", "save reference copies in archive notes"]);
+
+    let mut active = archived;
+    active.state = ChangeState::Verifying;
+    assert!(matches!(
+        upstream_archive_of(&root, &active),
+        Some(UpstreamArchive::Archived { .. })
+    ));
+}
+
+// #961 (REQ-change-129, REQ-change-142). An unrelated archive package whose directory name is not
+// UTF-8 must not stop the lookup: this change's own upstream archive is still found. Built in
+// Git's index, because some filesystems refuse a non-UTF-8 name.
+#[cfg(unix)]
+fn lookup_with_non_utf8_upstream_package(same_id: bool) -> Option<UpstreamArchive> {
+    use std::os::unix::ffi::OsStrExt;
+    let temp = TempDir::new().unwrap();
+    let (root, base) = seeded_repository(&temp);
+    let archived = archived_workflow_record(&root);
+    let mut other = archived.clone();
+    if !same_id {
+        other.id = "another-change".into();
+    }
+    let blob_source = root.join("other-state.json");
+    write_json(&blob_source, &other).unwrap();
+    let blob = quiet_git(&root, &["hash-object", "-w", "other-state.json"])
+        .trim()
+        .to_string();
+    fs::remove_file(&blob_source).unwrap();
+    let mut odd_path = format!("{ARCHIVE_PATH}/2026-07-15-").into_bytes();
+    odd_path.extend_from_slice(b"\xffodd/state.json");
+    let status = std::process::Command::new("git")
+        .arg("update-index")
+        .arg("--add")
+        .arg("--cacheinfo")
+        .arg(std::ffi::OsStr::from_bytes(
+            &[b"100644,", blob.as_bytes(), b",", &odd_path].concat(),
+        ))
+        .current_dir(&root)
+        .status()
+        .unwrap();
+    assert!(status.success());
+    quiet_git(&root, &["commit", "-q", "-m", "add a package with a non-UTF-8 name"]);
+    // The branch switch drops the index-only entry; nothing writes the name to disk.
+    publish_and_branch_from(&temp, &root, &base);
+
+    let mut unarchived = archived.clone();
+    unarchived.state = ChangeState::Verifying;
+    upstream_archive_of(&root, &unarchived)
+}
+
+#[cfg(unix)]
+#[test]
+fn an_unrelated_non_utf8_archive_package_does_not_stop_the_upstream_lookup() {
+    let upstream = lookup_with_non_utf8_upstream_package(false);
+    assert!(
+        matches!(&upstream, Some(UpstreamArchive::Archived { reference, .. }) if reference == "origin/main"),
+        "{upstream:?}"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_matching_non_utf8_archive_package_reports_that_git_cannot_tell() {
+    assert!(matches!(
+        lookup_with_non_utf8_upstream_package(true),
+        Some(UpstreamArchive::CannotTell { .. })
+    ));
+}
+
+/// #945, the tester's real flow on f740d0a2, through the lifecycle functions the commands call
+/// and a bare origin. The change is finalized and archived on `main`; a branch makes its evidence
+/// stale and reopens it, which moves the package back to `.specsync/changes/`, so `HEAD`'s tree
+/// holds no archive. The branch checks again, and then the remote default renames the archive
+/// package. `HEAD`'s history still holds that archive, so the review passes. It was refused as
+/// "already archived on `origin/main`" at the rename commit. The control, with no rename, passes too.
+#[test]
+fn a_reopened_change_reviews_after_the_remote_default_renames_its_archive() {
+    for rename in [false, true] {
+        let temp = TempDir::new().unwrap();
+        let root = temp.path().join("work");
+        fs::create_dir_all(&root).unwrap();
+        fast_read_repository(&root);
+        let record = finalized_archived_change(&root);
+        let archived = quiet_git(&root, &["rev-parse", "HEAD"]).trim().to_string();
+        let origin = temp.path().join("origin.git");
+        quiet_git(
+            temp.path(),
+            &["init", "--bare", "-b", "main", origin.to_str().unwrap()],
+        );
+        quiet_git(&root, &["remote", "add", "origin", origin.to_str().unwrap()]);
+        quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+        quiet_git(&root, &["fetch", "origin"]);
+        quiet_git(&root, &["remote", "set-head", "origin", "main"]);
+
+        // A branch from the archive makes the evidence stale, reopens the change and checks it.
+        quiet_git(&root, &["checkout", "-q", "-b", "reopen", &archived]);
+        fs::write(root.join("src/lib.rs"), "pub fn ready() -> bool { !false }\n").unwrap();
+        quiet_git(&root, &["add", "--all"]);
+        quiet_git(&root, &["commit", "-m", "stale the evidence"]);
+        let reopened = reopen_change(
+            &root,
+            &record.id,
+            "Recovery operator".into(),
+            "The implementation changed".into(),
+        )
+        .unwrap();
+        assert_eq!(reopened.change.state, ChangeState::Verifying);
+        let archive_root = root.join(ARCHIVE_PATH);
+        assert!(
+            archive_root.read_dir().map_or(true, |mut entries| entries.next().is_none()),
+            "a reopen moves the package out of the archive"
+        );
+        quiet_git(&root, &["add", "--all"]);
+        quiet_git(&root, &["commit", "-m", "reopen"]);
+        assert!(check_change(&root, Some(&record.id)).unwrap().unwrap().passed);
+        quiet_git(&root, &["add", "--all"]);
+        quiet_git(&root, &["commit", "-m", "check again"]);
+
+        if rename {
+            // The remote default renames the archive package after the branch left it.
+            quiet_git(&root, &["checkout", "-q", "--detach", &archived]);
+            let package = archive_root.read_dir().unwrap().next().unwrap().unwrap().file_name();
+            let package = package.to_str().unwrap().to_string();
+            quiet_git(
+                &root,
+                &[
+                    "mv",
+                    &format!("{ARCHIVE_PATH}/{package}"),
+                    &format!("{ARCHIVE_PATH}/{package}-renamed"),
+                ],
+            );
+            quiet_git(&root, &["commit", "-m", "rename the archive package"]);
+            quiet_git(&root, &["push", "origin", "HEAD:refs/heads/main"]);
+            quiet_git(&root, &["fetch", "origin"]);
+            quiet_git(&root, &["checkout", "-q", "reopen"]);
+        }
+
+        let current = load_change(&root, &record.id).unwrap();
+        assert_eq!(upstream_archive_of(&root, &current), None, "rename={rename}");
+        record_scoped_review(&root, &record.id, "Independent reviewer".into())
+            .unwrap_or_else(|error| panic!("rename={rename}: review refused: {error}"));
+    }
+}

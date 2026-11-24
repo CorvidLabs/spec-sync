@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "the-workflow-v2-baseline-history-probe-reads-the-baseline-path-literally",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "a016fc772ce37bceb7befa72378c503cb6070845",
+      "contract_digest": "917db1e001a0d1a04179f1e1c295b5155e5044dbdc21b38b625e03e6b33fb213",
+      "execution_digest": "78e84943718e3b496e7d4d08f58a0f92c4f9700ccca45ba2756739ecbce5e138",
+      "workspace_digest": "38868ad8526a3b885c24888b8efc5382b112885e1a22610a8294b4f367ff4dd6",
+      "timestamp": 1795481657,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I inspected the remaining PRs and accept archival when qualified, including both ID renewals and #1114.",
+        "where": "Maintainer response in the SpecSync 6.4.2 release conversation on 2026-11-23, after inspection of the remaining PRs and the linked evidence.",
+        "recorded_by": "Codex"
+      }
+    }
+  ]
+}

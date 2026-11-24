@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "print-archive-restore-steps-that-git-and-specsync-read-literally-with-control-bytes-shown-as-text",
+  "implementation_commit": "0ca562a384d597a493adf1df97f718a70b71c9c7",
+  "implementation_tree": "07f7a80f9b117398568d9a18d23b9ed26ec7f3f7",
+  "contract_digest": "be4f489119780052978930061b36fe5f465064e043c0712f6c006b833bce15ec",
+  "workspace_digest": "38868ad8526a3b885c24888b8efc5382b112885e1a22610a8294b4f367ff4dd6",
+  "closing_digest": "caa5146c847378bbba7246dd9bc36c2e2617c4cb24db195fb8049d93963cbd9e",
+  "review_digest": "2ddc5f0c9d4cba645d4abe6b7612a5532037b8f051d6b27884ad36b1c96ce838",
+  "finalization_digest": "1d5abcbd01ebb6e8bb5435a53a9afb398612798940d9059e9fc80fb02973db3b",
+  "timestamp": 1795481573
+}

@@ -3019,30 +3019,30 @@ fn requirement_heading_line_matches(line: &str, heading: &str) -> bool {
 /// Extracted so that applying an item and asking whether an item is ALREADY applied read the same
 /// block out of the same scan. Two answers derived from two scans is how a tree and the record of
 /// it drift apart, which is the whole subject of #741.
+///
+/// Use the requirement reader's fence rules for both target types. Track byte offsets into the
+/// original Markdown so applying and comparing the block preserve its source bytes.
 fn markdown_block_range(source: &str, heading: &str, level: usize) -> Option<Range<usize>> {
-    let mut lines = Vec::new();
+    let mut fence = None;
+    let mut start = None;
     let mut offset = 0;
     for raw in source.split_inclusive('\n') {
-        let line = raw
-            .strip_suffix('\n')
-            .unwrap_or(raw)
-            .strip_suffix('\r')
-            .unwrap_or_else(|| raw.strip_suffix('\n').unwrap_or(raw));
-        lines.push((offset, line));
+        let line_offset = offset;
         offset += raw.len();
+        let line = raw.strip_suffix('\n').unwrap_or(raw);
+        let line = line.strip_suffix('\r').unwrap_or(line);
+        if crate::validator::update_fence(line, &mut fence) || fence.is_some() {
+            continue;
+        }
+        if let Some(start) = start {
+            if markdown_heading_level(line).is_some_and(|found| found <= level) {
+                return Some(start..line_offset);
+            }
+        } else if requirement_heading_line_matches(line, heading) {
+            start = Some(line_offset);
+        }
     }
-    if offset < source.len() {
-        lines.push((offset, &source[offset..]));
-    }
-    let start = lines
-        .iter()
-        .position(|(_, line)| requirement_heading_line_matches(line, heading))?;
-    let end = lines
-        .iter()
-        .skip(start + 1)
-        .find(|(_, line)| markdown_heading_level(line).is_some_and(|found| found <= level))
-        .map_or(source.len(), |(next_offset, _)| *next_offset);
-    Some(lines[start].0..end)
+    start.map(|start| start..source.len())
 }
 
 /// Heading depth a delta target writes at: `"## "` is 2, `"### "` is 3.

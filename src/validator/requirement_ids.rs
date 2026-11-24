@@ -145,7 +145,7 @@ fn is_requirement_id(token: &str) -> bool {
 /// indented code, not a fence), three or more backticks or tildes, and a
 /// closing run of the same character at least as long with only spaces or
 /// tabs after it. A backtick fence's info string holds no backtick.
-fn update_fence(line: &str, fence: &mut Option<(char, usize)>) -> bool {
+pub(crate) fn update_fence(line: &str, fence: &mut Option<(char, usize)>) -> bool {
     let indent = line.chars().take_while(|ch| *ch == ' ').count();
     if indent > 3 {
         return false;

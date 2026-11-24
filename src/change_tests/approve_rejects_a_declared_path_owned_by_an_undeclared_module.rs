@@ -3596,6 +3596,13 @@ fn archived_only_corrected_snapshot_remains_a_trusted_anchor() {
         .unwrap();
     }
     record = approve_definition(root, &record.id, Some("Reviewer".into()), None).unwrap();
+    // The fresh approval is committed (REQ-change-166); `corrections.json` stays out of the
+    // active path's history, which is what this test is about.
+    git(&[
+        "add",
+        &format!("{CHANGES_PATH}/{}/approvals.json", record.id),
+    ]);
+    git(&["commit", "-m", "approve the corrected definition"]);
     verify_change(root, &record.id).unwrap();
     record = accept_change(root, &record.id, Some("Reviewer".into()), None).unwrap();
     let archive = archive_change(root, &record.id).unwrap();

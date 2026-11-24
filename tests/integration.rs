@@ -143,6 +143,9 @@ mod project_reads;
 #[path = "integration/project_writes.rs"]
 mod project_writes;
 
+#[path = "integration/committed_approvals.rs"]
+mod committed_approvals;
+
 #[path = "integration/approve_dry_run.rs"]
 mod approve_dry_run;
 
@@ -154,3 +157,5 @@ mod hardening_641;
 
 #[path = "integration/git_environments.rs"]
 mod git_environments;
+#[path = "integration/rebase_stale_delta.rs"]
+mod rebase_stale_delta;

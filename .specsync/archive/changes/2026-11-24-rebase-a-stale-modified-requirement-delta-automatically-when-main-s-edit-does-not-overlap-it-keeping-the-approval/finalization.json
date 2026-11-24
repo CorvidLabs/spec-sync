@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "rebase-a-stale-modified-requirement-delta-automatically-when-main-s-edit-does-not-overlap-it-keeping-the-approval",
+  "implementation_commit": "2cda672f91ebf35e56e4a2cdf56860759523372d",
+  "implementation_tree": "904334e1f93ba6a65d7258429b99784d4112ab50",
+  "contract_digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+  "workspace_digest": "d4590e6f25abfe3db632b4986c5359576d8e935a5d37892e5098dfaa11d4d8c4",
+  "closing_digest": "82ba584ba54807c74c62c93913571d6f385b03186b4bdea4f5f44a144af0e755",
+  "review_digest": "898bd3716a3d2a1e27dd43b7f8ddcabf8ead0c97c3866ddf29d025cbdfb7f9f6",
+  "finalization_digest": "d283ef8b4734f639c0984c473c8f0f894290427c48ef127dc7782ae49d77c671",
+  "timestamp": 1795479618
+}

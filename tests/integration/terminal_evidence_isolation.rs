@@ -204,11 +204,20 @@ fn another_change_s_broken_history_does_not_decide_status_list_or_ship_status() 
     let ship_status = run(&root, &["--json", "change", "ship-status", "add-a-guide"]);
     let report: Value = serde_json::from_slice(&ship_status.stdout).unwrap();
     assert!(
-        !report.to_string().contains("duplicates state at commit"),
-        "ship-status of an intact archive does not carry the broken change's failure: {report}"
+        ship_status.status.success(),
+        "ship-status of an intact archive succeeds: {report}"
     );
+    assert_eq!(report["stages"][0]["status"], "done", "{report}");
+    assert_eq!(report["blockers"], serde_json::json!([]), "{report}");
 
     // The broken change itself, and the audit of archives, still report it.
+    let own_ship = run(&root, &["change", "ship-status", "add-notes"]);
+    assert!(!own_ship.status.success(), "{}", printed(&own_ship));
+    assert!(
+        printed(&own_ship).contains("duplicates state at commit"),
+        "{}",
+        printed(&own_ship)
+    );
     let own = run(&root, &["change", "status", "add-notes"]);
     assert!(!own.status.success(), "{}", printed(&own));
     assert!(

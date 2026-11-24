@@ -3979,14 +3979,18 @@ pub(crate) fn own_accepted_evidence(
             Err(reason) => return Ok(OwnAcceptedEvidence::ReopenBlocked(reason)),
         }
     }
-    // A roster error makes the verdict unavailable. The terminal summary also uses this cached
-    // result, but would otherwise turn the error into a corrupt-history verdict for an archive.
-    let records = list_all_changes_checked(root)?;
-    if record.state == ChangeState::Archived
-        && terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
-    {
-        return Ok(OwnAcceptedEvidence::Corrupt);
-    }
+    let records = if record.state == ChangeState::Archived {
+        // Archive status isolates unrelated history failures. A roster failure with no
+        // assignable change still makes the verdict unavailable.
+        let roster = terminal_evidence_roster(root)?;
+        if terminal_evidence_summary(root, record).validity == TerminalEvidenceValidity::CorruptHistory
+        {
+            return Ok(OwnAcceptedEvidence::Corrupt);
+        }
+        roster.records
+    } else {
+        list_all_changes_checked(root)?
+    };
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
     if validate_accepted_inputs_recursive(root, record, &records, &mut visiting, &mut memo, None)

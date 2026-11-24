@@ -4071,7 +4071,95 @@ fn ensure_definition_approval_valid(root: &Path, record: &ChangeRecord) -> Resul
 enum AcceptedInputValidity {
     Exact,
     SuccessorCovered,
+    /// Some changed input is covered only by an in-flight later change (#657).
+    ProvisionallyCovered,
     HistoricallyReconciled,
+}
+
+/// A stale delivery entry carries its signed path and the owners that failed validation.
+#[derive(Clone, Debug)]
+struct AcceptedInputError {
+    reason: String,
+    stale_input: Option<(String, Vec<String>)>,
+}
+
+impl AcceptedInputError {
+    fn stale(reason: String, path: &str, owners: &[String]) -> Self {
+        Self {
+            reason,
+            stale_input: Some((path.to_owned(), owners.to_vec())),
+        }
+    }
+}
+
+impl From<String> for AcceptedInputError {
+    fn from(reason: String) -> Self {
+        Self {
+            reason,
+            stale_input: None,
+        }
+    }
+}
+
+impl std::fmt::Display for AcceptedInputError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(&self.reason)
+    }
+}
+
+/// The first approved, implementing or verifying change created after `record` that declares
+/// `owner` and a scope covering `path`. It covers that changed input of `record` until it is
+/// accepted, when the successor walk takes over; it must itself prove currency to be accepted,
+/// so the obligation is deferred, not dropped (#657).
+fn in_flight_coverer(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    records: &BTreeMap<String, ChangeRecord>,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> Option<String> {
+    records
+        .values()
+        .find(|candidate| in_flight_change_covers(root, memo, candidate, record, path, owner))
+        .map(|candidate| candidate.id.clone())
+}
+
+fn in_flight_change_covers(
+    root: &Path,
+    memo: &mut AcceptedInputValidationMemo,
+    candidate: &ChangeRecord,
+    record: &ChangeRecord,
+    path: &str,
+    owner: &str,
+) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+        )
+        && happens_after(candidate, record)
+        && candidate.affected_specs.iter().any(|module| module == owner)
+        && candidate
+            .affected_paths
+            .iter()
+            .any(|scope| path_matches_scope(path, scope))
+        && *memo.covering_approvals.entry(candidate.id.clone()).or_insert_with(|| {
+            ensure_definition_approval_valid(root, candidate).is_ok()
+        })
+}
+
+/// The sentence for an accepted change whose changed inputs in-flight changes cover for now.
+fn provisional_coverage_reason(record: &ChangeRecord, covered: &[(String, String)]) -> String {
+    let listed = covered
+        .iter()
+        .map(|(path, change)| format!("`{path}` by in-flight `{change}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    format!(
+        "delivery inputs of `{}` changed after acceptance and are covered for now: {listed}; each covering change needs explicit succession to cover the input after acceptance",
+        record.id
+    )
 }
 
 fn terminal_evidence_summary(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
@@ -4439,51 +4527,76 @@ fn terminal_evidence_summary_with_validation_state(
         };
     }
     match validate_accepted_inputs_recursive(root, record, records, visiting, memo, None) {
-        Ok(AcceptedInputValidity::Exact) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::Exact, reason: None }
-            }
+        Ok(_) if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") => {
+            historical_terminal_summary()
+        }
+        Ok(AcceptedInputValidity::Exact) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::Exact, reason: None,
         },
-        Ok(AcceptedInputValidity::SuccessorCovered) => {
-            if record.answers.get(HISTORICAL_RECONCILIATION).is_some_and(|value| value == "unproven") {
-                historical_terminal_summary()
-            } else {
-                TerminalEvidenceSummary { validity: TerminalEvidenceValidity::SuccessorCovered, reason: None }
-            }
+        Ok(AcceptedInputValidity::SuccessorCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::SuccessorCovered, reason: None,
+        },
+        Ok(AcceptedInputValidity::ProvisionallyCovered) => TerminalEvidenceSummary {
+            validity: TerminalEvidenceValidity::ProvisionallyCovered,
+            reason: Some(provisional_coverage_reason(
+                record,
+                memo.provisional.get(&record.id).map_or(&[][..], Vec::as_slice),
+            )),
         },
         Ok(AcceptedInputValidity::HistoricallyReconciled) => historical_terminal_summary(),
-        Err(reason) => TerminalEvidenceSummary {
+        Err(error) => TerminalEvidenceSummary {
             validity: TerminalEvidenceValidity::Stale,
-            reason: Some(reason),
+            reason: Some(error.reason),
         },
     }
 }
 
 fn ensure_closing_approval_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
     ensure_closing_approval_valid_against(root, record, &list_all_changes_checked(root)?)
+        .map(|_| ())
+        .map_err(|error| error.reason)
 }
 
 /// The closing-approval check `change archive` and `change finalize` run on the change they
 /// archive, judged against the structural roster (REQ-change-124): every gate on `record` is the
 /// same, and only the other archives' own Git history is left to `change audit --strict`.
+///
+/// Returns each changed input an in-flight later change covers for now, as `(path, change)`, so
+/// the archive can record which change covered it (#657).
 fn ensure_archiving_closing_approval_valid(
     root: &Path,
     record: &ChangeRecord,
-) -> Result<(), String> {
-    ensure_closing_approval_valid_against(root, record, &list_all_changes_structural(root)?)
+) -> Result<Vec<(String, String)>, String> {
+    let records = list_all_changes_structural(root)?;
+    ensure_closing_approval_valid_against(root, record, &records).map_err(|error| {
+        let Some((path, owners)) = error.stale_input else {
+            return error.reason;
+        };
+        let later = later_changes_blocked_by(root, &records, record, &path, &owners);
+        if later.is_empty() {
+            return error.reason;
+        }
+        let named = later
+            .iter()
+            .map(|id| format!("`{id}`"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        format!(
+            "{}. Later change {named} shares `{path}` and cannot be archived either while `{}` is stale",
+            error.reason, record.id
+        )
+    })
 }
 
 fn ensure_closing_approval_valid_against(
     root: &Path,
     record: &ChangeRecord,
     records: &BTreeMap<String, ChangeRecord>,
-) -> Result<(), String> {
+) -> Result<Vec<(String, String)>, AcceptedInputError> {
     let mut visiting = BTreeSet::new();
     let mut memo = AcceptedInputValidationMemo::default();
-    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)
-        .map(|_| ())
+    validate_accepted_inputs_recursive(root, record, records, &mut visiting, &mut memo, None)?;
+    Ok(memo.provisional.remove(&record.id).unwrap_or_default())
 }
 
 /// `pending` is the closing token of `archive_change_with_options`, forwarded so the package that
@@ -5607,7 +5720,7 @@ fn validate_accepted_inputs_recursive(
     visiting: &mut BTreeSet<String>,
     memo: &mut AcceptedInputValidationMemo,
     pending: Option<&PendingArchiveClose<'_>>,
-) -> Result<AcceptedInputValidity, String> {
+) -> Result<AcceptedInputValidity, AcceptedInputError> {
     if let Some(result) = memo.validity.get(&record.id) {
         return result.clone();
     }
@@ -5615,13 +5728,13 @@ fn validate_accepted_inputs_recursive(
         return Err(format!(
             "successor `{}` is not accepted or archived",
             record.id
-        ));
+        ).into());
     }
     if !visiting.insert(record.id.clone()) {
         return Err(format!(
             "semantic succession cycle detected at `{}`",
             record.id
-        ));
+        ).into());
     }
     let result = (|| {
         let verification = memo.authenticate(root, record, pending)?;
@@ -5656,12 +5769,14 @@ fn validate_accepted_inputs_recursive(
             .collect();
         let mut successor_covered = false;
         let mut historically_reconciled = false;
+        let mut provisional: Vec<(String, String)> = Vec::new();
         for expected in &signed.entries {
             let current = current_by_path.get(expected.path.as_str()).ok_or_else(|| {
-                format!(
+                let reason = format!(
                     "delivery input `{}` disappeared from the current inventory; restore the file or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
                     expected.path, record.id
-                )
+                );
+                AcceptedInputError::stale(reason, &expected.path, &expected.owners)
             })?;
             if expected.kind == current.kind
                 && expected.mode == current.mode
@@ -5690,7 +5805,11 @@ fn validate_accepted_inputs_recursive(
                 // the successors, and each is judged exactly as a signed owner's successor is.
                 let claimants = succession_claimants(records, record, expected);
                 if claimants.is_empty() {
-                    return Err(exact_only_input_remediation_reason(record, &expected.path));
+                    return Err(AcceptedInputError::stale(
+                        exact_only_input_remediation_reason(record, &expected.path),
+                        &expected.path,
+                        &expected.owners,
+                    ));
                 }
                 let mut rejected_successors = BTreeMap::new();
                 if !claimants.iter().any(|module| {
@@ -5698,6 +5817,7 @@ fn validate_accepted_inputs_recursive(
                         root,
                         record,
                         records,
+                        records.values(),
                         visiting,
                         memo,
                         pending,
@@ -5707,11 +5827,16 @@ fn validate_accepted_inputs_recursive(
                         &mut historically_reconciled,
                     )
                 }) {
-                    return Err(stale_input_remediation_reason(
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         &expected.owners.join("`, `"),
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
@@ -5723,6 +5848,7 @@ fn validate_accepted_inputs_recursive(
                     root,
                     record,
                     records,
+                    records.values(),
                     visiting,
                     memo,
                     pending,
@@ -5731,15 +5857,31 @@ fn validate_accepted_inputs_recursive(
                     &mut rejected_successors,
                     &mut historically_reconciled,
                 ) {
-                    return Err(stale_input_remediation_reason(
+                    if let Some(coverer) = in_flight_coverer(root, memo, records, record, &expected.path, owner)
+                    {
+                        provisional.push((expected.path.clone(), coverer));
+                        continue;
+                    }
+                    let reason = stale_input_remediation_reason(
                         record,
                         &expected.path,
                         owner,
                         &rejected_successors,
+                    );
+                    return Err(AcceptedInputError::stale(
+                        reason,
+                        &expected.path,
+                        &expected.owners,
                     ));
                 }
                 successor_covered = true;
             }
+        }
+        if !provisional.is_empty() {
+            provisional.sort_unstable();
+            provisional.dedup();
+            memo.provisional.insert(record.id.clone(), provisional);
+            return Ok(AcceptedInputValidity::ProvisionallyCovered);
         }
         Ok(if historically_reconciled {
             AcceptedInputValidity::HistoricallyReconciled

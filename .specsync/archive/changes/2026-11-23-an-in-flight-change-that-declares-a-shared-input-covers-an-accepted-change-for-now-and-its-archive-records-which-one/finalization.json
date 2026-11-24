@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one",
+  "implementation_commit": "370d6671ea932fb589a06e0b66f6561614e53d50",
+  "implementation_tree": "ace587547e0e32e57685fc808f447a3c5deb1e49",
+  "contract_digest": "19962964c0a25e8ece74972c4a9601a6c2aee050df4c307b9b53f0ad00185ea8",
+  "workspace_digest": "fac6b919161ca99f5163f271d447a2087634e61527407f0c38e17ee9c09a972d",
+  "closing_digest": "93004bf40971dc7b448c4f70a8b723d0af259a5b027656fdbc860279d1c1647f",
+  "review_digest": "2c8b2fc7c7ce8a9237be09f7132402c767193b0391cc2c6602316b419b7572ba",
+  "finalization_digest": "4fa43f4e83577ed14454dcebd0d5410acca81ae1265c87bbfec011ff319578d7",
+  "timestamp": 1795402789
+}

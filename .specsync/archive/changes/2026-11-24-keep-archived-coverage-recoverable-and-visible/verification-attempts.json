@@ -1,0 +1,602 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795453387,
+      "commit": "1adc36f4b0962baa7af697db13f37708caa82ca9",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "verification cannot start: no requirement evidence for REQ-change-reopened-coverage-receipt-001, REQ-cmd-change-archived-coverage-diagnostics-001; add a row for each to the `## Requirement evidence` table in .specsync/changes/keep-archived-coverage-recoverable-and-visible/testing.md"
+    },
+    {
+      "timestamp": 1795453418,
+      "commit": "1adc36f4b0962baa7af697db13f37708caa82ca9",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "d1b798b6274fc73bdc61592047ce8770c18a90c5f4a1299aa2299470fa5740f1",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795453423,
+      "commit": "a19941fd37ef7a132e44945695345d74627ca105",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "4894f515ab9549995e98a4b9eb4436d90e74952b7a14db8957f579ab01f8fccf",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795455831,
+      "commit": "cca7af812896cd30971ea745ad368f327a588940",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "ed879a3f21dd5d5c7bdd6551a658afe9ff7676cd213bb3e3ece652e55a98ebf7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795455852,
+      "commit": "ae70766743c7ecfa2370dc11f577033691425768",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "ed879a3f21dd5d5c7bdd6551a658afe9ff7676cd213bb3e3ece652e55a98ebf7",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795474118,
+      "commit": "b6d5e461315e2a9d97218f5c6b8eb3fbdcc8f7b0",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a87a976b62833d1ed3eac37f9667d9f49cc0ca4f7f413df35c592e9278b6af9c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795474138,
+      "commit": "0b9c0191e2e510bf696b50fd174fe6345e343b08",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a87a976b62833d1ed3eac37f9667d9f49cc0ca4f7f413df35c592e9278b6af9c",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change --strict",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795479812,
+      "commit": "fe52a29070c271de054114ed8ded5c92f55db592",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a459a193f5fdbc5cc7063f9d1440084267cc759c9769136053b3df3481fa70de",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795479821,
+      "commit": "c9b92d4f61e6447891cd28d4e075ed2cc5096c66",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a459a193f5fdbc5cc7063f9d1440084267cc759c9769136053b3df3481fa70de",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    },
+    {
+      "timestamp": 1795479821,
+      "commit": "4bd95ef9ce000589dcde0b06644b19f705df09f0",
+      "contract_digest": "3ab82f3c7423160943ab8b9fabca02b9e0bf96480a0a1de461d230c29f2bfc08",
+      "execution_digest": "8e6c1cfa68195c8743a7d933d1ece6ac00f7fd4c455b7cf0d7159737534f4111",
+      "workspace_digest": "a459a193f5fdbc5cc7063f9d1440084267cc759c9769136053b3df3481fa70de",
+      "acceptance_input_digest": "0e77994c51cf7e191ecdf0ef8e56cac27bb876ed151fc528d946840dc89133a4",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "specs/change/change.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "aa246ea3a6fd14c3183ba784371f8eb1819ffe12b908d3ee1e4efeca5b1ac4e6",
+            "entry_digest": "13d84f768875c05752899c00a7c43facbd1f7c5b2770740b8c28debcaa00cd49",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "5fb8d04129e24b2c2233cce3f12b5dab51632aacb03bb51ab416e57ac9b430f6",
+            "entry_digest": "a95ba533a76f35b9fee2c24273b5d8e2b457c2f8897729a89c9afe317c7d7d07",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "fae4260a21c579f63ec3d7252c78c719b100d58c0e3beb8c405792c55dd0a787",
+            "entry_digest": "32b0269934d39dca2ae3e3a38e875ca062da59686f050cc9979aa5e5128714ac",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "98131f8563ff8fb70f703ed7d9cf3a8f56006add3b4be2a16ea16ba12b40ca6d",
+            "entry_digest": "acbb6ed52811de15fecb91e6355a490b2b0a1774a9623dd01e8ce7865f316db6",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1246391a182503a23cc52eb4b14ac9e3be9b54d3a7bdce7d62f155541b793e75",
+            "entry_digest": "b4b8b2f07bc84f8657bed122c621c6e450f7d7fbd2c39ccb1a7104a0b7ee09ba",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/change-audit-reports-a-delta-item-that-targets-the-frozen-change-log.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2e9e82a8c06f31d58be4436b51df400282b5156ae6cfa6a49919cf5dbe2e46a6",
+            "entry_digest": "0a4882e19fd7ad2567f40a82a0b6ca85980a325cff3da35cfcc1645e1f86d9a2",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "49cc97c6621b87e36be2ea88afa0bd398aaf822e4b51cb9d11dbeb4aadaca1c6",
+            "entry_digest": "ad4c2571aca59458729997a922f298d2c7fb68aa35254dd254c342c69dd9d6b3",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "3bf1e09779217ca651c0d26c9048404122ecfca5e3540f7bb96fd647cc0e9bd8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/fix-the-four-pr-1086-review-findings-on-history-fragments.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3e309609e8e9003847d1a4c56ab1da06c26acb9e64bb9838c69b406dbf02522c",
+            "entry_digest": "51830e7457bb1b23519164c48c9420c61ec3d2a40b557bf6cf1fc55cc00e7bf8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-archived-coverage-recoverable-and-visible.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f7c886f2cecda4c7c190c88b33cbe7ace4e1693989bb003642fb1eb0bc8cafce",
+            "entry_digest": "cd39b3160f37c5a2d32ed1cfd9139f5d7b4df14b3448be6453d90469618634eb",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "a1130c3e8d462bf1b03e61b503b075163d5711075f86806eed290cad74610e2a",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-specsync-s-own-state-only-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8005c7dbd3c2275c20f019667d99b168eb403dc0cdb204ca27ec917c81b81ae0",
+            "entry_digest": "e05579ebfd829e22b491152c72f054a7b209633328ff57a413b3ae33d59c6aa1",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "9a10ff13c20077b389cd7e97db35137f1ce562dcabf497504924f61523113fa8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "5f4acbea9e69ccf5dd04be764330e64b83f107218b214216137169aba431225a",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/never-replay-a-transaction-journal-specsync-did-not-write-or-into-git-s-files.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ca51a2e9609a2d313bf8dfe6092689cfed78a831f876c70e05c8ea90e15baf3f",
+            "entry_digest": "56bc0cb9988e1d0dc4339f2457e71c5957cf76014293ad5efa9c5c24dfba67ca",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "898ed0aba1674fef101a3f8e863550b4d6f7ff507acd79ad9f86a7c5f6f103c8",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/require-explicit-succession-after-temporary-coverage.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f1ab65e3eda0a83dba0e78e1029cda75d04111d901191fbe01872694611bf2ea",
+            "entry_digest": "a7d44c5251c319b4c15a6a8ff8d45148bdb15fc6c1683c09fe6ee8f8fcd7352d",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/synchronize-change-summary-state-after-verification.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2863332a57b57cbcea93d6f0afcbf786cfca69671543a288c942885cefaf3e47",
+            "entry_digest": "ed85d55530991b6bec6b5b04bd7f602f4973167f28f363a103f2d2481d2ce581",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "ff8e0d7d2824608a78e20ef384bc74b56d90227f696323d66581895546ebaec7",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b955ed608fe8d488834d6178ab4ff0acdb1c9a3a2fa2a988c5720a285a7e30dd",
+            "entry_digest": "ba83327ffc45746cfc497d2d3c0832dfdec900e069e055b4b3be490cfc205adb",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "41b27cc96cde5d9c8e9f0fd6aeaf9bd570294f207f8e2af2588b884e08f12f4b",
+            "entry_digest": "3bacbbcc0ba74f11b274f41ca68d36b329592a7efed37426864a0da97c0a69a7",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0ce0ade5ecb320cc1f77ea214a0dbe9514ce02020e27a2d4477ecf1eb2dffff3",
+            "entry_digest": "b3dc94796879ab725d00139fbbdb1a6256eab93b78b1994570450c8d89877867",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/cmd_change.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "9282edc33a8f7f58ab1e96483bd7e216aefe086df67af6f1761d2797af99908f",
+            "entry_digest": "b47365c57b1df2513c5952a44e8952aebb9608abc966e6115011c80708b93884",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/cmd_change.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "a79c46e6df14abf8f89cd410947983753b09782aa1b13fc82361dc158e9378f0",
+            "entry_digest": "c8931bf35b672bcec3d08186e9209dbafb7979e02d1bac7759e930e9df8c2395",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "2a2ad0fc233295d72e55f6cbef0fe309177a692fefdc927633f20e502b6525fd",
+            "entry_digest": "1354103aa5ef4d2365ab9736478bf2703fc2bf03cd82add5b4d2483ea5bd84c4",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/an-in-flight-change-that-declares-a-shared-input-covers-an-accepted-change-for-now-and-its-archive-records-which-one.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "98131f8563ff8fb70f703ed7d9cf3a8f56006add3b4be2a16ea16ba12b40ca6d",
+            "entry_digest": "65b5e9c3f074bea070e30ff2a95bdf8e62f70c58381c81195aae9445adccabda",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/change-approve-has-a-dry-run-that-reports-every-check-s-first-refusal-and-writes-nothing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "1246391a182503a23cc52eb4b14ac9e3be9b54d3a7bdce7d62f155541b793e75",
+            "entry_digest": "93d984a0fba92b7ffa2c4807801d219d362efd1c8aa5a791e0d297e41527d239",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/change-ship-status-exits-1-when-it-reports-a-blocker.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dddcc2650978d6d5e600c7a32ba38d6452e38511d1eada27d730766861102d5e",
+            "entry_digest": "84c708532717f8446d74e1c9a8b14a4b0a583a3b8cd9a48b00d65ea693634049",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/check-verification-and-ship-refuse-a-branch-that-lost-canonical-requirements-no-approved-removed-delta-names.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "49cc97c6621b87e36be2ea88afa0bd398aaf822e4b51cb9d11dbeb4aadaca1c6",
+            "entry_digest": "45dd9e99d87efb69680c94065d1944021be4d2a774ff56993eeea852f787537d",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "14d153d6abee709d229834d8d29c883c95e00150fc84c6b52e9962edc127d76b",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/keep-archived-coverage-recoverable-and-visible.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f7c886f2cecda4c7c190c88b33cbe7ace4e1693989bb003642fb1eb0bc8cafce",
+            "entry_digest": "1233c3313f11b4604cf2624cc86679b2187d101f9c34b5830368807c77978681",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "695466a3f52953d8a10cdb76cd992a1d754ded4f2cb2f6768b7cb696a843e4fe",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "89284b60b9949558b668ed6a82f3ebe11080c21ed3d44230be806c79b5d450de",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "636979a5195fde255cb33cf2dbda67a6160b286cc73348cdc74c8b1b65fae50f",
+            "entry_digest": "b8e51ec67e1bc4867f8a49ce4f01a90cce4d0145522d1e65fd3afa06c4a4d5c8",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b44ddbe8f1826595df319b43e4da7f4e5dd23c83a5b0fabf078cf743f05abf05",
+            "entry_digest": "c5bdeed331ef8c17af92e7211fd9ba2d63b99a8a8d2a5fb8a2b1697b38732509",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "specs/cmd_change/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "160e10318fe5b53013d0f97256648cdcff46b9df61c11564e78d7d68cb9ebbe3",
+            "entry_digest": "97eb273eedf31c6805c54ab8773c44f4189320e3d86ff6ad363e328acbbd6719",
+            "owners": [
+              "cmd_change"
+            ]
+          },
+          {
+            "path": "src/change/collect_requirement_ids.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "72fab41fec15ea1b6f15d0c928eca8a61ec774ee51d8d8fec2c244959f3c24dc",
+            "entry_digest": "23b566d1b2fe7665b72430447f9fadeb869702138a8690b8edf321f41f147b19",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change/historical_definition_digest_matches.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "93b8dc382c6542c14aade3da683df78e73b2b6279b62cfb703a6094fe9c2e091",
+            "entry_digest": "10a4a6f04c86edb80b99ed12fa461388d894ef9acbc1761b3b8b384b7bdd25d9",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change/sdd_version.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e1bfc586c3a03c7933c8c8daba6ea2dd27eaf69947a6cf708e66c4c839998441",
+            "entry_digest": "2907c765359d73495df22eb252e932d7bdb8ae0650cd8539279cf4828742de38",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/change_tests/provisional_coverage.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e84274eb81b5071091d6c706aa13603e53fd32899d5b8075c2ce1314d5d9095a",
+            "entry_digest": "ce6c62e649d80ab9cd3e5e50273fc78f1ce605b645c97ccc049755e5794898e9",
+            "owners": [
+              "change"
+            ]
+          },
+          {
+            "path": "src/commands/change.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0f3e8e240bb3b7eb4a3178ac1e2410580967e6e2f9ccd968c28232ea739fab50",
+            "entry_digest": "2da53b45eada074e43325f41f0243546bdfc0cc411e8e5e87b2a87002f11c08d",
+            "owners": [
+              "cmd_change"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change --spec cmd_change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-reopened-coverage-receipt-001",
+        "REQ-cmd-change-archived-coverage-diagnostics-001"
+      ]
+    }
+  ]
+}

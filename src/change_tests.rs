@@ -44,6 +44,7 @@ include!("change_tests/literal_guidance.rs");
 include!("change_tests/upstream_archive.rs");
 
 include!("change_tests/fast_finalize.rs");
+include!("change_tests/provisional_coverage.rs");
 include!("change_tests/approve_ownership_names_the_spec.rs");
 include!("change_tests/stale_modified_delta.rs");
 include!("change_tests/rebase_stale_delta.rs");

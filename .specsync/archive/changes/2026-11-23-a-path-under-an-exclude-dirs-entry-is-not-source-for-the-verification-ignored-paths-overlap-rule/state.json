@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule",
+  "slug": "a-path-under-an-exclude-dirs-entry-is-not-source-for-the-verification-ignored-paths-overlap-rule",
+  "title": "A path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
+  "description": "a path under an exclude_dirs entry is not source for the verification_ignored_paths overlap rule",
+  "kind": "bug_fix",
+  "state": "archived",
+  "canonical_applied": true,
+  "base_commit": "2cc0897fc00eee7db2b07f5134ba05639af39018",
+  "created_at": 1795105066,
+  "updated_at": 1795477958,
+  "affected_specs": [
+    "change"
+  ],
+  "affected_paths": [
+    "src/change/verification_ignored_paths.rs",
+    "src/change_tests/verification_ignored_paths.rs",
+    "specs/change/",
+    "site/src/content/docs/configuration.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "(1) With code at the root (source_dirs = [\".\"]) and exclude_dirs = [\".chough\"], verification_ignored_paths entries .chough/sessions/, .chough/archive/ and .chough/bugs/ are accepted, and verification ignores those folders. (2) An entry whose excluded component differs from the exclude_dirs name in case, or whose excluded name lies above the source_dirs root it is under, is still refused for overlapping source_dirs. (3) Every other overlap rule still refuses, even for an entry under an excluded name: .specsync/, the specs tree, schema_dir, meaningful_paths, spec files:, depends_on, Consumed By, the policy files, the principles file and the templates."
+  ],
+  "selected_artifacts": [
+    "context",
+    "testing",
+    "tasks",
+    "design",
+    "requirements",
+    "docs"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "no",
+    "constraints": "REQ-change-115: every other protected scope still refuses an entry; the coverage source walk compares exclude_dirs names exactly (coverage_name_is_excluded) and only below a source_dirs root",
+    "public_contract": "yes"
+  }
+}

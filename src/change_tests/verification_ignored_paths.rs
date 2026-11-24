@@ -991,3 +991,160 @@ fn verification_ignored_frame_cannot_collide_with_path_frames() {
     assert!(!path_is_verification_ignored(".chough", &[".chough/".to_string()]));
     assert!(!path_is_verification_ignored("notes/.chough/a", &[".chough/".to_string()]));
 }
+
+// #1083 (red first): a path under an `exclude_dirs` entry is not source, so the overlap rule does
+// not count it as overlapping `source_dirs`. The NFTMix shape: code at the root
+// (`source_dirs = ["."]`) and Chough's folder excluded by name.
+// Verifies REQ-change-115.
+#[test]
+fn an_entry_under_an_excluded_directory_does_not_overlap_source_dirs() {
+    let temp = vip_validation_fixture();
+    let root = temp.path();
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\nexclude_dirs = [\".chough\"]\n",
+    );
+    vip_set_list(root, &[".chough/sessions/", ".chough/archive/", ".chough/bugs/"]);
+    project_input_digest(root).expect("Chough's folders are excluded, so they are not source");
+
+    // The source walk compares names exactly, so a name that differs in case is still source.
+    vip_assert_refused(root, &[".Chough/sessions/"], ".Chough/sessions/", "source_dirs `.`");
+
+    // An excluded name above a `source_dirs` root does not exclude what lies below that root:
+    // the walk prunes only below where it starts.
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".chough/tools\"]\nexclude_dirs = [\".chough\"]\n",
+    );
+    vip_assert_refused(
+        root,
+        &[".chough/tools/cache/"],
+        ".chough/tools/cache/",
+        "source_dirs `.chough/tools`",
+    );
+}
+
+// The source walk sees the name on disk, while a case-insensitive lookup can still open the old
+// spelling that Git has in its index after a worktree-only case rename.
+#[test]
+fn a_case_alias_does_not_turn_source_into_an_ignored_path() {
+    let temp = vip_validation_fixture();
+    let root = temp.path();
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\nexclude_dirs = [\".chough\", \"excluded\"]\n",
+    );
+    vip_write(root, ".chough/sessions/tool.rs", "fn tool() {}\n");
+    vip_set_list(root, &[".chough/sessions/"]);
+    project_input_digest(root).expect("the actual directory spelling is excluded");
+
+    fs::rename(root.join(".chough"), root.join("case-rename")).unwrap();
+    fs::rename(root.join("case-rename"), root.join(".Chough")).unwrap();
+    if root.join(".chough").exists() {
+        vip_assert_refused(
+            root,
+            &[".chough/sessions/"],
+            ".chough/sessions/",
+            "source_dirs `.`",
+        );
+    } else {
+        project_input_digest(root)
+            .expect("a nonexistent differently cased path does not alias the actual source");
+    }
+
+    vip_write(root, ".Chough/excluded/tool.rs", "fn tool() {}\n");
+    vip_set_list(root, &[".chough/excluded/"]);
+    project_input_digest(root).expect("the actual inner directory spelling is excluded");
+}
+
+// #1083: only the `source_dirs` overlap changes. Every other protected scope still refuses an
+// entry under an excluded name, each naming its own rule.
+// Verifies REQ-change-115.
+#[test]
+fn every_other_overlap_rule_still_refuses_under_an_excluded_name() {
+    let temp = vip_validation_fixture();
+    let root = temp.path();
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\nexclude_dirs = [\".specsync\", \"specs\", \"assets\", \"docs\", \"templates\", \"tests\", \".chough\"]\n",
+    );
+    vip_assert_refused(root, &[".specsync/changes/"], ".specsync/changes/", "`.specsync`");
+    vip_assert_refused(root, &["specs/auth/"], "specs/auth/", "the specs tree `specs`");
+    vip_assert_refused(root, &["assets/"], "assets/", "files: entry `assets/schema.txt`");
+    vip_assert_refused(root, &["docs/"], "docs/", "principles_file `docs/principles.md`");
+    vip_assert_refused(
+        root,
+        &["templates/"],
+        "templates/",
+        "custom_artifacts template `templates/runbook.md`",
+    );
+    vip_assert_refused(root, &["tests/"], "tests/", "meaningful_paths");
+    // A spec `files:` entry under the excluded `.chough` keeps that entry refused.
+    vip_write(root, ".chough/tool.txt", "tool\n");
+    vip_write(
+        root,
+        "specs/auth/auth.spec.md",
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n  - assets/schema.txt\n  - .chough/tool.txt\n---\n\n# Auth\n",
+    );
+    vip_assert_refused(root, &[".chough/"], ".chough/", "files: entry `.chough/tool.txt`");
+    // A `meaningful_paths` scope under the excluded `.chough` keeps that entry refused.
+    vip_write(
+        root,
+        "specs/auth/auth.spec.md",
+        "---\nmodule: auth\nversion: 1\nstatus: stable\nfiles:\n  - src/lib.rs\n  - assets/schema.txt\n---\n\n# Auth\n",
+    );
+    vip_set_policy_value(root, "meaningful_paths", serde_json::json!(["src/", ".chough/bugs/"]));
+    vip_assert_refused(root, &[".chough/bugs/"], ".chough/bugs/", "meaningful_paths");
+    vip_set_list(root, &[".chough/sessions/"]);
+    project_input_digest(root).expect("an entry clear of every other scope is accepted");
+}
+
+// #1083 end to end, through the lifecycle `change check` runs (`check_change`): a root-code
+// project approves and verifies with Chough's three folders listed, a record written under them
+// after verification leaves it current, and the summary lists the entries `change status` and
+// `change check` print under `Verification ignores:`.
+// Verifies REQ-change-115.
+#[test]
+fn a_root_code_project_lists_chough_s_folders_and_verification_ignores_them() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    vip_git(root, &["init", "-b", "main"]);
+    vip_git(root, &["config", "user.email", "test@example.com"]);
+    vip_git(root, &["config", "user.name", "Test"]);
+    vip_write(
+        root,
+        ".specsync/config.toml",
+        "specs_dir = \"specs\"\nsource_dirs = [\".\"]\nexclude_dirs = [\".chough\"]\n",
+    );
+    vip_write(root, "README.md", "base\n");
+    vip_git(root, &["add", "--all"]);
+    vip_git(root, &["commit", "-m", "base"]);
+    let record = current_workflow_record(root, completed_no_spec_record(root));
+    let entries = [".chough/sessions/", ".chough/archive/", ".chough/bugs/"];
+    vip_set_list(root, &entries);
+    approve_definition(root, &record.id, Some("Scope owner".into()), None)
+        .expect("the policy is valid with code at the root");
+    vip_git(root, &["add", "."]);
+    vip_git(root, &["commit", "-m", "Implement approved change"]);
+    check_change(root, Some(&record.id)).unwrap();
+    vip_git(root, &["add", "."]);
+    vip_git(root, &["commit", "-m", "Record verification"]);
+    let verification = check_change(root, Some(&record.id)).unwrap().unwrap();
+    assert!(verification.passed);
+
+    vip_write(root, ".chough/sessions/s/session.md", "a Chough record\n");
+    vip_write(root, ".chough/bugs/b.md", "a Chough bug\n");
+    assert_eq!(vip_next_action(root, &record.id), vip_review_next(&record.id));
+    let summary =
+        serde_json::to_value(summarize_change(root, &load_change(root, &record.id).unwrap()))
+            .unwrap();
+    // The summary lists the entries sorted, as `Verification ignores:` prints them.
+    assert_eq!(
+        summary["verification_ignored_paths"],
+        serde_json::json!([".chough/archive/", ".chough/bugs/", ".chough/sessions/"])
+    );
+}

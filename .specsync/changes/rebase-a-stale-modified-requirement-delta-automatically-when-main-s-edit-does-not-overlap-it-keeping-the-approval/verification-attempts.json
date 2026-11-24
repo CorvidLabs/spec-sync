@@ -312,6 +312,25 @@
         "REQ-change-122",
         "REQ-change-rebase-proposal-001"
       ]
+    },
+    {
+      "timestamp": 1795478746,
+      "commit": "3f7006dbe2babcb0dface95ef5a7cbb72fba306c",
+      "contract_digest": "3ecce5bad3a5fe7f44eae8823de6ae72bdd966682ecd6e0fcfa489bfd9a221df",
+      "execution_digest": "3fbbb9d4e7531e19815a8157ab41014bec8890df215474d847831f7c717dc21a",
+      "workspace_digest": "6c18234cd3d3b19e097cf7791b7cccd85fc93b47f633e80f84516a349cc7031d",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec change",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-change-122",
+        "REQ-change-rebase-proposal-001"
+      ]
     }
   ]
 }

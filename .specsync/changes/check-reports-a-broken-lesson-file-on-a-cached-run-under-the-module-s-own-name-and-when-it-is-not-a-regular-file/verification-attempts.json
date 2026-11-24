@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795560846,
+      "commit": "b08f034e9a4a60813f1d13a29c1ce07b79f9e424",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file/tasks.md` (line 11: \"Targeted tests, the full native Verify lane, 'change audit' and 'check --strict'...\") and mark it `[x]`, then re-run `specsync change check check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file --commit`"
+    }
+  ]
+}

@@ -1447,10 +1447,12 @@ fn open_tasks_first(root: &Path, record: &ChangeRecord, action: String) -> Strin
 }
 
 fn ensure_text_correction_ledger_valid(root: &Path, record: &ChangeRecord) -> Result<(), String> {
+    // In a shallow clone the history underneath may be what failed: REQ-change-173's refusal
+    // names the fetch instead (REQ-cmd-change-044).
     change::effective_change_definition(root, record)
         .is_ok()
         .then_some(())
-        .ok_or_else(|| INVALID_CORRECTION_LEDGER_TEXT.to_string())
+        .ok_or_else(|| change::correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))
 }
 
 /// Ship readiness for one change: HEAD tip class, verification tip health, review,
@@ -1672,6 +1674,27 @@ fn ship_status_report_with_lost_requirements(
         }
     }
 
+    // REQ-cmd-change-committed-ledger-001 (#428): finalize and ship refuse an approvals ledger Git history does
+    // not hold, so ship-status lists that refusal, in the same words, and never calls the change
+    // ready while it holds. When its way out is not `check --commit`, it comes first and is the
+    // next step: the generic `check --commit` a stale verification asks for would commit an
+    // edited ledger (Codex and corvid-agent on #1120). When it is, the blockers above lead to the
+    // same command and keep their order.
+    let ledger_refusal = if matches!(record.state, ChangeState::Verifying | ChangeState::Accepted)
+        && upstream_archive.is_none()
+    {
+        change::approvals_ledger_held_by_history(root, record).err()
+    } else {
+        None
+    };
+    if let Some(refusal) = &ledger_refusal {
+        if change::ledger_refusal_is_committed_by_check(refusal, &record.id) {
+            blockers.push(refusal.clone());
+        } else {
+            blockers.insert(0, refusal.clone());
+        }
+    }
+
     // Ordering rules from multi-change dogfood (#487): always surface while active.
     // Retired is terminal, so these gates no longer apply to it either.
     if !matches!(record.state, ChangeState::Archived | ChangeState::Retired) {
@@ -1735,6 +1758,12 @@ fn ship_status_report_with_lost_requirements(
         change::upstream_archive_message(&record.id, upstream)
     } else if let Some(recovery) = &ownership_recovery {
         recovery.clone()
+    } else if let Some(refusal) = ledger_refusal
+        .as_ref()
+        .filter(|refusal| blockers.first() == Some(*refusal))
+    {
+        // The first blocker names its own way out (REQ-change-166).
+        refusal.clone()
     } else if verification_work.is_err() {
         format!("run `specsync change check {} --commit`", record.id)
     } else if ready_to_finalize {
@@ -3147,6 +3176,12 @@ fn run_ship(
             .and_then(|values| values.first())
             .and_then(|value| value.as_str())
             .unwrap_or("this change is not ready to archive");
+        // A refusal that names its own way out, as the approvals-ledger refusal does
+        // (REQ-cmd-change-committed-ledger-001), is both the first blocker and ship-status's next step, so it is
+        // printed once, with no generic step after it (corvid-agent on #1120).
+        if action == reason {
+            return Err(format!("This pull request is not finished. {reason}"));
+        }
         // `ship_next` is already the action. Wrapping it in another `Run \`...\``
         // nested the backticks and hid the command.
         let refusal = format!("This pull request is not finished. {reason} {action}");
@@ -6827,6 +6862,32 @@ fn run_checked_commit(
         let record = change::check_change_as(root, id, invocation)?;
         Ok(record.map(|record| record.commit.unwrap_or_default()))
     };
+
+    // REQ-change-166 (#1120): `--commit` refuses, before anything is written, to commit a ledger
+    // whose working copy changes or drops a committed record, naming the restore. A bare
+    // `--commit` asks it of the one change `change check` would select; with more than one,
+    // `change check` refuses first.
+    let ledger_target = match id {
+        Some(id) => Some(change::load_change(root, id)?),
+        None => {
+            let mut checkable = change::list_changes(root)?
+                .records
+                .into_iter()
+                .filter(|record| {
+                    matches!(
+                        record.state,
+                        ChangeState::Approved | ChangeState::Implementing | ChangeState::Verifying
+                    )
+                });
+            match (checkable.next(), checkable.next()) {
+                (Some(only), None) => Some(only),
+                _ => None,
+            }
+        }
+    };
+    if let Some(record) = &ledger_target {
+        change::ensure_working_ledger_keeps_committed_records(root, record)?;
+    }
 
     // First pass: materialize the approved delta and verify the working tree.
     verify("Checking (1/2): verifying the materialized tree…")?;

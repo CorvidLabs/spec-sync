@@ -4,6 +4,7 @@ spec: change.spec.md
 
 # Tasks
 
+- [x] Preserve delta headers and sibling bytes when writing a stale requirement rebase proposal, and refuse the repeated-word move reported in review (#1085, #1089).
 - [x] Reject linked and dangling late-close destinations in planning/dry-run and revalidate all plans at the locked write boundary; prove byte preservation, refusal recovery and normal late close (#994 P1, REQ-change-143).
 - [x] Refuse to open a change when `.specsync/sdd.json` cannot be parsed (REQ-change-108).
 - [x] Return from a bounded Git read when the direct child exits, even if a descendant still holds its output pipe (#854, #855, REQ-change-126, SPEED-1.a).
@@ -122,6 +123,9 @@ spec: change.spec.md
 - [x] Walk or list configured folders only through the confined walk, and keep the read cache out of the Git directory (REQ-change-164).
 - [x] Report the frozen Change Log delta refusal during project audit for approved, implementing, and verifying changes (REQ-change-170, #1090).
 - [x] Publish completed verification with matching JSON and Markdown states, preserve handoff notes, and cover retry and rollback (REQ-change-check-summary-state-001, #1143).
+- [x] Require indexed removal authority from an active or newly archived sibling before it accounts for a missing requirement (REQ-change-169, #1108).
 - [x] Preserve Git path whitespace and record lost-requirement refusals during acceptance, finalize retry, and ship (REQ-change-169, #1108).
+
+- [x] Preserve protected Git trust, fetch missing history for partial clones, and diagnose shallow lifecycle refusals before writing (REQ-change-171 through REQ-change-173).
 
 - [x] Compare requirements against the reference's canonical scope, report loss beside active-change errors, and name unreadable requirements paths (REQ-change-175 through REQ-change-177).

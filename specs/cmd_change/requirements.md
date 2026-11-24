@@ -642,6 +642,14 @@ Acceptance Criteria
 Acceptance Criteria
 - A FIFO given as the manifest is refused without waiting.
 
+### REQ-cmd-change-committed-ledger-001
+
+`change ship-status` SHALL list the refusal of REQ-change-166 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
+
+Acceptance Criteria
+- With one approval's actor rewritten in the working tree after review, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
+- With the file restored, `ready_to_finalize` is true again.
+
 ### REQ-cmd-change-042
 
 `change ship-status` SHALL list the refusal of REQ-change-169 as a blocker, with the same message, and SHALL NOT report the change ready to finalize while it holds. `change ship --dry-run` SHALL refuse with that message.
@@ -649,6 +657,14 @@ Acceptance Criteria
 Acceptance Criteria
 - On the starling-shaped branch, `change ship-status <id>` lists the blocker, reports `ready_to_finalize` false and exits 1, and `change ship <id> --dry-run` refuses with the same message.
 - With the lost blocks restored, `ready_to_finalize` is true again.
+
+### REQ-cmd-change-044
+
+Text `change status` in a shallow clone SHALL give REQ-change-173's refusal instead of the correction-ledger text.
+
+Acceptance Criteria
+- In a shallow clone deep enough for the project's workflow-v2 baseline but not for a change's recorded base commit, text `change status <id>` says the clone is shallow and names `git fetch --unshallow origin`, not "correction ledger integrity is invalid".
+- In a full clone, a corrupt correction ledger keeps its own text.
 
 ### REQ-cmd-change-045
 

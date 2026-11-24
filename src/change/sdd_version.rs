@@ -2258,6 +2258,9 @@ pub fn create_change(root: &Path, request: CreateChangeRequest) -> Result<Change
             None => 2,
         }
     };
+    // REQ-change-173: a shallow clone that cannot check the baseline's history refuses here,
+    // before anything is written.
+    ensure_baseline_history_for_change_new(root)?;
     if workflow_version >= 2 {
         ensure_workflow_v2_baseline(root)?;
     }
@@ -3466,9 +3469,9 @@ fn load_change_for_definition_mutation(
 ) -> Result<(ChangeRecord, Vec<CorrectionRecord>), String> {
     let record = load_change(root, id)?;
     let ledger = load_correction_ledger(root, &record)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     validate_correction_records(&record, &ledger.corrections)
-        .map_err(|_| INVALID_CORRECTION_LEDGER_TEXT.to_string())?;
+        .map_err(|_| correction_ledger_refusal(root, INVALID_CORRECTION_LEDGER_TEXT))?;
     ensure_change_files_writable(root, &record)?;
     Ok((record, ledger.corrections))
 }
@@ -3684,9 +3687,6 @@ fn materialize_change_deltas_inner(
     // after the first — and the workspace would keep shipping a delta that no longer describes
     // the spec it produced. The delta must match its approval for as long as it is evidence.
     ensure_approved_delta_bodies_unchanged(root, &record)?;
-    // Also above the short-circuit, and before anything is written: a body approved over text
-    // the base branch has since rewritten must be refused, never applied over it (#843).
-    ensure_approved_delta_bases_current(root, &record)?;
     ensure_dependencies_satisfied(root, &record)?;
     ensure_no_delta_conflicts(root, &record)?;
     if let Err(error) = ensure_tasks_complete(root, &record, rerun) {
@@ -3699,6 +3699,14 @@ fn materialize_change_deltas_inner(
     if let Some(note) = ensure_no_lost_requirements_recording_refusal(root, &record)? {
         eprintln!("{note}");
     }
+    // A body approved over a requirement main has since edited gets a proposed rebase over main's
+    // edit when the two do not overlap: the merge is written into the delta, and the check refuses
+    // until a person approves it (#1085, REQ-change-rebase-proposal-001). Whatever is left stale is then refused,
+    // never applied over main's text (#843). Both come after the read-only gates above, so a check
+    // those refuse proposes nothing (ss-lead's review of #1089), and both come before anything
+    // canonical is written.
+    propose_stale_modified_rebases(root, &record)?;
+    ensure_approved_delta_bases_current(root, &record)?;
     // `canonical_applied` records that materialization RAN, never that it ran for the delta on
     // disk now. Re-approving a corrected delta satisfies every gate above — the guard directly
     // above asks whether the delta matches its approval, and a new approval signs the new body —

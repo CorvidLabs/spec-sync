@@ -119,12 +119,10 @@ impl RequirementScope {
     /// path it was there, not by today's tree (Codex's fourth round).
     fn add_registry(&mut self, root: &Path, registry: &crate::types::RegistryEntry, on_disk: bool) {
         for (_, path) in &registry.specs {
-            let leaves = if on_disk {
-                safe_project_path(root, path).is_err()
-            } else {
-                normalize_project_path(path).is_err()
+            let Ok(path) = normalize_project_path(path) else {
+                continue;
             };
-            if leaves {
+            if on_disk && safe_project_path(root, &path).is_err() {
                 continue;
             }
             let directory = path
@@ -378,6 +376,139 @@ fn is_scanned_requirements_path(path: &str, excluded: &BTreeSet<String>) -> bool
     components.iter().all(|component| !excluded.contains(*component))
 }
 
+/// Resolve file links against project-relative paths in the selected snapshot. Directory
+/// links and a parent step after a named component need directory traversal and are
+/// unsupported here. The inspector supplies each file's type and any link payload.
+fn requirement_file_chain(
+    path: &str,
+    excluded: &BTreeSet<String>,
+    mut inspect: impl FnMut(&str) -> Result<Option<String>, String>,
+) -> Result<Vec<String>, String> {
+    let mut chain = vec![path.to_string()];
+    loop {
+        let current = chain.last().unwrap();
+        let Some(target) = inspect(current)? else {
+            return Ok(chain);
+        };
+        validate_portable_symlink_target(&target)?;
+        let mut components: Vec<&str> = current.split('/').collect();
+        components.pop();
+        let mut named = false;
+        for component in target.split('/') {
+            match component {
+                "" | "." => {}
+                ".." => {
+                    if named {
+                        return Err("parent step after a named link target component".into());
+                    }
+                    components.pop().ok_or("symbolic link target leaves the project")?;
+                }
+                name => {
+                    named = true;
+                    components.push(name);
+                }
+            }
+        }
+        if !named || target.ends_with('/') || target.ends_with("/.") {
+            return Err("symbolic link target must name a file".into());
+        }
+        let next = components.join("/");
+        if !is_scanned_requirements_path(&next, excluded) {
+            return Err("symbolic link target enters an excluded directory".into());
+        }
+        if chain.len() > 16 || chain.contains(&next) {
+            return Err("symbolic link is cyclic or exceeds 16 hops".into());
+        }
+        chain.push(next);
+    }
+}
+
+/// The mode of each candidate in this exact committed snapshot, including file symlinks.
+fn reference_requirement_modes(
+    root: &Path,
+    reference: &str,
+    scope: &RequirementScope,
+    excluded: &BTreeSet<String>,
+) -> Option<BTreeMap<String, u32>> {
+    let mut modes = BTreeMap::new();
+    let mut insert = |listing: &str| {
+        for entry in nul_separated(listing) {
+            let (metadata, path) = entry.split_once('\t')?;
+            if is_requirements_file(path) && is_scanned_requirements_path(path, excluded) {
+                let mode = u32::from_str_radix(metadata.split_whitespace().next()?, 8).ok()?;
+                // A directory can appear in a nonrecursive companion listing.
+                if mode != 0o040000 {
+                    modes.insert(path.to_string(), mode);
+                }
+            }
+        }
+        Some(())
+    };
+    if !scope.directories.is_empty() {
+        let pathspecs: Vec<_> = scope.directories.iter().map(|path| format!(":(literal){path}")).collect();
+        let mut args = vec!["ls-tree", "-r", "-z", "--end-of-options", reference, "--"];
+        args.extend(pathspecs.iter().map(String::as_str));
+        insert(&git_raw_utf8(root, &args)?)?;
+    }
+    // Git's tree reader takes no glob. List only the registered companion directory itself.
+    for companion in scope.own_companions() {
+        let directory = format!(":(literal){companion}/");
+        let mut args = vec!["ls-tree", "-z", "--end-of-options", reference];
+        if !companion.is_empty() {
+            args.extend(["--", directory.as_str()]);
+        }
+        insert(&git_raw_utf8(root, &args)?)?;
+    }
+    Some(modes)
+}
+
+fn historical_requirement_content(
+    root: &Path,
+    reference: &str,
+    prefix: &str,
+    path: &str,
+    mode: u32,
+    excluded: &BTreeSet<String>,
+) -> Result<(String, String), String> {
+    let read_blob = |file: &str| {
+        let object = format!("{reference}:{prefix}{file}");
+        let output = run_git_bounded(
+            root,
+            &["show", object.as_str()],
+            None,
+            crate::util::MAX_SPEC_FILE_BYTES as usize,
+        )?;
+        if !output.status.success() {
+            return Err(format!("Git cannot read {file}"));
+        }
+        String::from_utf8(output.stdout).map_err(|error| error.to_string())
+    };
+    let chain = requirement_file_chain(path, excluded, |file| {
+        let mode = if file == path {
+            mode
+        } else {
+            let literal = format!(":(literal){file}");
+            let listing = git_raw_utf8(
+                root, &["ls-tree", "-z", "--end-of-options", reference, "--", &literal],
+            ).ok_or_else(|| format!("Git cannot inspect symbolic link target {file}"))?;
+            nul_separated(&listing)
+                .filter_map(|entry| entry.split_once('\t'))
+                .find(|(_, listed)| *listed == file)
+                .and_then(|(metadata, _)| metadata.split_whitespace().next())
+                .and_then(|mode| u32::from_str_radix(mode, 8).ok())
+                .ok_or_else(|| format!("symbolic link target {file} is missing or uses a directory link"))?
+        };
+        match mode {
+            0o100644 | 0o100755 => Ok(None),
+            0o120000 => read_blob(file).map(Some),
+            _ => Err(format!("{file} does not name a regular file")),
+        }
+    })?;
+    let resolved = chain.into_iter().last().unwrap();
+    let text = read_blob(&resolved)?;
+    Ok((resolved, text))
+}
+
 /// How the working-tree scan treats a scope directory.
 enum ScopeDirectory {
     Read,
@@ -433,19 +564,27 @@ fn listed_entry(
 /// What the working-tree scan found: each readable requirements file with its blocks, and errors
 /// that leave the contents of tracked requirements files uncertain (REQ-change-177).
 struct WorkingRequirements {
-    files: Vec<(String, Vec<(String, String)>)>,
-    unreadable: Vec<String>,
+    files: Vec<WorkingRequirementFile>,
+    unreadable: Vec<WorkingRequirementReadError>,
 }
 
-/// Every requirements file on disk in `scope`, project-relative, with its blocks. Its directories
-/// are read to any depth, as Git lists them (Codex on #1108); symlinks are not followed, and no
-/// directory named in `excluded` is entered. A path that cannot be read for a reason other than
-/// not existing is named in `unreadable` if it could contain tracked requirements (#1117).
+enum WorkingRequirementReadError {
+    Listing { path: String, message: String },
+    File { chain: Vec<String>, message: String },
+}
+
+struct WorkingRequirementFile {
+    chain: Vec<String>,
+    blocks: Vec<(String, String)>,
+}
+
+/// Every requirements file on disk in `scope`, with the paths needed to keep its content
+/// tracked. Walk directories without following links, and resolve canonical file links.
+/// Report an unreadable tracked file or directory before treating its contents as lost.
 fn working_tree_requirement_blocks(
     root: &Path,
     scope: &RequirementScope,
     excluded: &BTreeSet<String>,
-    tracked: &BTreeSet<&str>,
 ) -> WorkingRequirements {
     let mut unreadable = Vec::new();
     let git_path = |path: &Path| {
@@ -456,21 +595,11 @@ fn working_tree_requirement_blocks(
             relative.into_owned()
         }
     };
-    let could_contain_tracked_requirements = |path: &str| {
-        if matches!(path, "" | ".") {
-            return !tracked.is_empty();
-        }
-        let prefix = format!("{path}/");
-        tracked.contains(path)
-            || tracked
-                .range(prefix.as_str()..)
-                .next()
-                .is_some_and(|candidate| candidate.starts_with(&prefix))
-    };
-    let note_listing_error = |unreadable: &mut Vec<String>, path: &Path, error: std::io::Error| {
-        let relative = git_path(path);
-        if error.kind() != std::io::ErrorKind::NotFound && could_contain_tracked_requirements(&relative) {
-            unreadable.push(format!("{relative}: {error}"));
+    let note_listing_error = |unreadable: &mut Vec<WorkingRequirementReadError>, path: &Path, error: std::io::Error| {
+        if error.kind() != std::io::ErrorKind::NotFound {
+            let relative = git_path(path);
+            let message = format!("{relative}: {error}");
+            unreadable.push(WorkingRequirementReadError::Listing { path: relative, message });
         }
     };
     let mut files = Vec::new();
@@ -480,9 +609,7 @@ fn working_tree_requirement_blocks(
             ScopeDirectory::Read => pending.push(root.join(directory)),
             ScopeDirectory::Skip => {}
             ScopeDirectory::Unreadable(what) => {
-                if could_contain_tracked_requirements(directory) {
-                    unreadable.push(what);
-                }
+                unreadable.push(WorkingRequirementReadError::Listing { path: directory.clone(), message: what });
             }
         }
     }
@@ -508,7 +635,7 @@ fn working_tree_requirement_blocks(
                 if !excluded.contains(name.as_ref()) {
                     pending.push(path);
                 }
-            } else if kind.is_file() && is_requirements_file(&name) {
+            } else if (kind.is_file() || kind.is_symlink()) && is_requirements_file(&name) {
                 files.push(path);
             }
         }
@@ -518,9 +645,7 @@ fn working_tree_requirement_blocks(
             ScopeDirectory::Read => {}
             ScopeDirectory::Skip => continue,
             ScopeDirectory::Unreadable(what) => {
-                if could_contain_tracked_requirements(companion) {
-                    unreadable.push(what);
-                }
+                unreadable.push(WorkingRequirementReadError::Listing { path: companion.to_string(), message: what });
                 continue;
             }
         }
@@ -536,7 +661,7 @@ fn working_tree_requirement_blocks(
             let entry = entry.map(|entry| (entry.path(), entry.file_type()));
             match listed_entry(&directory, entry) {
                 Ok((path, kind)) => {
-                    if kind.is_file()
+                    if (kind.is_file() || kind.is_symlink())
                         && is_requirements_file(&path.file_name().unwrap_or_default().to_string_lossy())
                     {
                         files.push(path);
@@ -555,20 +680,143 @@ fn working_tree_requirement_blocks(
             if !is_scanned_requirements_path(&relative, excluded) {
                 return None;
             }
-            match crate::util::read_project_string(root, &path, crate::util::MAX_SPEC_FILE_BYTES) {
-                Ok(text) => Some((relative, requirement_blocks(&text))),
+            let mut read_failure = None;
+            let mut inspected = Vec::new();
+            let chain = requirement_file_chain(&relative, excluded, |file| {
+                inspected.push(file.to_string());
+                let path = root.join(file);
+                let parent = path.parent().ok_or("requirements path has no parent")?;
+                if let Err(error) = reject_symlink_components_for(root, parent, "requirements directory") {
+                    read_failure = Some(format!("{file}: {error}"));
+                    return Err(error);
+                }
+                let inspect = || -> std::io::Result<Option<PathBuf>> {
+                    let kind = fs::symlink_metadata(&path)?.file_type();
+                    if kind.is_symlink() {
+                        // Read the link's pathname without following it.
+                        return fs::read_link(&path).map(Some);
+                    }
+                    if kind.is_file() {
+                        return Ok(None);
+                    }
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "requirements path is not a file",
+                    ))
+                };
+                match inspect() {
+                    Ok(target) => target
+                        .map(|target| target.into_os_string().into_string().map_err(|_| "symbolic link target is not UTF-8".to_string()))
+                        .transpose(),
+                    Err(error) => {
+                        if !matches!(error.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory)
+                        {
+                            read_failure = Some(format!("{file}: {error}"));
+                        }
+                        Err(error.to_string())
+                    }
+                }
+            });
+            let chain = match chain {
+                Ok(chain) => chain,
+                Err(_) => {
+                    if let Some(message) = read_failure {
+                        unreadable.push(WorkingRequirementReadError::File { chain: inspected, message });
+                    }
+                    return None;
+                }
+            };
+            let resolved = chain.last()?;
+            match crate::util::read_project_string(root, &root.join(resolved), crate::util::MAX_SPEC_FILE_BYTES) {
+                Ok(text) => Some(WorkingRequirementFile { chain, blocks: requirement_blocks(&text) }),
                 Err(error) => {
-                    if error.kind() != std::io::ErrorKind::NotFound && tracked.contains(relative.as_str()) {
-                        unreadable.push(format!("{relative}: {error}"));
+                    if error.kind() != std::io::ErrorKind::NotFound {
+                        let message = format!("{resolved}: {error}");
+                        unreadable.push(WorkingRequirementReadError::File { chain, message });
                     }
                     None
                 }
             }
         })
         .collect();
-    unreadable.sort_unstable();
-    unreadable.dedup();
     WorkingRequirements { files, unreadable }
+}
+
+/// A lifecycle commit owns its selected workspace. A sibling authorizes a removal only
+/// when Git's index already contains the definition and delta that authorize it.
+fn sibling_removal_is_staged(
+    root: &Path,
+    change: &ChangeRecord,
+    approval: &ApprovalRecord,
+    delta: &Path,
+) -> Result<bool, String> {
+    let package = strict_portable_project_path(root, &find_change_dir(root, &change.id)?)?;
+    let corrections = format!("{package}/{CORRECTIONS_FILE}");
+    let mut paths = BTreeSet::from([
+        format!("{package}/state.json"),
+        format!("{package}/approvals.json"),
+        strict_portable_project_path(root, delta)?,
+        corrections.clone(),
+    ]);
+    // Legacy definition approvals bind the selected artifacts as well as the scope.
+    if change.workflow_version < 2 || approval.approved_scope.is_none() {
+        let ledger = load_correction_ledger(root, change)?;
+        let definition = definition_artifact_snapshot(root, change, &ledger.corrections)?;
+        // Approval digests keep logical change paths when a package moves to the archive.
+        let original = format!("{CHANGES_PATH}/{}/", change.id);
+        for (path, _, _, _) in definition.entries {
+            let indexed = match path.strip_prefix(&original) {
+                Some(relative) => format!("{package}/{relative}"),
+                None => path,
+            };
+            paths.insert(indexed);
+        }
+    }
+    let staged = inspect_git_candidates(root, &paths, true, true)?;
+    let mut compare_bytes = BTreeSet::new();
+    for (path, entry) in &staged.entries {
+        if entry.object_identity
+            || (path == &corrections
+                && entry.kind == AcceptanceInputKind::Missing
+                && entry.object.is_none())
+        {
+            continue;
+        }
+        if entry.kind != AcceptanceInputKind::File
+            || !matches!(entry.mode, 0o100644 | 0o100755)
+            || staged.modes.get(path) != Some(&entry.mode)
+            || entry.object.is_none()
+        {
+            return Ok(false);
+        }
+        compare_bytes.insert(path.clone());
+    }
+
+    // A write followed by restoring the original bytes may leave Git's stat data stale.
+    let _live = crate::git_utils::live_repository_reads();
+    let lfs_paths = validate_canonical_git_attributes(root, &compare_bytes)?;
+    for path in compare_bytes {
+        let entry = &staged.entries[&path];
+        let object = entry.object.as_deref().expect("tracked index object");
+        let blob = git_blob_bytes(root, object)?;
+        if blob != entry.payload || (lfs_paths.contains(&path) && !is_git_lfs_pointer(&blob)) {
+            return Ok(false);
+        }
+        if blob.is_empty() {
+            // An intent-to-add entry also reports the empty blob, which is not staged evidence.
+            let args = literal_candidate_git_args(
+                &git_repo_prefix(root)?,
+                &["diff-files", "--diff-filter=A", "--name-only", "-z"],
+                &[&path],
+            );
+            if !run_git_required(root, &borrowed_git_args(&args), None, MAX_GIT_COMMAND_OUTPUT_BYTES)?
+                .is_empty()
+            {
+                return Ok(false);
+            }
+        }
+    }
+    Ok(true)
 }
 
 /// Adds to `removed` the requirement ids the approved `## REMOVED` items of `change` name: the
@@ -576,7 +824,12 @@ fn working_tree_requirement_blocks(
 /// no delta digests, as one made before they existed, binds no wording, so its change adds
 /// nothing until it is approved again (Codex on #1108, third round). A change whose approval or
 /// delta cannot be read adds nothing either.
-fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTreeSet<String>) {
+fn add_approved_removals(
+    root: &Path,
+    change: &ChangeRecord,
+    is_sibling: bool,
+    removed: &mut BTreeSet<String>,
+) {
     let Ok(ledger) = load_approvals(root, change) else {
         return;
     };
@@ -597,20 +850,34 @@ fn add_approved_removals(root: &Path, change: &ChangeRecord, removed: &mut BTree
         if !approved {
             continue;
         }
-        for item in parse_delta(&delta).unwrap_or_default() {
-            if item.operation == DeltaOperation::Removed && item.target == DeltaTarget::Requirement {
-                removed.insert(item.key.clone());
-            }
+        let removals: Vec<_> = parse_delta(&delta)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|item| {
+                item.operation == DeltaOperation::Removed && item.target == DeltaTarget::Requirement
+            })
+            .map(|item| item.key)
+            .collect();
+        if removals.is_empty() {
+            continue;
         }
+        if is_sibling && sibling_removal_is_staged(root, change, approval, &path) != Ok(true) {
+            continue;
+        }
+        removed.extend(removals);
     }
 }
 
 /// The requirement ids approved `## REMOVED` items name, in the deltas of every change on the
 /// branch that may account for a loss: each active change past its draft, and each change the
-/// branch archived after `reference`, committed or not yet, taken from its archived record. A retired change accounts
-/// for nothing, in the active roster or in the archive, and neither does a delta file under the
+/// branch archived after `reference`. Only the selected workspace can supply untracked removal
+/// authority. A retired change accounts for nothing, in the active roster or in the archive, and neither does a delta file under the
 /// archive path with no archived record around it (Codex on #1108; one mechanism for both).
-fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTreeSet<String>, String> {
+fn removed_requirement_ids_on_branch(
+    root: &Path,
+    reference: &str,
+    selected_id: Option<&str>,
+) -> Result<BTreeSet<String>, String> {
     let mut removed = BTreeSet::new();
     // A change that cannot be read accounts for no removal, and never turns this refusal into its
     // own error (ss-lead's review of #1081, #1104's pattern); so is every change when the changes
@@ -625,7 +892,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
                 | ChangeState::Accepted
         )
     }) {
-        add_approved_removals(root, change, &mut removed);
+        add_approved_removals(root, change, Some(change.id.as_str()) != selected_id, &mut removed);
     }
     let archive = format!(":(literal){ARCHIVE_PATH}");
     let added = git_raw_utf8(
@@ -689,7 +956,7 @@ fn removed_requirement_ids_on_branch(root: &Path, reference: &str) -> Result<BTr
         if archived_at(root, reference, &change.id)? {
             continue;
         }
-        add_approved_removals(root, &change, &mut removed);
+        add_approved_removals(root, &change, Some(change.id.as_str()) != selected_id, &mut removed);
     }
     Ok(removed)
 }
@@ -745,9 +1012,12 @@ fn ensure_no_lost_requirements(root: &Path, record: &ChangeRecord) -> Result<Opt
         LostRequirementsRefusal::Lost(message) | LostRequirementsRefusal::Misconfigured(message) => {
             message
         }
+        // In a partial clone whose one download failed, the way out is that download
+        // (REQ-change-172): `git fetch origin` brings no blobs to a blobless clone.
         LostRequirementsRefusal::Unreadable(what) => format!(
             "cannot tell whether this branch lost canonical requirements: {what}; {}",
-            lost_requirements_way_out(root, record)
+            partial_clone_download_refusal(root)
+                .unwrap_or_else(|| lost_requirements_way_out(root, record))
         ),
         // A path in the working tree that could not be read may hold what reads as lost
         // (REQ-change-177, #1117): name it, and the way out is to make it readable.
@@ -790,6 +1060,13 @@ impl From<String> for LostRequirementsRefusal {
     }
 }
 
+struct ReferenceRequirement {
+    id: String,
+    canonical_path: String,
+    content_path: String,
+    body: String,
+}
+
 fn lost_requirements_check(
     root: &Path,
     record: &ChangeRecord,
@@ -825,7 +1102,6 @@ fn lost_requirements_check(
         add_reference_requirement_scope(root, &reference, &prefix, &mut reference_scope)?;
     let mut scope = requirement_scope(root);
     scope.extend(&reference_scope);
-    let pathspecs = scope.pathspecs();
     let reference_pathspecs = reference_scope.pathspecs();
     // Nothing was canonical at the reference, so nothing can be lost; an empty pathspec list
     // would diff every path (corvid-agent and Codex on #1134).
@@ -844,33 +1120,29 @@ fn lost_requirements_check(
     args.extend(reference_pathspecs.iter().map(String::as_str));
     let changed = git_raw_utf8(root, &args)
         .ok_or_else(|| format!("Git cannot compare it with {short}"))?;
-    // The files that differ, as the reference judged them: its blocks are what can be lost.
-    let changed: Vec<&str> = nul_separated(&changed)
-        .filter(|path| {
-            is_requirements_file(path) && is_scanned_requirements_path(path, &excluded_at_reference)
-        })
-        .collect();
-    if changed.is_empty() {
-        return Ok(None);
-    }
-    // Every id at the reference in a file that differs now, with its file and block body.
-    let mut at_reference: Vec<(String, String, String)> = Vec::new();
-    for path in &changed {
-        let literal = format!(":(literal){path}");
-        let listed = git_raw_utf8(
-            root,
-            &["ls-tree", "-z", "--name-only", "--end-of-options", reference.as_str(), "--", literal.as_str()],
-        )
+    let changed: BTreeSet<&str> = nul_separated(&changed).collect();
+    let modes = reference_requirement_modes(root, &reference, &reference_scope, &excluded_at_reference)
         .ok_or_else(|| format!("cannot read the tree of {short}"))?;
-        if nul_separated(&listed).next().is_none() {
+    let mut at_reference = Vec::new();
+    for (path, mode) in modes {
+        // The canonical name may be unchanged when only a linked file's content changed.
+        if mode != 0o120000 && !changed.contains(path.as_str()) {
             continue;
         }
-        let object = format!("{reference}:{prefix}{path}");
-        let text = git_raw_utf8(root, &["show", object.as_str()])
-            .ok_or_else(|| format!("cannot read {path} at {short}"))?;
+        let (content_path, text) =
+            historical_requirement_content(root, &reference, &prefix, &path, mode, &excluded_at_reference)
+                .map_err(|error| format!("cannot read {path} at {short}: {error}"))?;
         for (id, body) in requirement_blocks(&text) {
-            at_reference.push((id, path.to_string(), body));
+            at_reference.push(ReferenceRequirement {
+                id,
+                canonical_path: path.clone(),
+                content_path: content_path.clone(),
+                body,
+            });
         }
+    }
+    if at_reference.is_empty() {
+        return Ok(None);
     }
     // A file canonical now or at the reference counts as present, so a directory is skipped only
     // when both exclude it: one the branch newly excludes keeps the ids it still holds (Codex on
@@ -882,79 +1154,110 @@ fn lost_requirements_check(
     // Only the tracked ones count ("in none of the tracked ones in the working tree"): `change
     // check --commit` commits no file Git does not track, so a copy there keeps nothing (Codex on
     // #1108, fourth round; Leif's 'continue with 95% confidence').
+    let WorkingRequirements { files: working, unreadable } =
+        working_tree_requirement_blocks(root, &scope, &excluded_both);
     let mut args = vec!["ls-files", "-z", "--cached", "--"];
+    let pathspecs = scope.pathspecs();
     args.extend(pathspecs.iter().map(String::as_str));
+    let link_targets: BTreeSet<_> = working
+        .iter()
+        .flat_map(|entry| entry.chain.iter().skip(1).map(String::as_str))
+        .chain(unreadable.iter().flat_map(|error| match error {
+            WorkingRequirementReadError::Listing { .. } => [].as_slice(),
+            WorkingRequirementReadError::File { chain, .. } => chain.as_slice(),
+        }).map(String::as_str))
+        .map(|path| format!(":(literal){path}"))
+        .collect();
+    args.extend(link_targets.iter().map(String::as_str));
     let tracked_listing = git_raw_utf8(root, &args)
         .ok_or_else(|| "Git cannot list the files it tracks".to_string())?;
     let tracked: BTreeSet<&str> = nul_separated(&tracked_listing)
-        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded_both))
+        .filter(|path| is_scanned_requirements_path(path, &excluded_both))
         .collect();
-    let WorkingRequirements {
-        files: working,
-        unreadable,
-    } = working_tree_requirement_blocks(root, &scope, &excluded_both, &tracked);
     let present: BTreeSet<&str> = working
         .iter()
-        .filter(|(path, _)| tracked.contains(path.as_str()))
-        .flat_map(|(_, blocks)| blocks.iter().map(|(id, _)| id.as_str()))
+        .filter(|entry| entry.chain.iter().all(|path| tracked.contains(path.as_str())))
+        .flat_map(|entry| entry.blocks.iter().map(|(id, _)| id.as_str()))
         .collect();
-    let lost: Vec<&(String, String, String)> = at_reference
+    let lost: Vec<_> = at_reference
         .iter()
-        .filter(|(id, _, _)| !present.contains(id.as_str()))
+        .filter(|entry| !present.contains(entry.id.as_str()))
         .collect();
     if lost.is_empty() {
         return Ok(None);
     }
-    let removed = removed_requirement_ids_on_branch(root, &reference)?;
-    let mut unaccounted: Vec<&(String, String, String)> = lost
+    let removed = removed_requirement_ids_on_branch(root, &reference, Some(&record.id))?;
+    let mut unaccounted: Vec<_> = lost
         .into_iter()
-        .filter(|(id, _, _)| !removed.contains(id))
+        .filter(|entry| !removed.contains(&entry.id))
         .collect();
     if unaccounted.is_empty() {
         return Ok(None);
     }
-    // What reads as lost may be in a path the scan could not read (REQ-change-177, #1117).
+    // An unreadable requirement file may account for what appears lost. Untracked files and
+    // directories with no tracked requirements cannot keep an ID.
+    let mut unreadable: Vec<_> = unreadable
+        .into_iter()
+        .filter_map(|error| match error {
+            WorkingRequirementReadError::File { chain, message } => chain
+                .iter()
+                .all(|path| tracked.contains(path.as_str()))
+                .then_some(message),
+            WorkingRequirementReadError::Listing { path, message } => {
+                let prefix = if matches!(path.as_str(), "" | ".") { String::new() } else { format!("{path}/") };
+                let tracked_canonical_descendant = tracked.range(prefix.as_str()..)
+                    .take_while(|candidate| candidate.starts_with(&prefix))
+                    .any(|candidate| is_requirements_file(candidate));
+                (tracked.contains(path.as_str()) || tracked_canonical_descendant).then_some(message)
+            }
+        })
+        .collect();
+    unreadable.sort_unstable();
+    unreadable.dedup();
     if !unreadable.is_empty() {
         return Err(LostRequirementsRefusal::UnreadableWorkingTree(unreadable));
     }
-    unaccounted.sort_by(|a, b| natural_order(&a.0, &b.0).then_with(|| a.1.cmp(&b.1)));
-    unaccounted.dedup_by(|a, b| a.0 == b.0);
+    unaccounted.sort_by(|a, b| natural_order(&a.id, &b.id).then_with(|| a.canonical_path.cmp(&b.canonical_path)));
+    unaccounted.dedup_by(|a, b| a.id == b.id);
     let mut by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
-    for (id, path, _) in &unaccounted {
-        by_file.entry(path.as_str()).or_default().push(id.as_str());
+    for entry in &unaccounted {
+        by_file.entry(entry.canonical_path.as_str()).or_default().push(entry.id.as_str());
     }
     let listed = by_file
         .iter()
         .map(|(path, ids)| format!("{} ({path})", ids.join(", ")))
         .collect::<Vec<_>>()
         .join("; ");
-    let restore = by_file
-        .keys()
+    let content_paths: BTreeSet<_> = unaccounted.iter().map(|entry| &entry.content_path).collect();
+    let restore = content_paths
+        .into_iter()
         .map(|path| format!("`git show {}`", shell_word(&format!("{short}:{prefix}{path}"))))
         .collect::<Vec<_>>()
         .join(", ");
     let renumbered = unaccounted
         .iter()
-        .filter(|(_, _, body)| !body.is_empty())
-        .filter_map(|(id, _, body)| {
+        .filter(|entry| !entry.body.is_empty())
+        .filter_map(|entry| {
             working
                 .iter()
-                .flat_map(|(_, blocks)| blocks.iter())
-                .find(|(other, text)| other != id && text == body)
-                .map(|(other, _)| format!("{id} reads as renumbered to {other}"))
+                .flat_map(|file| &file.blocks)
+                .find(|(other, text)| other != &entry.id && text == &entry.body)
+                .map(|(other, _)| format!("{} reads as renumbered to {other}", entry.id))
         })
         .collect::<Vec<_>>();
     // A lost id kept only in a file Git does not track: the way out is to track it.
     let untracked = unaccounted
         .iter()
-        .filter_map(|(id, _, _)| {
+        .filter_map(|entry| {
             working
                 .iter()
-                .filter(|(path, _)| !tracked.contains(path.as_str()))
-                .find(|(_, blocks)| blocks.iter().any(|(other, _)| other == id))
-                .map(|(path, _)| {
+                .filter(|file| file.blocks.iter().any(|(id, _)| id == &entry.id))
+                .flat_map(|file| &file.chain)
+                .find(|path| !tracked.contains(path.as_str()))
+                .map(|path| {
                     format!(
-                        "{id} is in {path}, which Git does not track: `git add {}`",
+                        "{} depends on {path}, which Git does not track: `git add {}`",
+                        entry.id,
                         shell_word(path)
                     )
                 })
@@ -982,34 +1285,36 @@ fn lost_requirements_check(
     // brought in some other way than a merge (a cherry-pick, or the same edit made by hand). The
     // way out is to merge it, not to restore the block or approve a REMOVED delta (Leif's rule 3;
     // the tester's L2b). When the tip cannot be read, the general way out stands.
-    let (main_removed, others): (Vec<&str>, Vec<&str>) = match default_branch_requirement_ids(root, &scope) {
-        Some((_, held)) => unaccounted
-            .iter()
-            .map(|(lost, _, _)| lost.as_str())
-            .partition(|lost| !held.contains(*lost)),
-        None => (Vec::new(), unaccounted.iter().map(|(lost, _, _)| lost.as_str()).collect()),
-    };
     let restore_or_remove = format!(
         "restore each block from {short} ({restore} prints it), or remove it on purpose by naming it in a `## REMOVED` delta and approving the change again with `specsync change approve {id}`"
     );
-    let way_out = match (main_removed.is_empty(), lost_requirements_default_ref(root)) {
-        (false, Some(default)) if others.is_empty() => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`): a removal merged from the default branch is not this branch's loss. Then run `specsync change check {id}`",
-            main_removed.join(", ")
-        ),
-        (false, Some(default)) => format!(
-            "{default} has removed {} too, so merge {default} into this branch (`git merge {default}`). For {}, {restore_or_remove}. Then run `specsync change check {id}`",
-            main_removed.join(", "),
-            others.join(", ")
-        ),
-        _ => {
-            let mut way = restore_or_remove;
-            if let Some(first) = way.get_mut(0..1) {
-                first.make_ascii_uppercase();
-            }
-            format!("{way}, then `specsync change check {id}`")
+    let default_remediation = default_branch_requirement_ids(root, &scope).and_then(|(default, held)| {
+        let (main_removed, others): (Vec<&str>, Vec<&str>) = unaccounted
+            .iter()
+            .map(|entry| entry.id.as_str())
+            .partition(|lost| !held.contains(*lost));
+        if main_removed.is_empty() {
+            return None;
         }
-    };
+        let merge_ref = shell_word(&default);
+        let merge = format!(
+            "{default} has removed {} too, so merge {default} into this branch (`git merge {merge_ref}`)",
+            main_removed.join(", ")
+        );
+        let followup = if others.is_empty() {
+            ": a removal merged from the default branch is not this branch's loss".to_string()
+        } else {
+            format!(". For {}, {restore_or_remove}", others.join(", "))
+        };
+        Some(format!("{merge}{followup}. Then run `specsync change check {id}`"))
+    });
+    let way_out = default_remediation.unwrap_or_else(|| {
+        let mut way = restore_or_remove;
+        if let Some(first) = way.get_mut(0..1) {
+            first.make_ascii_uppercase();
+        }
+        format!("{way}, then `specsync change check {id}`")
+    });
     Err(LostRequirementsRefusal::Lost(format!(
         "this branch lost canonical requirements that no approved `## REMOVED` delta names, compared with {short}: {listed}. {way_out}{untracked_hint}{renumber_hint}"
     )))
@@ -1029,31 +1334,10 @@ fn default_branch_requirement_ids(
     // nothing (the tester's excl2 on #1108).
     let mut scope = scope.clone();
     let excluded = add_reference_requirement_scope(root, &default, &prefix, &mut scope).ok()?;
-    let scope = &scope;
-    let pathspecs: Vec<String> = scope
-        .directories
-        .iter()
-        .map(|directory| format!(":(literal){directory}"))
-        .collect();
-    let mut args = vec!["ls-tree", "-r", "-z", "--name-only", "--end-of-options", default.as_str(), "--"];
-    args.extend(pathspecs.iter().map(String::as_str));
-    let mut listed = git_raw_utf8(root, &args)?;
-    // `ls-tree` takes no glob, so a companion's own files come from its directory's listing.
-    for companion in scope.own_companions() {
-        let directory = format!(":(literal){companion}/");
-        let mut args = vec!["ls-tree", "-z", "--name-only", "--end-of-options", default.as_str()];
-        if !companion.is_empty() {
-            args.extend(["--", directory.as_str()]);
-        }
-        listed.push('\0');
-        listed.push_str(&git_raw_utf8(root, &args)?);
-    }
+    let modes = reference_requirement_modes(root, &default, &scope, &excluded)?;
     let mut held = BTreeSet::new();
-    for path in nul_separated(&listed)
-        .filter(|path| is_requirements_file(path) && is_scanned_requirements_path(path, &excluded))
-    {
-        let object = format!("{default}:{prefix}{path}");
-        let text = git_raw_utf8(root, &["show", object.as_str()])?;
+    for (path, mode) in modes {
+        let (_, text) = historical_requirement_content(root, &default, &prefix, &path, mode, &excluded).ok()?;
         held.extend(requirement_blocks(&text).into_iter().map(|(id, _)| id));
     }
     Some((default, held))

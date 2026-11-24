@@ -3073,6 +3073,62 @@ fn read_archive_coverage(
     Ok(Some((text, receipt)))
 }
 
+/// A receipt can describe a generation only when the same bytes were committed with it.
+/// A later receipt edit, package relocation, or restoration of a superseded receipt cannot
+/// provide new coverage. Archives still authenticate their own terminal evidence separately.
+fn validate_committed_archive_coverage(
+    root: &Path,
+    record: &ChangeRecord,
+    path: &Path,
+    content: &str,
+) -> Result<(), String> {
+    let relative = git_repo_relative_path(root, &portable_project_path(root, path))?;
+    let literal = format!(":(top,literal){relative}");
+    let head = git_output(root, &["rev-parse", "--verify", "HEAD^{commit}"])
+        .ok_or("the committed archive could not be read")?;
+    if !git_entry_at_commit(root, &head, &relative)?.is_some_and(|(mode, bytes)| {
+        matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+    }) {
+        return Err("the receipt differs from the committed archive".into());
+    }
+    let status = run_git_bounded(
+        root,
+        &["status", "--porcelain=v1", "--untracked-files=all", "--", &literal],
+        None,
+        MAX_GIT_DIAGNOSTIC_BYTES,
+    )?;
+    if !status.status.success() || !status.stdout.is_empty() {
+        return Err("the receipt differs from the committed archive".into());
+    }
+
+    let directory = relative.strip_suffix("/coverage.json").ok_or("invalid receipt path")?;
+    let approvals_path = format!("{directory}/approvals.json");
+    let approvals = scoped_review_file_at_commit(root, &head, &approvals_path)?
+        .ok_or("the archive's committed approval ledger is missing")?;
+    let generation = relay_blind_approval_ledger_bytes(&approvals)
+        .ok_or("the archive's committed approval ledger is invalid")?;
+    let mut matched = false;
+    for introduction in admissible_archive_introductions(root, record, &approvals)? {
+        if ensure_git_ancestor(root, &introduction.commit, &head, "archive coverage introduction").is_err()
+            || introduction.approvals.as_deref().and_then(relay_blind_approval_ledger_bytes).as_ref()
+                != Some(&generation)
+        {
+            continue;
+        }
+        let original = format!("{}/{PROVISIONAL_COVERAGE_FILE}", introduction.directory);
+        if !git_entry_at_commit(root, &introduction.commit, &original)?.is_some_and(|(mode, bytes)| {
+            matches!(mode, 0o100644 | 0o100755) && bytes == content.as_bytes()
+        }) {
+            return Err("the receipt differs from the one committed with this archive generation".into());
+        }
+        matched = true;
+    }
+    if !matched {
+        return Err("no committed archive introduction authenticates the receipt".into());
+    }
+    Ok(())
+}
+
 fn archive_coverage_warning(root: &Path, path: &Path, id: &str, error: &str) -> String {
     let relative = portable_project_path(root, path);
     let literal = shell_word(&format!(":(literal){relative}"));
@@ -3104,11 +3160,13 @@ fn archived_provisional_coverage_with_roster(
         return Ok(Vec::new());
     };
     let path = directory.join(PROVISIONAL_COVERAGE_FILE);
-    let Some((_, coverage)) = read_archive_coverage(root, &path, &record.id)
+    let Some((content, coverage)) = read_archive_coverage(root, &path, &record.id)
         .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?
     else {
         return Ok(Vec::new());
     };
+    validate_committed_archive_coverage(root, record, &path, &content)
+        .map_err(|error| archive_coverage_warning(root, &path, &record.id, &error))?;
     // Load the signed manifest and change roster at most once per archive, and only when
     // a recorded covering change can still qualify.
     let signed = std::cell::OnceCell::new();

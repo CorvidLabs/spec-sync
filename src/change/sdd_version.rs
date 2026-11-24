@@ -4623,32 +4623,18 @@ fn unarchive_change_workspace(
         crate::util::create_project_dir(root, parent)
             .map_err(|error| format!("failed to create {}: {error}", parent.display()))?;
     }
-    let coverage = committed_coverage_for_reopen(
-        root,
-        &archived_location.join(PROVISIONAL_COVERAGE_FILE),
-        &record.id,
-    );
+    let receipt = archived_location.join(PROVISIONAL_COVERAGE_FILE);
+    let coverage = read_archive_coverage(root, &receipt, &record.id)
+        .ok()
+        .flatten()
+        .and_then(|(content, _)| {
+            validate_committed_archive_coverage(root, record, &receipt, &content)
+                .ok()
+                .map(|()| content)
+        });
     rename_durable(root, &archived_location, &active)
         .map_err(|error| format!("failed to un-archive {}: {error}", record.id))?;
     Ok((archived_location, coverage))
-}
-
-/// A valid-looking file is eligible for retirement only when it is the unchanged,
-/// committed receipt at this archive path. Preserve untracked, staged and edited files.
-fn committed_coverage_for_reopen(root: &Path, path: &Path, id: &str) -> Option<String> {
-    let (content, _) = read_archive_coverage(root, path, id).ok()??;
-    let relative = portable_project_path(root, path);
-    let repo_relative = git_repo_relative_path(root, &relative).ok()?;
-    let committed = scoped_review_file_at_commit(root, "HEAD", &repo_relative).ok()??;
-    if committed != content.as_bytes() {
-        return None;
-    }
-    let literal = format!(":(literal){relative}");
-    let status = run_git_bounded(
-        root, &["status", "--porcelain=v1", "--untracked-files=all", "--", &literal],
-        None, MAX_GIT_DIAGNOSTIC_BYTES,
-    ).ok()?;
-    (status.status.success() && status.stdout.is_empty()).then_some(content)
 }
 
 /// Reopen a change whose workspace is already active. Every failure here is recoverable

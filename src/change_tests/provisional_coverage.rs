@@ -21,34 +21,36 @@ fn accepted_change_with_moved_input(root: &Path, successor: bool) -> (ChangeReco
     accepted = accept_change(root, &accepted.id, Some("Closer".into()), None).unwrap();
     quiet_git(root, &["add", "."]);
     quiet_git(root, &["commit", "-m", "accept the first change"]);
-    let in_flight = successor.then(|| {
-        let mut later = completed_current_record(root);
-        for artifact in &later.selected_artifacts {
-            let content = if *artifact == ArtifactKind::Tasks {
-                "# Tasks\n\n- [x] Edit the shared source.\n"
-            } else {
-                prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
-            };
-            fs::write(change_dir(root, &later.id).join(artifact.file_name()), content).unwrap();
-        }
-        fs::write(
-            delta_path(root, &later, "auth"),
-            "## MODIFIED\n### SPEC SECTION Invariants\n\nAuthentication is governed by the later change.\n",
-        )
-        .unwrap();
-        later.affected_paths.push("src/auth.rs".into());
-        // The later change edits the `auth` spec too when it is checked, so its scope says so.
-        later.affected_paths.push("specs/auth/".into());
-        later.affected_paths.sort();
-        later.affected_paths.dedup();
-        save_change(root, &later).unwrap();
-        write_change_markdown(root, &later).unwrap();
-        approve_definition(root, &later.id, Some("Scope owner".into()), None).unwrap()
-    });
+    let in_flight = successor.then(|| approved_in_flight_auth_change(root, "Invariants"));
     fs::write(root.join("src/auth.rs"), "// Edited by the later change.\n").unwrap();
     quiet_git(root, &["add", "."]);
     quiet_git(root, &["commit", "-m", "the later change edits the shared source"]);
     (accepted, in_flight)
+}
+
+fn approved_in_flight_auth_change(root: &Path, section: &str) -> ChangeRecord {
+    let mut later = completed_current_record(root);
+    for artifact in &later.selected_artifacts {
+        let content = if *artifact == ArtifactKind::Tasks {
+            "# Tasks\n\n- [x] Edit the shared source.\n"
+        } else {
+            prose_or_plan(artifact, "# Complete\n\nReviewed content.\n")
+        };
+        fs::write(change_dir(root, &later.id).join(artifact.file_name()), content).unwrap();
+    }
+    fs::write(
+        delta_path(root, &later, "auth"),
+        format!("## MODIFIED\n### SPEC SECTION {section}\n\nAuthentication is governed by the later change.\n"),
+    )
+    .unwrap();
+    later.affected_paths.push("src/auth.rs".into());
+    // The later change edits the `auth` spec too when it is checked, so its scope says so.
+    later.affected_paths.push("specs/auth/".into());
+    later.affected_paths.sort();
+    later.affected_paths.dedup();
+    save_change(root, &later).unwrap();
+    write_change_markdown(root, &later).unwrap();
+    approve_definition(root, &later.id, Some("Scope owner".into()), None).unwrap()
 }
 
 fn terminal_validity(root: &Path, record: &ChangeRecord) -> TerminalEvidenceSummary {
@@ -619,6 +621,21 @@ fn reopened_covered_archive_recomputes_coverage_at_finalization() {
         .unwrap();
     assert!(original.status.success());
     assert_eq!(original.stdout, prior_bytes);
+
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the archive's new generation without coverage"]);
+    let archived = load_change(root, &record.id).unwrap();
+    assert!(archived_provisional_coverage(root, &archived).unwrap().is_empty());
+    let stale_receipt = rearchived.join(PROVISIONAL_COVERAGE_FILE);
+    fs::write(&stale_receipt, &prior_bytes).unwrap();
+    quiet_git(root, &["add", "--", &portable_project_path(root, &stale_receipt)]);
+    quiet_git(root, &["commit", "-m", "copy the older receipt into this archive generation"]);
+    let summary = summarize_change(root, &load_change(root, &record.id).unwrap());
+    assert!(summary.provisional_coverage.is_empty());
+    assert!(summary.provisional_coverage_warning.unwrap().contains(PROVISIONAL_COVERAGE_FILE));
+    let active = change_dir(root, &record.id);
+    reopen_change(root, &record.id, "Operator".into(), "refresh delivery evidence again".into()).unwrap();
+    assert_eq!(fs::read(active.join(PROVISIONAL_COVERAGE_FILE)).unwrap(), prior_bytes);
 }
 
 #[test]
@@ -764,6 +781,55 @@ fn a_present_invalid_archive_coverage_receipt_is_reported_without_changing_authe
         assert!(quiet_git(root, &["status", "--porcelain"]).is_empty(), "{case}");
     }
     assert!(missing_diagnostics.is_empty(), "present invalid receipts without diagnostics: {missing_diagnostics:?}");
+}
+
+#[test]
+fn only_coverage_from_the_committed_archive_generation_has_standing() {
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+    let (predecessor, coverer) = accepted_change_with_moved_input(root, true);
+    let coverer = coverer.unwrap();
+    let directory = archive_change(root, &predecessor.id).unwrap();
+    let receipt = directory.join(PROVISIONAL_COVERAGE_FILE);
+    let original = fs::read(&receipt).unwrap();
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "commit the provisionally covered archive"]);
+    let introduction = quiet_git(root, &["rev-parse", "HEAD"]);
+    let original_summary = summarize_change(root, &load_change(root, &predecessor.id).unwrap());
+    assert_eq!(original_summary.provisional_coverage[0].change, coverer.id);
+    assert!(original_summary.provisional_coverage[0].warning.is_none());
+
+    let replacement = approved_in_flight_auth_change(root, "Purpose");
+    assert_ne!(replacement.id, coverer.id);
+    quiet_git(root, &["add", "--all"]);
+    quiet_git(root, &["commit", "-m", "approve a second real covering change"]);
+    let mut edited: serde_json::Value = serde_json::from_slice(&original).unwrap();
+    edited["covered_by"][0]["change"] = serde_json::json!(replacement.id);
+    fs::write(&receipt, serde_json::to_vec_pretty(&edited).unwrap()).unwrap();
+    let relative = portable_project_path(root, &receipt);
+    let assert_advisory_only = || {
+        let record = load_change(root, &predecessor.id).unwrap();
+        let summary = summarize_change(root, &record);
+        assert!(summary.provisional_coverage.is_empty(), "{:?}", summary.provisional_coverage);
+        assert!(summary.provisional_coverage_warning.as_deref().is_some_and(|warning| warning.contains(&relative)), "{:?}", summary.provisional_coverage_warning);
+        assert_eq!(summary.terminal_evidence.unwrap().validity, TerminalEvidenceValidity::AuthenticatedHistory);
+        let audit = audit_project_with_archives(root, true);
+        assert!(audit.errors.is_empty(), "{:?}", audit.errors);
+        assert!(audit.warnings.iter().any(|warning| warning.contains(&relative)), "{:?}", audit.warnings);
+    };
+    assert_advisory_only();
+    quiet_git(root, &["add", "--", &relative]);
+    assert_advisory_only();
+    quiet_git(root, &["commit", "-m", "replace coverage after closing the archive"]);
+    assert_advisory_only();
+
+    quiet_git(root, &["restore", "--source", &introduction, "--", &relative]);
+    quiet_git(root, &["add", "--", &relative]);
+    quiet_git(root, &["commit", "-m", "restore original receipt"]);
+    let restored = summarize_change(root, &load_change(root, &predecessor.id).unwrap());
+    assert_eq!(restored.provisional_coverage[0].change, coverer.id);
+    assert!(restored.provisional_coverage[0].warning.is_none());
+    assert!(restored.provisional_coverage_warning.is_none());
 }
 
 /// REQ-change-167 and the change's third criterion: after the archive, the archived change reads

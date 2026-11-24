@@ -25,6 +25,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A `## MODIFIED` delta now replaces the canonical requirement when a fenced example above it quotes the same ID. Headings inside a fenced example also leave the surrounding block intact during matching. If `change check` reports stale approval for an in-flight delta after upgrading, compare the approved delta with the full canonical requirement, edit the delta body, and request fresh approval (#1050).
+
+- A workflow-v2 baseline that was never committed reads as absent in a project directory whose name looks like pathspec magic, not as deleted, because the baseline history probe now reads the path literally (#1074).
+
+- When a trusted cutoff has no archive root, the cutoff-tree check answers from the cutoff's own tree in a project directory whose name looks like pathspec magic (such as `:(exclude)app`). It no longer reports that the archive tree could not be read (#990).
+
+- The restore steps printed for a corrupt archive are read literally by Git and SpecSync. The `git restore` and the archiving-commit lookup name the package with a `:(literal)` pathspec, so a package path holding `*` or `?` puts back only that package, and the probes behind them read it literally too. Every printed `specsync change status` command reads an id that begins with `-` as the id. A package path holding a newline or an escape byte is printed with no control byte and, run through bash, still restores that exact directory (REQ-change-093, #929, #930, #931).
+
 - The `watch` tests read each run through to the line `watch` prints after it, so a later line of the same run is part of what they judge (#1055).
 
 - `specsync change audit --strict` now reports a delta item targeting the frozen `## Change Log` in an approved, implementing, or verifying change. The diagnostic names the change and matches `change check` (#1090, REQ-change-170).

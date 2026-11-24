@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "the-cutoff-archive-root-probe-reads-the-archive-root-as-a-literal-path",
+  "implementation_commit": "6eab8fb4b71503348a3d1113d9ed50a791714907",
+  "implementation_tree": "a6360982b5a49478eb8964e8abaf07803fcdff1a",
+  "contract_digest": "46c91152d70ac77f00d285cfc71cab0178335c83d4cbef07d08b5581ede63b49",
+  "workspace_digest": "38868ad8526a3b885c24888b8efc5382b112885e1a22610a8294b4f367ff4dd6",
+  "closing_digest": "85c185f56e750e7f04f413349124869fac016c97ecffcf15142136fdafd1cc99",
+  "review_digest": "14880a8f136e2f51f35d98543aea8d1ddbed71bdafa202f9a7e16dd91829833c",
+  "finalization_digest": "29e47d1890fe338306ff8b1642211b35b7d54f8c838f05f60796416603b5801f",
+  "timestamp": 1795481633
+}

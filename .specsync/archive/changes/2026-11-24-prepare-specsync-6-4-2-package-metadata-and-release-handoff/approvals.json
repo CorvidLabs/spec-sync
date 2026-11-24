@@ -44,6 +44,13 @@
         "where": "Codex conversation on 2026-11-23, immediately after the 6.4.2 release preparation proposal and PR #1156 were presented",
         "recorded_by": "agent:codex"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795534389,
+      "digest": "5d2cda2d4d2283cace73bec574f61e945b0728fba536d5a65ced5a481bf6adfc",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

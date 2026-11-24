@@ -85,8 +85,8 @@ fn project() -> (TempDir, PathBuf) {
     (temp, root)
 }
 
-/// A documentation change over `path`, approved, checked, reviewed and finalized, then committed.
-fn shipped(root: &Path, description: &str, id: &str, path: &str) {
+/// A documentation change over `path`, approved, checked and reviewed.
+fn reviewed(root: &Path, description: &str, id: &str, path: &str) {
     fs::write(root.join(path), format!("{description}.\n")).unwrap();
     run_ok(
         root,
@@ -128,6 +128,10 @@ fn shipped(root: &Path, description: &str, id: &str, path: &str) {
     git(root, &["commit", "-q", "-m", &format!("Approve {id}")]);
     run_ok(root, &["change", "check", id, "--commit"]);
     run_ok(root, &["change", "review", id, "--reviewer", "Reviewer"]);
+}
+
+fn shipped(root: &Path, description: &str, id: &str, path: &str) {
+    reviewed(root, description, id, path);
     run_ok(root, &["change", "finalize", id]);
     git(root, &["add", "--all"]);
     let clean = Command::new("git")
@@ -246,4 +250,87 @@ fn another_change_s_broken_history_does_not_decide_status_list_or_ship_status() 
         status["summary"]["terminal_evidence"]["validity"], "authenticated-history",
         "{status}"
     );
+}
+
+#[test]
+fn correcting_accepted_interview_metadata_requires_the_complete_roster() {
+    let (_temp, root) = project();
+    let id = "add-a-guide";
+    shipped(&root, "Add notes", "add-notes", "NOTES.md");
+    reviewed(&root, "Add a guide", id, "GUIDE.md");
+    let day = Command::new("date").args(["-u", "+%F"]).output().unwrap();
+    assert!(day.status.success());
+    let day = std::str::from_utf8(&day.stdout).unwrap().trim();
+    let destination = root
+        .join(".specsync/archive/changes")
+        .join(format!("{day}-{id}"));
+    fs::create_dir_all(&destination).unwrap();
+    let interrupted = run(&root, &["change", "finalize", id]);
+    assert!(!interrupted.status.success(), "{}", printed(&interrupted));
+    fs::remove_dir(&destination).unwrap();
+    let workspace = root.join(".specsync/changes").join(id);
+    let state = fs::read(workspace.join("state.json")).unwrap();
+    assert_eq!(
+        serde_json::from_slice::<Value>(&state).unwrap()["state"],
+        "accepted"
+    );
+    git(&root, &["add", "--all"]);
+    git(&root, &["commit", "-qm", "record interrupted acceptance"]);
+    let healthy = git(&root, &["rev-parse", "HEAD"]);
+
+    let sibling = ".specsync/changes/add-notes";
+    let archive = git(
+        &root,
+        &[
+            "log",
+            "--format=%H",
+            "-n",
+            "1",
+            "--diff-filter=D",
+            "--",
+            &format!("{sibling}/state.json"),
+        ],
+    );
+    git(&root, &["checkout", &format!("{archive}~1"), "--", sibling]);
+    git(
+        &root,
+        &["commit", "-qm", "a merge leaves both copies of add-notes"],
+    );
+    git(&root, &["rm", "-rq", sibling]);
+    git(&root, &["commit", "-qm", "remove the extra active copy"]);
+    assert!(
+        printed(&run(&root, &["change", "audit", "--archives"]))
+            .contains("duplicates state at commit")
+    );
+    run_ok(&root, &["change", "status", id]);
+
+    let correction = [
+        "change",
+        "correct",
+        id,
+        "architecture_risk",
+        "yes",
+        "--actor",
+        "Fixture reviewer",
+        "--reason",
+        "The fixture documents data handling",
+    ];
+    let refused = run(&root, &correction);
+    assert!(
+        !refused.status.success(),
+        "correction wrote despite a broken roster: {}",
+        printed(&refused)
+    );
+    assert!(
+        printed(&refused).contains("duplicates state at commit"),
+        "{}",
+        printed(&refused)
+    );
+    assert_eq!(fs::read(workspace.join("state.json")).unwrap(), state);
+    assert!(!workspace.join("corrections.json").exists());
+    assert!(git(&root, &["status", "--porcelain"]).is_empty());
+
+    git(&root, &["switch", "-q", "--detach", &healthy]);
+    run_ok(&root, &correction);
+    assert!(workspace.join("corrections.json").is_file());
 }

@@ -848,3 +848,6 @@ When the full roster fails validation, the per-change scan reads archive directo
 
 @plane z=78 label="Isolate the legacy baseline authority lookup in archived summaries (#1104)"
 An archived summary and its legacy baseline lookup share one roster per read scope. A malformed or duplicate sibling cannot invalidate a healthy legacy archive. A failed baseline authority still invalidates archives that depend on it. Archive audit and closing commands retain their strict roster checks.
+
+@plane z=79 label="Keep correction writes on the full roster (#1114)"
+A healthy status can isolate a sibling’s broken history. Accepted interview correction writes new lifecycle evidence and must validate the complete roster before it writes. Keep the original roster error and every workspace byte on refusal.

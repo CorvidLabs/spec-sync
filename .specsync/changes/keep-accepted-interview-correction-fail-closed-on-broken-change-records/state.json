@@ -7,10 +7,11 @@
   "title": "Keep accepted interview correction fail-closed on broken change records",
   "description": "Keep accepted interview correction fail-closed on broken change records",
   "kind": "bug_fix",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "16a43b93a83a9487dacc38109af993e3d38cd8a1",
   "created_at": 1795481899,
-  "updated_at": 1795486517,
+  "updated_at": 1795486643,
   "affected_specs": [
     "change"
   ],

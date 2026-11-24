@@ -411,3 +411,7 @@ The upstream archive tests exercise a reopened package after a remote rename, ma
 - `accept_records_a_lost_requirement_and_can_retry_after_restore` covers the legacy CLI. `ship_status_lists_a_lost_requirement_and_ship_and_finalize_refuse_it` checks the read-only status and dry-run, open-task priority, and exactly one attempt from a real ship. Both check that a broken attempts ledger leaves the loss diagnostic and the storage error visible.
 
 - `an_interrupted_archive_authorizes_its_own_finalization_and_then_a_staged_sibling` verifies that finalize can use its own pending archive. A sibling refuses until the removal records and delta are staged. A real byte or mode change still refuses, while restoring the indexed bytes and mode succeeds without a Git stat refresh. A fresh clone then accepts the same removal. `an_archived_legacy_sibling_needs_its_selected_artifacts_in_the_index` covers a workflow-v1 approval whose selected artifact is present on disk but absent from the index.
+
+## Accepted interview correction (REQ-change-032)
+
+`correcting_accepted_interview_metadata_requires_the_complete_roster` keeps the healthy accepted record readable, verifies that a sibling’s corrupt committed history blocks correction without workspace writes, and succeeds on the healthy roster.

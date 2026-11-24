@@ -129,6 +129,7 @@ spec: change.spec.md
 - [x] Recognize an archived package after an upstream rename and read archive tree entries with non-UTF-8 names (#945, #961).
 - [x] Apply the current archive read limits while attributing terminal-evidence errors to individual changes (#1104).
 - [x] Keep unrelated roster failures out of legacy archive summaries and still validate the baseline authority (#1104).
+- [x] Restore full-roster validation before accepted interview correction writes evidence (REQ-change-032).
 - [x] Validate the current approval of an in-flight covering change and retain historical evidence limits when classifying accepted inputs (#657).
 - [x] Name the later accepted delivery in an archive refusal when it deleted an exact-only signed input (#688).
 - [x] Preserve an unexpected coverage record during archive and only reuse matching coverage on a post-move retry (#657).

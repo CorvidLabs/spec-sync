@@ -22,13 +22,7 @@ fn successor_covers_input<'a>(
         // and the legacy reconstruction requires the declaration too. Deciding that
         // first keeps every refusal recorded below about a successor that claimed
         // the input.
-        if candidate.id == record.id
-            || !matches!(
-                candidate.state,
-                ChangeState::Accepted | ChangeState::Archived
-            )
-            || candidate.no_spec_change
-            || !happens_after(candidate, record)
+        if !may_succeed(candidate, record)
             || !declares_succession_obligation(candidate, &record.id, expected, owner)
         {
             continue;
@@ -148,6 +142,20 @@ fn successor_covers_input<'a>(
     false
 }
 
+/// The first test `successor_covers_input` puts to a candidate successor of `record`: another
+/// change, accepted or archived, with spec content, created after `record`. A change that fails it
+/// could never cover one of `record`'s inputs, so a successor search does not name it either when
+/// its own records fail validation (`name_failed_candidates`).
+fn may_succeed(candidate: &ChangeRecord, record: &ChangeRecord) -> bool {
+    candidate.id != record.id
+        && matches!(
+            candidate.state,
+            ChangeState::Accepted | ChangeState::Archived
+        )
+        && !candidate.no_spec_change
+        && happens_after(candidate, record)
+}
+
 /// The modules under which later accepted or archived changes claim `predecessor_entry` of
 /// `predecessor`, sorted. An exact-only entry names no module of its own, so these are the
 /// owners it is judged against.
@@ -189,6 +197,11 @@ struct RejectedSuccessor {
     reason: String,
 }
 
+/// What every changed-input remediation reason says about its input. `name_failed_candidates`
+/// knows a successor search by these words, so the writers below and that reader share them
+/// (#1104).
+const CHANGED_AFTER_ACCEPTANCE: &str = "changed after acceptance";
+
 fn stale_input_remediation_reason(
     record: &ChangeRecord,
     path: &str,
@@ -197,7 +210,7 @@ fn stale_input_remediation_reason(
 ) -> String {
     if rejected_successors.is_empty() {
         return format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE} and no accepted or archived successor change covers it; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         );
     }
@@ -217,13 +230,13 @@ fn stale_input_remediation_reason(
         .collect::<Vec<_>>();
     if record.workflow_version < 2 && !current_successors.is_empty() {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; bring a covering successor to `specsync change finalize` ({} names its next step) rather than reopening `{}`, because reopening a legacy change replays its canonical delta over the successor's materialization",
             current_successors.join(", "),
             record.id
         )
     } else {
         format!(
-            "delivery input `{path}` (owner `{owner}`) changed after acceptance; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+            "delivery input `{path}` (owner `{owner}`) {CHANGED_AFTER_ACCEPTANCE}; {rejections}; verify and accept a covering successor, or run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
             record.id
         )
     }
@@ -235,7 +248,7 @@ fn stale_input_remediation_reason(
 /// wherever the configuration can grant it.
 fn exact_only_input_remediation_reason(record: &ChangeRecord, path: &str) -> String {
     let mut reason = format!(
-        "exact-only delivery input `{path}` changed after acceptance and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
+        "exact-only delivery input `{path}` {CHANGED_AFTER_ACCEPTANCE} and requires an audited reopen; run `specsync change reopen {} --actor <name> --reason <text>` to re-verify the accepted change",
         record.id
     );
     if ownership_is_configurable(path) {
@@ -507,6 +520,198 @@ fn list_all_change_metadata(
         }
     }
     Ok(records)
+}
+
+/// One change whose records fail validation, as terminal evidence sees it (#1104): its failure and
+/// the record when it still parsed. The verdict a failure gives is decided from the record asked
+/// about, not from where the roster found the failure (`own_failure_summary`).
+#[derive(Debug, Clone)]
+struct FailedChange {
+    reason: String,
+    record: Option<ChangeRecord>,
+}
+
+/// The roster terminal evidence judges against (#1104): every change that loads and validates, and
+/// every one that does not, each with its own failure.
+#[derive(Debug, Clone, Default)]
+struct TerminalRoster {
+    records: BTreeMap<String, ChangeRecord>,
+    failed: BTreeMap<String, FailedChange>,
+}
+
+/// The roster for terminal evidence. When every change loads, it is exactly
+/// `list_all_changes_checked`. When one fails, each change is loaded on its own instead, so the
+/// failure stays with the change it belongs to and the others are judged without it
+/// (REQ-change-119, REQ-change-012, REQ-change-024). A failure that cannot be put on one change,
+/// such as an archive directory that cannot be listed, still fails the whole read.
+fn terminal_evidence_roster(root: &Path) -> Result<TerminalRoster, String> {
+    match list_all_changes_checked(root) {
+        Ok(records) => Ok(TerminalRoster {
+            records,
+            failed: BTreeMap::new(),
+        }),
+        Err(_) => list_all_changes_one_by_one(root),
+    }
+}
+
+/// `list_all_change_metadata` with its history walk and the retirement checks, but each change
+/// loaded on its own: a change that fails is set aside with its reason instead of failing the rest.
+/// The archive walk keeps the roster load's history prefetch and deadline boundaries
+/// (REQ-change-149), and a failure that cannot be put on one change still fails the whole read.
+fn list_all_changes_one_by_one(root: &Path) -> Result<TerminalRoster, String> {
+    fn fail(roster: &mut TerminalRoster, id: String, failed: FailedChange) {
+        roster.records.remove(&id);
+        roster.failed.entry(id).or_insert(failed);
+    }
+    let mut roster = TerminalRoster::default();
+    // Active changes load as `list_changes_checked` loads them, one unreadable workspace at a time.
+    let active = list_changes(root)?;
+    for unreadable in active.unreadable {
+        let failed = FailedChange {
+            reason: unreadable.reason,
+            record: None,
+        };
+        fail(&mut roster, unreadable.id, failed);
+    }
+    for record in active.records {
+        roster.records.insert(record.id.clone(), record);
+    }
+    let archive = root.join(ARCHIVE_PATH);
+    // With no archive directory there is nothing to walk, but the retirement checks below still
+    // run: a retirement rolled back to an open workspace is that change's own failure.
+    let entries: Vec<_> = match crate::util::read_project_dir_entries(root, &archive) {
+        Ok(entries) => entries.collect(),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Vec::new(),
+        Err(error) => return Err(format!("failed to read archived changes: {error}")),
+    };
+    prefetch_archived_workflow_histories(root, &entries);
+    let total = entries.len();
+    for (index, entry) in entries.into_iter().enumerate() {
+        check_read_deadline("archived change validation", index, total)?;
+        let entry = entry.map_err(|error| format!("failed to read archive entry: {error}"))?;
+        if !entry
+            .file_type()
+            .map_err(|error| format!("failed to inspect archive entry: {error}"))?
+            .is_dir()
+        {
+            continue;
+        }
+        let directory = entry.file_name().to_string_lossy().into_owned();
+        let path = entry.path().join("state.json");
+        let content = match crate::util::read_project_string(root, &path, crate::util::MAX_STATE_FILE_BYTES) {
+            Ok(content) => content,
+            Err(error)
+                if error.kind() == std::io::ErrorKind::NotFound
+                    && (is_positive_legacy_tombstone(root, &entry.path())
+                        || is_untrackable_husk(root, &entry.path())) =>
+            {
+                continue;
+            }
+            Err(error) => {
+                let reason = format!("failed to read archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let record: ChangeRecord = match serde_json::from_str(&content) {
+            Ok(record) => record,
+            Err(error) => {
+                let reason = format!("invalid archived state {}: {error}", path.display());
+                let failed = FailedChange {
+                    reason,
+                    record: None,
+                };
+                fail(&mut roster, directory, failed);
+                continue;
+            }
+        };
+        let checked = validate_loaded_change(&record, &record.id, &path)
+            .and_then(|()| validate_workflow_version_history(root, &record));
+        if let Err(reason) = checked {
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        if roster.records.contains_key(&record.id) || roster.failed.contains_key(&record.id) {
+            let reason = format!(
+                "change `{}` exists in multiple active/archive locations",
+                record.id
+            );
+            let failed = FailedChange {
+                reason,
+                record: Some(record.clone()),
+            };
+            fail(&mut roster, record.id.clone(), failed);
+            continue;
+        }
+        roster.records.insert(record.id.clone(), record);
+    }
+    check_read_deadline("archived change validation", total, total)?;
+    // A retirement that does not validate is the failure of the change it names.
+    for (id, reason) in retirement_failures(root, &roster)? {
+        let record = roster.records.get(&id).cloned();
+        fail(&mut roster, id, FailedChange { reason, record });
+    }
+    Ok(roster)
+}
+
+/// The checks of `validate_retired_records`, each failure put on the change it names, for the
+/// per-change roster (#1104 review). The messages are `validate_retired_records`' own, word for
+/// word, so a change reads the same failure whichever roster found it. A committed retirement of a
+/// change the roster holds nowhere, loaded or failed, cannot be put on one change, so it fails the
+/// whole read, as the roster load does.
+fn retirement_failures(
+    root: &Path,
+    roster: &TerminalRoster,
+) -> Result<Vec<(String, String)>, String> {
+    let mut failures = Vec::new();
+    for (id, committed) in retirement_history(root)? {
+        let Some(record) = roster.records.get(&id) else {
+            if roster.failed.contains_key(&id) {
+                continue;
+            }
+            return Err(format!("committed retirement history for {id} was removed"));
+        };
+        if record.state != ChangeState::Retired {
+            failures.push((
+                id.clone(),
+                format!("committed retirement history for {id} was rolled back"),
+            ));
+            continue;
+        }
+        let receipt = find_change_dir(root, &id).and_then(|directory| {
+            crate::util::read_project_bytes(root, &directory.join(RETIREMENT_FILE), crate::util::MAX_STATE_FILE_BYTES)
+                .map_err(|e| format!("committed retirement receipt is missing: {e}"))
+        });
+        match receipt {
+            Ok(bytes) if bytes == committed => {}
+            Ok(_) => failures.push((
+                id.clone(),
+                format!(
+                    "committed retirement history for {id} was edited; restore its exact anchored bytes"
+                ),
+            )),
+            Err(reason) => failures.push((id, reason)),
+        }
+    }
+    let named: BTreeSet<String> = failures.iter().map(|(id, _)| id.clone()).collect();
+    for record in roster
+        .records
+        .values()
+        .filter(|record| record.state == ChangeState::Retired && !named.contains(&record.id))
+    {
+        if let Err(reason) = validate_retirement_with_records(root, record, &roster.records) {
+            failures.push((record.id.clone(), reason));
+        }
+    }
+    Ok(failures)
 }
 
 /// True when `path` is a directory holding no regular file at any depth.

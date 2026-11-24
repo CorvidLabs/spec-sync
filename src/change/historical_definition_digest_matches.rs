@@ -961,7 +961,9 @@ pub fn correct_interview_metadata(
     }
 
     ensure_definition_approval_valid(root, &record)?;
-    ensure_closing_approval_valid(root, &record)?;
+    // A correction writes new evidence and still requires the complete validated roster.
+    let records = list_all_changes_checked(root)?;
+    ensure_closing_approval_valid_against(root, &record, &records).map_err(|error| error.reason)?;
     let prior_verification = load_verification(root, &record)?;
     let approvals = load_approvals(root, &record)?;
     let superseded_definition_approval =

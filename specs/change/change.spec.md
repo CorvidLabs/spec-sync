@@ -49,6 +49,7 @@ files:
   - src/change_tests/spec_history.rs
   - src/change_tests/stale_modified_delta.rs
   - src/change_tests/rebase_stale_delta.rs
+  - src/change_tests/terminal_evidence_isolation.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
   - src/change_tests/fenced_requirement_example_delta.rs

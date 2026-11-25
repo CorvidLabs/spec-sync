@@ -9,9 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The release-candidate lane can be rehearsed without a candidate. `rc-rehearsal.yml` runs the same ten parts on the same runner images, with the same pinned tools and 30-minute limit, by hand (`gh workflow run rc-rehearsal.yml --ref main`), every Monday, and on a pull request that changes the lane's own definition. It writes no candidate evidence and publishes no gate. The release runbook has the releaser rehearse the commit before tagging a candidate from it (#1161).
+
 - `specsync check` warns on a module's `<module>.3md` lesson file that does not parse or that it cannot read, such as one over the 8 MiB read bound, naming the file, the error and that `context.md` is used instead, so `check --strict` fails on it, as does a strict lifecycle check (`change check --strict`); reading a module's lessons still falls back to `context.md` and never fails a lifecycle command. The file checked is the one named for the spec's module, an entry of that name that is not a regular file is reported too, and a plain `check` reports it after an earlier clean run because every `.3md` beside a spec is now an input of its cached verdict. The change briefing falls back to `context.md` without naming the file it skipped; naming it there is not part of this change (#1060).
 
 ### Changed
+
+- A release candidate now qualifies as ten parallel parts instead of two long jobs: on each of Ubuntu and macOS, four slices of the test set under cargo-nextest and one release build, each with a 30-minute limit. The macOS qualification of `v6.4.2-rc.2` took 78 minutes as one job, and two earlier candidates were cancelled at their limit with every test passed. No test is dropped or weakened: the validator writes a platform's evidence as successful only when all five of its parts passed and its slices add up to the whole test list. The platform evidence that promotion and publication validate keeps its form (#1161).
+
+- No workflow job may declare a time limit above 30 minutes, and a contract test refuses one that does or that declares none. The release-candidate limit goes from 120 minutes to 30 per part; CI `test`, `closed-late-compat` and `linux-baseline` and both release `build` jobs go from 40 or 45 to 30; `trust` and `attest`, which had no limit, get one (#1161).
 
 - Advance the main Action binary default to published 6.4.2 after supported-platform asset and Action checks. Immutable `@v6.4.2` remains at its qualified candidate SHA (`a275ab44`) with default 6.4.1; select `version: '6.4.2'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.2.
 

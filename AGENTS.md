@@ -187,8 +187,13 @@ See **[docs/ci-confidence.md](docs/ci-confidence.md)**.
 
 Do **not** reintroduce `cargo test` into the Trust GitHub lifecycle lane.
 CI runs the product lane (tests, clippy, coverage) on Ubuntu only. macOS runs in the immutable
-release-candidate lane (`.github/workflows/release.yml`, Tier B); Windows is neither built nor
-published as of 6.0 (#735).
+release-candidate lane (`.github/workflows/release.yml`, Tier B) and in its rehearsal
+(`.github/workflows/rc-rehearsal.yml`: by hand, weekly, and on a pull request that changes the
+lane); Windows is neither built nor published as of 6.0 (#735).
+
+No workflow job may declare a time limit above 30 minutes
+(`.github/scripts/test-workflow-time-limits.py`). When a job outgrows its limit, shorten the job;
+do not raise the limit.
 
 <!-- CorvidLabs trust toolchain: BEGIN (managed, do not edit inside) -->
 ## CorvidLabs trust toolchain

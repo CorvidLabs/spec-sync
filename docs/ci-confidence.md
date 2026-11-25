@@ -9,7 +9,7 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 |-----------------|-------|--------|
 | Format (`rustfmt`) | **CI** | `fmt` job |
 | Lint (`clippy -D warnings`) | **CI** | required Ubuntu product lane |
-| Unit + integration tests | **CI** | required Ubuntu product lane; Tier B adds macOS. Windows is neither built nor qualified as of 6.0 (#735) |
+| Unit + integration tests | **CI** | required Ubuntu product lane; Tier B adds macOS, and `rc-rehearsal.yml` rehearses the Tier B parts weekly and when the lane changes. Windows is neither built nor qualified as of 6.0 (#735) |
 | Typecheck | **CI** | covered by `cargo test` / build; local `check-types` |
 | Release binary build | **CI** (consumer) + **Trust** (identity) | CI: action-consumer; Trust: packages PR binary for contract |
 | Spec contract + 100% path coverage | **CI** + **Trust contract gate** | CI `spec-check` proves tree; Trust re-checks with **PR release binary** (identity, not a second matrix) |
@@ -40,7 +40,12 @@ expensive suite twice. Release validation and explicitly sensitive changes may a
 
 The Trust split remains non-protected. The separately pinned protected-workflow update applies:
 Ubuntu is the authoritative integration platform for ordinary development and product PRs,
-while macOS runs in the immutable release-candidate cycle. Windows is not a qualified or published target as of 6.0:
+while macOS runs in the immutable release-candidate cycle. Windows is not a qualified or published target as of 6.0.
+Each platform runs the lane as five parallel parts, four slices of the test set and one release
+build, each within 30 minutes; a platform qualifies only when every part passed and the slices
+add up to its whole test list (REQ-github-031). No workflow job has a limit above 30 minutes
+(REQ-github-032). `rc-rehearsal.yml` runs the same parts without a candidate, by hand, weekly, and
+on a pull request that changes the lane's own definition (REQ-github-033):
 
 1. Freeze an exact candidate commit on an RC branch and create an immutable RC marker/tag for that
    SHA.
@@ -220,7 +225,8 @@ alone.
 | Any tip with an open change | `Archive` fails; nothing else runs | `Archive` fails; `trust` does not run |
 | Archived tip of a product / full PR | `Archive`, then Ubuntu product lane + gates | `Archive`, then full Trust action (light lifecycle) |
 | PR that only moves packages into the archive | `Archive`, then lifecycle gates; heavy product lane deselected | `Archive`, then full Trust action |
-| Release candidate | Ubuntu + macOS release lane at one immutable SHA | Release identity and provenance |
+| Release candidate | Ubuntu + macOS release lane at one immutable SHA, ten parts of at most 30 minutes | Release identity and provenance |
+| Rehearsal (by hand, weekly, or a PR that changes the lane) | The same ten parts at an ordinary commit; no evidence, no gate | Not involved |
 
 ## Local agent checklist
 

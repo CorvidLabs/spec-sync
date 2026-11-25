@@ -19,6 +19,39 @@ from typing import Any, Iterable, Sequence
 # platform here without also adding it to the `qualify` matrix fails every candidate.
 REQUIRED_PLATFORMS = ("ubuntu", "macos")
 RELEASE_CANDIDATE_LANE = "release-candidate"
+# The lane runs on each platform as parallel parts: the test set in slices, and the release
+# build (REQ-github-031). `release.yml` and `rc-rehearsal.yml` name these same parts in their
+# matrices; the contract tests hold them together. Four slices and one build are the five macOS
+# jobs GitHub runs at once on this plan, so every part of a platform starts together.
+RELEASE_CANDIDATE_TEST_SLICES = 4
+RELEASE_CANDIDATE_TEST_PARTS = tuple(
+    f"tests-{index}-of-{RELEASE_CANDIDATE_TEST_SLICES}"
+    for index in range(1, RELEASE_CANDIDATE_TEST_SLICES + 1)
+)
+RELEASE_CANDIDATE_BUILD_PART = "build"
+RELEASE_CANDIDATE_PARTS = (*RELEASE_CANDIDATE_TEST_PARTS, RELEASE_CANDIDATE_BUILD_PART)
+RELEASE_CANDIDATE_TESTS_LANE = "release-candidate-tests"
+RELEASE_CANDIDATE_BUILD_LANE = "release-candidate-build"
+RELEASE_CANDIDATE_PART_LANES = {
+    **{part: RELEASE_CANDIDATE_TESTS_LANE for part in RELEASE_CANDIDATE_TEST_PARTS},
+    RELEASE_CANDIDATE_BUILD_PART: RELEASE_CANDIDATE_BUILD_LANE,
+}
+PART_RECORD_FIELDS = (
+    "schema_version",
+    "platform",
+    "part",
+    "lane",
+    "outcome",
+    "rc_tag",
+    "candidate_sha",
+    "package_version",
+    "workflow_revision",
+)
+# A test slice also says how many tests it held and how many the whole list holds, both from
+# cargo-nextest's own listing, so the slices can be shown to add up to every test.
+PART_COUNT_FIELDS = ("tests_in_part", "tests_listed")
+PART_RECORD_MAX_BYTES = 64 * 1024
+OUTCOME_PATTERN = re.compile(r"^[a-z_]{1,32}$")
 RC_TAG_PATTERN = re.compile(
     r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-rc\.([1-9][0-9]*)$"
 )
@@ -173,6 +206,22 @@ class PlatformEvidence:
     lane: str
     package_version: str | None
     workflow_revision: str | None
+
+
+@dataclass(frozen=True)
+class PartRecord:
+    """One part of one platform's release-candidate lane."""
+
+    platform: str
+    part: str
+    lane: str
+    outcome: str
+    rc_tag: str
+    candidate_sha: str
+    package_version: str
+    workflow_revision: str
+    tests_in_part: int | None
+    tests_listed: int | None
 
 
 @dataclass(frozen=True)
@@ -894,6 +943,313 @@ def validate_platform_evidence(
     return next(iter(revisions))
 
 
+def require_known_part(platform: Any, part: Any, label: str) -> None:
+    """Require one of the named platforms and one of the named parts."""
+    if platform not in REQUIRED_PLATFORMS:
+        raise ValidationError(f"{label} names unexpected platform {platform!r}")
+    if part not in RELEASE_CANDIDATE_PARTS:
+        raise ValidationError(f"{label} names unexpected part {part!r}")
+
+
+def require_canonical_version(value: Any, label: str) -> str:
+    """Require a canonical X.Y.Z package version."""
+    if not isinstance(value, str) or VERSION_PATTERN.fullmatch(value) is None:
+        raise ValidationError(f"{label} package version {value!r} must be a canonical X.Y.Z version")
+    return value
+
+
+def require_outcome(value: Any, label: str) -> str:
+    """Require a job outcome word such as success, failure or cancelled."""
+    if not isinstance(value, str) or OUTCOME_PATTERN.fullmatch(value) is None:
+        raise ValidationError(f"{label} outcome {value!r} is not a job outcome")
+    return value
+
+
+def require_test_counts(payload: dict[str, Any], label: str) -> tuple[int, int]:
+    """Require a slice's two counts: positive integers, the slice no larger than the list."""
+    counts: list[int] = []
+    for field in PART_COUNT_FIELDS:
+        value = payload[field]
+        if type(value) is not int or value <= 0:
+            raise ValidationError(f"{label} {field} must be a positive integer")
+        counts.append(value)
+    if counts[0] > counts[1]:
+        raise ValidationError(f"{label} holds more tests than the whole list")
+    return counts[0], counts[1]
+
+
+def load_part_record(path: Path) -> PartRecord:
+    """Load one part record strictly: exact fields, exact types, no symlink, bounded size."""
+    payload = read_bounded_json_object(path, PART_RECORD_MAX_BYTES, "part record")
+    label = f"part record {path.name}"
+    missing = sorted(set(PART_RECORD_FIELDS) - set(payload))
+    if missing:
+        raise ValidationError(f"{label} is missing fields: {', '.join(missing)}")
+    require_known_part(payload["platform"], payload["part"], label)
+    outcome = require_outcome(payload["outcome"], label)
+    is_slice = payload["part"] in RELEASE_CANDIDATE_TEST_PARTS
+    # A slice that passed must carry its counts. One that failed may have stopped before it
+    # could list its tests, and a build part has none.
+    counts_required = is_slice and outcome == "success"
+    counts_present = any(field in payload for field in PART_COUNT_FIELDS)
+    require_exact_object_fields(
+        payload,
+        (*PART_RECORD_FIELDS, *PART_COUNT_FIELDS)
+        if counts_required or (is_slice and counts_present)
+        else PART_RECORD_FIELDS,
+        (),
+        label,
+    )
+    if type(payload["schema_version"]) is not int or payload["schema_version"] != 1:
+        raise ValidationError(f"{label} must use schema_version 1")
+    lane = required_string(payload, "lane", path)
+    if LANE_PATTERN.fullmatch(lane) is None:
+        raise ValidationError(f"{label} lane has unsupported characters")
+    tests_in_part: int | None = None
+    tests_listed: int | None = None
+    if counts_required or (is_slice and counts_present):
+        tests_in_part, tests_listed = require_test_counts(payload, label)
+    return PartRecord(
+        platform=payload["platform"],
+        part=payload["part"],
+        lane=lane,
+        outcome=outcome,
+        rc_tag=required_string(payload, "rc_tag", path),
+        candidate_sha=validate_full_sha(
+            required_string(payload, "candidate_sha", path), f"{label} candidate_sha"
+        ),
+        package_version=require_canonical_version(payload["package_version"], label),
+        workflow_revision=validate_full_sha(
+            required_string(payload, "workflow_revision", path), f"{label} workflow_revision"
+        ),
+        tests_in_part=tests_in_part,
+        tests_listed=tests_listed,
+    )
+
+
+def part_record_result(
+    platform: str,
+    part: str,
+    outcome: str,
+    rc_tag: str,
+    candidate_sha: str,
+    package_version: str,
+    workflow_revision: str,
+    counts: Path | None,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Write the record one part of the lane leaves behind, in the form `parts` reads."""
+    label = "part record"
+    require_known_part(platform, part, label)
+    record: dict[str, Any] = {
+        "schema_version": 1,
+        "platform": platform,
+        "part": part,
+        "lane": RELEASE_CANDIDATE_PART_LANES[part],
+        "outcome": require_outcome(outcome, label),
+        "rc_tag": parse_rc_tag(rc_tag).raw,
+        "candidate_sha": validate_full_sha(candidate_sha, "candidate SHA"),
+        "package_version": require_canonical_version(package_version, label),
+        "workflow_revision": validate_full_sha(workflow_revision, "workflow revision"),
+    }
+    if part in RELEASE_CANDIDATE_TEST_PARTS:
+        # The counts are read for a test slice only; the build part has no test list.
+        if counts is not None and (counts.exists() or counts.is_symlink()):
+            payload = read_bounded_json_object(counts, PART_RECORD_MAX_BYTES, "slice counts")
+            require_exact_object_fields(payload, PART_COUNT_FIELDS, (), f"slice counts {counts}")
+            in_part, listed = require_test_counts(payload, f"slice counts {counts}")
+            record["tests_in_part"] = in_part
+            record["tests_listed"] = listed
+        elif record["outcome"] == "success":
+            raise ValidationError(
+                f"a successful test slice must carry its counts, and {counts} is not there"
+            )
+    path = output_dir / f"{platform}-{part}.json"
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with path.open("x", encoding="utf-8") as target:
+            target.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    except FileExistsError as error:
+        raise ValidationError(f"part record {path} already exists") from error
+    except OSError as error:
+        raise ValidationError(f"cannot write part record {path}: {error}") from error
+    return {"mode": "part-record", "path": str(path), "record": record}
+
+
+def validate_platform_parts(
+    platform: str,
+    records: dict[str, PartRecord],
+    tag: ReleaseCandidateTag,
+    candidate_sha: str,
+    workflow_revision: str,
+) -> int:
+    """Require every part of one platform green for the candidate, and slices that add up.
+
+    Returns the number of tests in the whole list, which every slice reports alike.
+    """
+    for part in RELEASE_CANDIDATE_PARTS:
+        record = records[part]
+        name = f"part {platform} {part}"
+        if record.outcome != "success":
+            raise ValidationError(f"{name} is not successful: outcome={record.outcome!r}")
+        if record.rc_tag != tag.raw:
+            raise ValidationError(
+                f"{name} is bound to RC tag {record.rc_tag!r}, expected {tag.raw!r}"
+            )
+        if record.candidate_sha != candidate_sha:
+            raise ValidationError(
+                f"{name} is bound to candidate {record.candidate_sha}, expected {candidate_sha}"
+            )
+        if record.package_version != tag.version:
+            raise ValidationError(
+                f"{name} package version {record.package_version!r} does not match "
+                f"{tag.version!r}"
+            )
+        if record.workflow_revision != workflow_revision:
+            raise ValidationError(
+                f"{name} ran workflow revision {record.workflow_revision}, expected "
+                f"{workflow_revision}"
+            )
+        expected_lane = RELEASE_CANDIDATE_PART_LANES[part]
+        if record.lane != expected_lane:
+            raise ValidationError(f"{name} ran lane {record.lane!r}, expected {expected_lane!r}")
+    slices = [records[part] for part in RELEASE_CANDIDATE_TEST_PARTS]
+    listed = sorted({record.tests_listed for record in slices if record.tests_listed is not None})
+    if len(listed) != 1 or any(record.tests_in_part is None for record in slices):
+        raise ValidationError(
+            f"platform {platform} slices report different whole-list counts: "
+            f"{', '.join(str(count) for count in listed) or 'none'}"
+        )
+    held = sum(record.tests_in_part or 0 for record in slices)
+    if held != listed[0]:
+        raise ValidationError(
+            f"platform {platform} slices hold {held} tests, the whole list has {listed[0]}"
+        )
+    return listed[0]
+
+
+def platform_parts_reason(
+    platform: str,
+    parts_dir: Path,
+    tag: ReleaseCandidateTag,
+    candidate_sha: str,
+    workflow_revision: str,
+) -> tuple[str | None, int | None]:
+    """Say why one platform's parts do not qualify it, or None with its whole-list count."""
+    missing = [
+        f"{platform}-{part}.json"
+        for part in RELEASE_CANDIDATE_PARTS
+        if not (parts_dir / f"{platform}-{part}.json").exists()
+        and not (parts_dir / f"{platform}-{part}.json").is_symlink()
+    ]
+    if missing:
+        return f"missing part record {', '.join(missing)}", None
+    try:
+        records: dict[str, PartRecord] = {}
+        for part in RELEASE_CANDIDATE_PARTS:
+            path = parts_dir / f"{platform}-{part}.json"
+            record = load_part_record(path)
+            if (record.platform, record.part) != (platform, part):
+                raise ValidationError(
+                    f"part record {path.name} declares platform {record.platform!r} "
+                    f"part {record.part!r}"
+                )
+            records[part] = record
+        return None, validate_platform_parts(platform, records, tag, candidate_sha, workflow_revision)
+    except ValidationError as error:
+        return str(error), None
+
+
+def parts_directory_result(
+    rc_tag: str,
+    candidate_sha: str,
+    workflow_revision: str,
+    parts_dir: Path,
+    evidence_dir: Path,
+) -> dict[str, Any]:
+    """Turn the part records of one qualification into the two platform evidence records.
+
+    A platform's record says success only when every one of its parts passed for this candidate
+    and its slices are the whole test list. Any other platform is written as a failure, so the
+    evidence validation that follows refuses the candidate. The platform records keep the form
+    promotion and publication already validate.
+    """
+    tag = parse_rc_tag(rc_tag)
+    candidate = validate_full_sha(candidate_sha, "candidate SHA")
+    revision = validate_full_sha(workflow_revision, "workflow revision")
+    present = [
+        f"{platform}.json"
+        for platform in REQUIRED_PLATFORMS
+        if (evidence_dir / f"{platform}.json").exists()
+        or (evidence_dir / f"{platform}.json").is_symlink()
+    ]
+    if present:
+        raise ValidationError(
+            f"evidence directory {evidence_dir} already holds platform evidence: "
+            f"{', '.join(present)}"
+        )
+    shared_reason: str | None = None
+    if not parts_dir.is_dir() or parts_dir.is_symlink():
+        shared_reason = f"parts directory {parts_dir} is not a directory"
+    else:
+        expected = {
+            f"{platform}-{part}.json"
+            for platform in REQUIRED_PLATFORMS
+            for part in RELEASE_CANDIDATE_PARTS
+        }
+        unexpected = sorted(set(exact_entry_names(parts_dir)) - expected)
+        if unexpected:
+            shared_reason = f"parts directory has unexpected part records: {', '.join(unexpected)}"
+    platforms: dict[str, dict[str, Any]] = {}
+    for platform in REQUIRED_PLATFORMS:
+        reason, listed = (
+            (shared_reason, None)
+            if shared_reason is not None
+            else platform_parts_reason(platform, parts_dir, tag, candidate, revision)
+        )
+        platforms[platform] = (
+            {"outcome": "success", "tests_listed": listed}
+            if reason is None
+            else {"outcome": "failure", "reason": reason}
+        )
+    try:
+        evidence_dir.mkdir(parents=True, exist_ok=True)
+        for platform in REQUIRED_PLATFORMS:
+            record = {
+                "schema_version": 1,
+                "platform": platform,
+                "rc_tag": tag.raw,
+                "candidate_sha": candidate,
+                "lane": RELEASE_CANDIDATE_LANE,
+                "outcome": platforms[platform]["outcome"],
+                "package_version": tag.version,
+                "workflow_revision": revision,
+            }
+            with (evidence_dir / f"{platform}.json").open("x", encoding="utf-8") as target:
+                target.write(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    except OSError as error:
+        raise ValidationError(f"cannot write platform evidence in {evidence_dir}: {error}") from error
+    unqualified = [
+        f"platform {platform} is not qualified: {platforms[platform]['reason']}"
+        for platform in REQUIRED_PLATFORMS
+        if platforms[platform]["outcome"] != "success"
+    ]
+    if unqualified:
+        raise ValidationError(
+            "release-candidate parts are not qualified: " + "; ".join(unqualified)
+        )
+    return {
+        "candidate_sha": candidate,
+        "lane": RELEASE_CANDIDATE_LANE,
+        "mode": "parts",
+        "parts": list(RELEASE_CANDIDATE_PARTS),
+        "platforms": platforms,
+        "rc_tag": tag.raw,
+        "valid": True,
+        "workflow_revision": revision,
+    }
+
+
 def build_candidate_identity(
     repository: Path,
     cargo_toml: Path,
@@ -1112,6 +1468,37 @@ def parse_arguments(arguments: Sequence[str] | None = None) -> argparse.Namespac
     evidence.add_argument("--candidate-sha", required=True)
     evidence.add_argument("--evidence-dir", type=Path, required=True)
 
+    part_record = commands.add_parser(
+        "part-record",
+        help="write the record one part of the release-candidate lane leaves behind",
+    )
+    part_record.add_argument("--platform", required=True)
+    part_record.add_argument("--part", required=True)
+    part_record.add_argument("--outcome", required=True)
+    part_record.add_argument("--rc-tag", required=True)
+    part_record.add_argument("--candidate-sha", required=True)
+    part_record.add_argument("--package-version", required=True)
+    part_record.add_argument("--workflow-revision", required=True)
+    part_record.add_argument(
+        "--counts",
+        type=Path,
+        help="a test slice's counts file; read for a test slice only, and only when it exists",
+    )
+    part_record.add_argument("--output-dir", type=Path, required=True)
+
+    parts = commands.add_parser(
+        "parts",
+        help=(
+            f"check the {len(RELEASE_CANDIDATE_PARTS)} part records of each of "
+            f"{'/'.join(REQUIRED_PLATFORMS)} and write the platform evidence"
+        ),
+    )
+    parts.add_argument("--rc-tag", required=True)
+    parts.add_argument("--candidate-sha", required=True)
+    parts.add_argument("--workflow-revision", required=True)
+    parts.add_argument("--parts-dir", type=Path, required=True)
+    parts.add_argument("--evidence-dir", type=Path, required=True)
+
     artifacts = commands.add_parser(
         "artifacts",
         help="validate downloaded release archives, checksums, and provenance",
@@ -1158,6 +1545,26 @@ def execute(arguments: argparse.Namespace) -> dict[str, Any]:
         return evidence_directory_result(
             arguments.rc_tag,
             arguments.candidate_sha,
+            arguments.evidence_dir,
+        )
+    if arguments.command == "part-record":
+        return part_record_result(
+            arguments.platform,
+            arguments.part,
+            arguments.outcome,
+            arguments.rc_tag,
+            arguments.candidate_sha,
+            arguments.package_version,
+            arguments.workflow_revision,
+            arguments.counts,
+            arguments.output_dir,
+        )
+    if arguments.command == "parts":
+        return parts_directory_result(
+            arguments.rc_tag,
+            arguments.candidate_sha,
+            arguments.workflow_revision,
+            arguments.parts_dir,
             arguments.evidence_dir,
         )
     if arguments.command == "artifacts":

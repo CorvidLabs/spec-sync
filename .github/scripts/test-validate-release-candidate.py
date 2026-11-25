@@ -1832,10 +1832,17 @@ class WorkflowSourceContractTests(unittest.TestCase):
                     continue
                 self.assertRegex(reference, r"^[^@\s]+@[0-9a-f]{40}$")
 
-        upload_start = release.index("      - name: Upload platform evidence\n")
-        upload_end = release.index("\n  record-qualification:\n", upload_start)
-        upload = release[upload_start:upload_end]
-        self.assertEqual(upload.count("          overwrite: true"), 1)
+        # Each part uploads its record, and `record-qualification` uploads the two platform
+        # records it builds from them. A re-run must replace every one of them.
+        uploads = [workflow_step(workflow_job(release, "qualify"), "Upload part record")]
+        record = workflow_job(release, "record-qualification")
+        uploads += [
+            workflow_step(record, f"Upload {platform} platform evidence")
+            for platform in ("Ubuntu", "macOS")
+        ]
+        for upload in uploads:
+            self.assertEqual(upload.count("          overwrite: true"), 1)
+        self.assertNotIn("      - name: Upload platform evidence\n", release)
 
     def test_promotion_mints_the_final_tag_with_the_workflow_token_alone(self) -> None:
         """Promotion writes the final tag with GITHUB_TOKEN, scoped to this one job.
@@ -1990,10 +1997,11 @@ class WorkflowSourceContractTests(unittest.TestCase):
         validation = record[:publish_start]
         publication = record[publish_start:]
         self.assertEqual(record.count("          persist-credentials: false\n"), 1)
-        self.assertEqual(
-            validation.count("PYTHONNOUSERSITE=1 python3 -I "),
-            1,
-        )
+        # Two validator calls come before the gate is published: the part records are turned
+        # into platform evidence, and that evidence is validated. Both run isolated, and no
+        # other Python runs here.
+        self.assertEqual(validation.count("PYTHONNOUSERSITE=1 python3 -I "), 2)
+        self.assertEqual(validation.count("python3 "), 2)
         self.assertNotIn("GH_TOKEN:", validation)
         self.assertEqual(publication.count("          GH_TOKEN: ${{ github.token }}\n"), 1)
 
@@ -2113,7 +2121,8 @@ class ReleaseCandidatePartsWorkflowTests(unittest.TestCase):
                         check=False,
                     )
                     self.assertEqual(result.returncode, 1, result.stdout)
-                    self.assertEqual(result.stdout, "")
+                    self.assertNotIn("lanes run", result.stdout)
+                    self.assertIn("unknown release-candidate part", result.stdout)
 
     def test_every_part_leaves_a_record_and_no_platform_evidence(self) -> None:
         record = workflow_step(self.qualify, "Write SHA-bound part record")
@@ -2237,13 +2246,15 @@ class ReleaseCandidatePartsWorkflowTests(unittest.TestCase):
     def test_a_rehearsal_writes_no_candidate_evidence_and_publishes_no_gate(self) -> None:
         rehearsal = (ROOT / ".github/workflows/rc-rehearsal.yml").read_text(encoding="utf-8")
         self.assertRegex(rehearsal, r"(?m)^permissions:\n  contents: read\n\n")
-        self.assertEqual(len(re.findall(r"(?m)^\s+permissions:", rehearsal)), 0)
+        self.assertEqual(len(re.findall(r"(?m)^[ \t]+permissions:", rehearsal)), 0)
         for refused in (
             "rc-evidence",
-            "rc-part-",
+            "name: rc-part-",
+            "pattern: rc-part-",
+            "qualification-parts",
             "check-runs",
             "part-record",
-            "validate-release-candidate.py",
+            ".github/scripts/validate-release-candidate.py",
             ": write",
             "secrets.",
         ):

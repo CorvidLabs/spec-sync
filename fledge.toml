@@ -10,6 +10,12 @@ cmd = "cargo test"
 [tasks.test-nextest]
 cmd = "cargo nextest run --no-fail-fast"
 
+# One slice of that same test set: RC_TEST_SLICE of RC_TEST_SLICES, dealt round-robin by
+# cargo-nextest, so the slices share no test and together are every test (REQ-github-031). A
+# hosted release-candidate job runs one slice; the script also writes the slice's counts.
+[tasks.test-nextest-slice]
+cmd = "bash .github/scripts/release-candidate-part.sh"
+
 # CI-11 (#614): the TOCTOU race guards tested in the profile we ship. The
 # rendezvous-driven integration tests stay debug-only; these unit tests replace the
 # root themselves, so they need no debug hook and run under `--release`.
@@ -31,6 +37,11 @@ cmd = "cargo check"
 
 [tasks.release-candidate-test]
 cmd = "python3 .github/scripts/test-validate-release-candidate.py"
+
+# Every job in every workflow declares a time limit of at most 30 minutes (REQ-github-032,
+# SPEED-2.b.4): a lane that gets slower fails at its limit, and this test refuses a longer one.
+[tasks.workflow-time-limits-test]
+cmd = "python3 .github/scripts/test-workflow-time-limits.py"
 
 # Required CI gate contract and per-classify-path simulation (#796).
 [tasks.ci-gate-test]
@@ -116,6 +127,7 @@ steps = [
   "audit",
   "spec-check",
   "release-candidate-test",
+  "workflow-time-limits-test",
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
@@ -147,6 +159,7 @@ steps = [
   "build",
   "spec-check",
   "release-candidate-test",
+  "workflow-time-limits-test",
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",
@@ -160,13 +173,24 @@ steps = [
 description = "Trust GitHub lifecycle — no duplicate cargo test (CI is authority)"
 steps = ["check-types"]
 
-# The release workflow runs this exact lane on Ubuntu and macOS (the
-# `REQUIRED_PLATFORMS` set; Windows is not built or qualified in 6.0) for one
-# immutable RC tag. Keep platform qualification here so local reproduction
-# and every hosted runner share one command surface.
+# The release-candidate qualification, whole. Run it locally to reproduce a candidate's lane in
+# one command. The release workflow runs the same work on Ubuntu and macOS (the
+# `REQUIRED_PLATFORMS` set; Windows is not built or qualified in 6.0) for one immutable RC tag,
+# as the parts below, so that no hosted job needs more than 30 minutes (#1161).
 [lanes.release-candidate]
 description = "Immutable release-candidate qualification (tests under cargo-nextest, race guards under --release, release build)"
 steps = ["test-nextest", "test-release-guards", "build"]
+
+# One hosted part: a slice of the tests. Four of these and the build part below are the whole
+# lane. Set RC_TEST_SLICE and RC_TEST_SLICES.
+[lanes.release-candidate-tests]
+description = "One slice of the release-candidate tests under cargo-nextest (RC_TEST_SLICE of RC_TEST_SLICES)"
+steps = ["test-nextest-slice"]
+
+# The other hosted part: the race guards under --release, then the release build.
+[lanes.release-candidate-build]
+description = "The release-candidate race guards under --release and the release build"
+steps = ["test-release-guards", "build"]
 
 [lanes.repo]
 description = "Full repository validation, including docs and editor extension"
@@ -177,6 +201,7 @@ steps = [
   "audit",
   "spec-check",
   "release-candidate-test",
+  "workflow-time-limits-test",
   "ci-gate-test",
   "linux-baseline-test",
   "ci-trigger-paths-test",

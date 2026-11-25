@@ -28,6 +28,8 @@ def job_limits(workflow: str) -> dict[str, str | None]:
     in_jobs = False
     job: str | None = None
     for line in workflow.splitlines():
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
         if re.match(r"^\S", line):
             in_jobs = line.rstrip() == "jobs:"
             job = None
@@ -127,6 +129,19 @@ class WorkflowTimeLimitTests(unittest.TestCase):
         )
         self.assertEqual(job_limits(workflow), {"build": None, "test": "10"})
         self.assertEqual(problems("x.yml", workflow), ["x.yml: job build declares no timeout-minutes"])
+
+    def test_a_comment_at_the_left_margin_does_not_hide_the_jobs_after_it(self) -> None:
+        workflow = (
+            "jobs:\n  first:\n    runs-on: ubuntu-latest\n    timeout-minutes: 5\n"
+            "# a note at the left margin\n\n"
+            "  second:\n    runs-on: ubuntu-latest\n    timeout-minutes: 45\n"
+            "env:\n  after: jobs\n"
+        )
+        self.assertEqual(job_limits(workflow), {"first": "5", "second": "45"})
+        self.assertEqual(
+            problems("x.yml", workflow),
+            ["x.yml: job second declares 45 minutes, above the 30-minute limit"],
+        )
 
     def test_this_test_runs_in_ci_and_in_the_local_lanes(self) -> None:
         script = ".github/scripts/test-workflow-time-limits.py"

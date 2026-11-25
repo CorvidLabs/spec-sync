@@ -62,7 +62,7 @@ jobs:
     name: ${{ matrix.artifact }}
     needs: [guard]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:

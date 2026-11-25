@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-2",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "6375f5242ff91da5d8ff0152e5cfe4ff95d231e5",
+  "contract_digest": "30bfcfbd574290bc49ce9b7748149a0cb954d036a5abd1deee3645b5203564ff",
+  "execution_digest": "9aa1ddb0977e7c9c66ebca98880d2b4c878a8d846a292be5f9ece312b8d41805",
+  "workspace_digest": "d68c3960dec4602b48404271796c861f179abd65df6da8cfe43a863ec1fb6c8e",
+  "timestamp": 1795560199,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I approve all three",
+    "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The first was 'Post-publication change: do you accept the implementation?', described as exactly the draft he had approved, with every gate passing on it: the three release validators, the 67 release-candidate contract tests, five other CI contract suites, the strict spec check, pre-push and Trust, at c22a4c51.",
+    "recorded_by": "claude-code-t14v"
+  }
+}

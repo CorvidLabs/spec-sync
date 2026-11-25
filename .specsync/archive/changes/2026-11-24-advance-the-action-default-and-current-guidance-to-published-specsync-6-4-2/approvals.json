@@ -1,0 +1,120 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795557731,
+      "digest": "30bfcfbd574290bc49ce9b7748149a0cb954d036a5abd1deee3645b5203564ff",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-2",
+        "title": "Advance the Action default and current guidance to published SpecSync 6.4.2",
+        "description": "Advance the Action default and current guidance to published SpecSync 6.4.2",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/releases/6.4.2.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After the published v6.4.2 GitHub release (Latest, twelve assets; promoted from candidate v6.4.2-rc.2 at a275ab44, qualified on Ubuntu and macos-15 in run 45472594205), the main Action wrapper's omitted-input default moves to 6.4.2: the action.yml version default and description, PUBLISHED_ACTION_DEFAULT in validate-release-version.py, and the version default row in the Action docs; composite runtime script bytes and the CI and Trust candidate mirrors are unchanged. Immutable v6.4.2 and RC refs stay at a275ab44 with embedded default 6.4.1, and the docs say to pass version '6.4.2' with @v6.4.2; the immutable v6.0.0 caveat is kept. The github spec Purpose changes through one SpecSection delta. Current guidance (README install and pin text, SECURITY.md, MIGRATION.md, docs/ADOPTING.md, the site index, the Action docs' published-binary and manual-download text) names published 6.4.2; historical release text is unchanged. CHANGELOG gains an Unreleased entry and docs/releases/6.4.2.md records publication. validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, and the pre-push gate passes. crates.io already serves 6.4.2; the floating v6 tag moves separately, after this wrapper commit's consumer checks."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "As #1142 did for 6.4.1 and #1136 for 6.4.0; historical release text is unchanged; floating v6 is a separate move.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "749b85ebcbe08c7a72f8fe961be1f33d2e5093c497783b9602f3010f76899d47"
+      },
+      "approved_delta_bases": {
+        "github: SPEC SECTION Purpose": "d34d05c50728b26cde288fa5816cd82fdfba55fb2d787c8c75c12dd576d32ede"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve both, do post-publication first",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that listed two open decisions. The second described this change as drafted: the main Action's default binary and description move to 6.4.2 with the validator constant that pins it; README, SECURITY, MIGRATION, the adoption guide, the site index and the Action docs name 6.4.2 as current; the github spec's Purpose section moves through one delta, the changelog gains one entry and the release handoff records the publication; it mirrors #1142, and the floating v6 tag is not part of it.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795557733,
+      "digest": "30bfcfbd574290bc49ce9b7748149a0cb954d036a5abd1deee3645b5203564ff",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of advance-the-action-default-and-current-guidance-to-published-specsync-6-4-2\": \"I approve both, do post-publication first\" (Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that listed two open decisions. The second described this change as drafted: the main Action's default binary and description move to 6.4.2 with the validator constant that pins it; README, SECURITY, MIGRATION, the adoption guide, the site index and the Action docs name 6.4.2 as current; the github spec's Purpose section moves through one delta, the changelog gains one entry and the release handoff records the publication; it mirrors #1142, and the floating v6 tag is not part of it.). Relayed and recorded by claude-code-t14v at 2026-11-24T22:02:11Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "advance-the-action-default-and-current-guidance-to-published-specsync-6-4-2",
+        "title": "Advance the Action default and current guidance to published SpecSync 6.4.2",
+        "description": "Advance the Action default and current guidance to published SpecSync 6.4.2",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/validate-release-version.py",
+          "CHANGELOG.md",
+          "MIGRATION.md",
+          "README.md",
+          "SECURITY.md",
+          "action.yml",
+          "docs/ADOPTING.md",
+          "docs/releases/6.4.2.md",
+          "site/src/content/docs/index.md",
+          "site/src/content/docs/integrations/github-action.md",
+          "specs/github/"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After the published v6.4.2 GitHub release (Latest, twelve assets; promoted from candidate v6.4.2-rc.2 at a275ab44, qualified on Ubuntu and macos-15 in run 45472594205), the main Action wrapper's omitted-input default moves to 6.4.2: the action.yml version default and description, PUBLISHED_ACTION_DEFAULT in validate-release-version.py, and the version default row in the Action docs; composite runtime script bytes and the CI and Trust candidate mirrors are unchanged. Immutable v6.4.2 and RC refs stay at a275ab44 with embedded default 6.4.1, and the docs say to pass version '6.4.2' with @v6.4.2; the immutable v6.0.0 caveat is kept. The github spec Purpose changes through one SpecSection delta. Current guidance (README install and pin text, SECURITY.md, MIGRATION.md, docs/ADOPTING.md, the site index, the Action docs' published-binary and manual-download text) names published 6.4.2; historical release text is unchanged. CHANGELOG gains an Unreleased entry and docs/releases/6.4.2.md records publication. validate-release-version.py, validate-workflow-runtime-pins.py and test-validate-release-candidate.py pass, and the pre-push gate passes. crates.io already serves 6.4.2; the floating v6 tag moves separately, after this wrapper commit's consumer checks."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "As #1142 did for 6.4.1 and #1136 for 6.4.0; historical release text is unchanged; floating v6 is a separate move.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "749b85ebcbe08c7a72f8fe961be1f33d2e5093c497783b9602f3010f76899d47"
+      },
+      "approved_delta_bases": {
+        "github: SPEC SECTION Purpose": "d34d05c50728b26cde288fa5816cd82fdfba55fb2d787c8c75c12dd576d32ede"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve both, do post-publication first",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that listed two open decisions. The second described this change as drafted: the main Action's default binary and description move to 6.4.2 with the validator constant that pins it; README, SECURITY, MIGRATION, the adoption guide, the site index and the Action docs name 6.4.2 as current; the github spec's Purpose section moves through one delta, the changelog gains one entry and the release handoff records the publication; it mirrors #1142, and the floating v6 tag is not part of it.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795560216,
+      "digest": "152b92e40ec90a0385bf6fe67a35726dba40cd18e23777a3748fd80cc3e4df2a",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

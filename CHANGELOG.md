@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `specsync check` warns on a module's `<module>.3md` lesson file that does not parse or that it cannot read, such as one over the 8 MiB read bound, naming the file, the error and that `context.md` is used instead, so `check --strict` fails on it, as does a strict lifecycle check (`change check --strict`); reading a module's lessons still falls back to `context.md` and never fails a lifecycle command. The file checked is the one named for the spec's module, an entry of that name that is not a regular file is reported too, and a plain `check` reports it after an earlier clean run because every `.3md` beside a spec is now an input of its cached verdict. The change briefing falls back to `context.md` without naming the file it skipped; naming it there is not part of this change (#1060).
 
+### Changed
+
+- Advance the main Action binary default to published 6.4.2 after supported-platform asset and Action checks. Immutable `@v6.4.2` remains at its qualified candidate SHA (`a275ab44`) with default 6.4.1; select `version: '6.4.2'` explicitly with that tag. Current install, migration, adoption and security guidance name 6.4.2.
+
 ### Fixed
 
 - `change audit`, and every command that validates delta files, no longer refuses an unchanged `## ADDED` requirement as "cannot add existing block" when a `##` section follows it in the living `requirements.md`: validation reads the requirement's block as the materializer does (#1071).

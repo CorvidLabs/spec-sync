@@ -261,8 +261,6 @@ Then run `specsync check` again until everything passes.
 
 ### GitHub Action
 
-Use these pins after the 6.4.2 assets are published. Until then, pin `@v6.4.1` and `version: '6.4.1'`.
-
 ```yaml
 # .github/workflows/specsync.yml
 name: SpecSync

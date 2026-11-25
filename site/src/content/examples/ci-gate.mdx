@@ -28,7 +28,7 @@ jobs:
           strict: true
 ```
 
-After the 6.4.2 assets are published, pin both the Action ref (`uses: CorvidLabs/spec-sync@v6.4.2`) and the binary (`version: '6.4.2'`). Until then, pass the explicit 6.4.1 ref and binary pins. The immutable `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. With `strict: true` the action installs `specsync` and runs `specsync check --force --strict`.
+Pin both the Action ref (`uses: CorvidLabs/spec-sync@v6.4.2`) and the binary (`version: '6.4.2'`). The immutable `@v6.0.0` Action tag still defaults omitted `version` to `6.0.0-rc.14`. With `strict: true` the action installs `specsync` and runs `specsync check --force --strict`.
 
 ## 2. Pin the spec-sync version
 

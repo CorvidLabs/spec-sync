@@ -2269,6 +2269,55 @@ fn validate_spec_content_internal(
         // is an error naming the file (REQ-validator-048).
         let (_, history_errors) = crate::change::scan_history_fragments(root, spec_path, content);
         result.errors.extend(history_errors);
+        // #1060 (REQ-cmd-check-023): a lesson file that does not parse is reported, never silently
+        // ignored. Lifecycle reads still fall back to `context.md` and never fail (REQ-change-106).
+        // The file is the one the lifecycle reads: `<module>.3md` named for the spec's module,
+        // whatever the spec file is called. A module that is not one plain file name names no
+        // file here, and the spec file's own name stands in, as it does without a module.
+        let named = fm.module.as_deref().filter(|name| {
+            let mut parts = Path::new(name).components();
+            matches!(
+                (parts.next(), parts.next()),
+                (Some(std::path::Component::Normal(_)), None)
+            )
+        });
+        if let Some(dir) = spec_path.parent()
+            && let Some(module) = named.or_else(|| {
+                spec_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .and_then(|name| name.strip_suffix(".spec.md"))
+            })
+        {
+            let layers = dir.join(format!("{module}.3md"));
+            // Any entry of that name, not only a regular file: the bounded read refuses a
+            // directory, and the refusal is the report. The entry itself is not followed.
+            if fs::symlink_metadata(&layers).is_ok() {
+                let shown = |path: &Path| {
+                    path.strip_prefix(root)
+                        .unwrap_or(path)
+                        .to_string_lossy()
+                        .replace('\\', "/")
+                };
+                // Read as the lifecycle reads it: a link out of the project, a file that is not
+                // regular and a file over the bound are refused, and reported like any read error.
+                let problem = match crate::util::read_project_string(
+                    root,
+                    &layers,
+                    crate::util::MAX_SPEC_FILE_BYTES,
+                ) {
+                    Ok(text) => threemd::parse(&text).err().map(|error| error.to_string()),
+                    Err(error) => Some(error.to_string()),
+                };
+                if let Some(problem) = problem {
+                    result.warnings.push(format!(
+                        "{} does not parse as 3md ({problem}); its lessons are not read, and {} is used instead",
+                        shown(&layers),
+                        shown(&dir.join("context.md"))
+                    ));
+                }
+            }
+        }
     }
 
     let config_hint = config
@@ -2750,14 +2799,16 @@ fn validate_spec_content_internal(
                 }
             }
 
-            // Code exports something not in spec = WARNING (with source file attribution)
+            // Code exports something not in spec = WARNING (with source file attribution). The
+            // first file that exported each symbol, looked up once rather than by a scan per
+            // undocumented export, which made check quadratic in their number (#574).
+            let mut first_file: HashMap<&str, &str> = HashMap::new();
+            for (symbol, file) in &exports_by_file {
+                first_file.entry(symbol.as_str()).or_insert(file.as_str());
+            }
             for sym in &all_exports {
                 if !spec_set.contains(sym.as_str()) {
-                    // Find the source file for this export
-                    let source_file = exports_by_file
-                        .iter()
-                        .find(|(s, _)| s == sym)
-                        .map(|(_, f)| f.as_str());
+                    let source_file = first_file.get(sym.as_str()).copied();
                     match source_file {
                         Some(file) => {
                             result

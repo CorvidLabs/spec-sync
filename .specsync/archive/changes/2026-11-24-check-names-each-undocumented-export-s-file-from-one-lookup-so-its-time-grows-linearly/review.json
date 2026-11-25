@@ -1,0 +1,22 @@
+{
+  "schema_version": 2,
+  "change_id": "check-names-each-undocumented-export-s-file-from-one-lookup-so-its-time-grows-linearly",
+  "reviewer": "0xLeif",
+  "provenance": {
+    "schema_version": 1,
+    "provider": "github_actions_check",
+    "required_check": "SpecSync scoped review"
+  },
+  "verdict": "pass",
+  "implementation_commit": "98fb4369f038d229a81c88c6f4f1a63430ca2c96",
+  "contract_digest": "0a5aee29978f5b91d604f2046674cd524ea04c295d261ebd3f6e4084f1203e6a",
+  "execution_digest": "6e7cad8078eb19a31cee00a7dfc02112a99b72d46e41cee0d9a45617b91a1105",
+  "workspace_digest": "dc39bc0e62905fc09e0add88985315c94834dfb7b23917ed93ee07c29cb64fb8",
+  "timestamp": 1795553916,
+  "relayed_by": {
+    "decided_by": "0xLeif",
+    "words": "I accept all four",
+    "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: do you accept each implementation?', which listed the four changes of the validation batch (#1071, #1076, #574 and #1060) with their native Verify lane at cb679a13, Trust, scoped checks and CLI dogfood against the 6.4.2 release binary. This change is the #574 one of those four.",
+    "recorded_by": "claude-code-t14v"
+  }
+}

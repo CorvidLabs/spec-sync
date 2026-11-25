@@ -168,3 +168,6 @@ mod rebase_stale_delta;
 
 #[path = "integration/stale_input_refusals.rs"]
 mod stale_input_refusals;
+
+#[path = "integration/check_scaling.rs"]
+mod check_scaling;

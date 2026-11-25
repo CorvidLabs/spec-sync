@@ -1,0 +1,122 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795560783,
+      "digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+        "title": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+        "description": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "hash_cache",
+          "validator"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/cmd_check/",
+          "specs/hash_cache/",
+          "specs/validator/validator.3md",
+          "src/hash_cache.rs",
+          "src/validator/consumed_by_re.rs",
+          "tests/integration/check.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After a clean check, a plain check reports a module's lesson file that was added broken or broken since: every .3md entry beside a spec is an input of its cached verdict and of the changed-spec classification (REQ-hash-cache-011). check reads the lesson file the lifecycle reads, <module>.3md named for the spec's module whatever the spec file is called. A <module>.3md that is not a regular file, such as a directory, is reported as one that cannot be read. change check --strict still fails on the warning, as on any other; REQ-cmd-check-023 and the changelog say that instead of saying lifecycle commands never fail. Each of the three fixes has a test that fails without it, and the full native Verify lane passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Findings from the Codex review of #1163, each reproduced on the CLI first. The warning's words do not change. Every project read stays behind the bounded reader and every directory listing behind read_project_dir (the validator lesson from #1060). A lesson file that is a link is already refused by coverage discovery and stays so.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "7f99cf2f4ba914ed99c7a40b19b0719946372a4eb240d6fa8c7f8c10aa4b62cb",
+        "hash_cache": "b83191da1a83a94ebe8b045d04dff1217d767f7063f09595d11ff300b93291d0",
+        "validator": "98d98faf2f0f243e678e79b2a50057438b993018e6626a8a30ac92d7a50e7991"
+      },
+      "approved_delta_bases": {
+        "cmd_check: REQUIREMENT REQ-cmd-check-023": "2c11247186bdc7a8ac4230df49ec734c1e968c178ec7d14ae9f1845fe971a963",
+        "validator: SPEC SECTION Error Cases": "1a4081c9be9b30b77a03f9f7eb8176b0e1f9ca81fe5721b7482f1fc4ba143c39"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve all three",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The third was '#1163 successor: do you approve these requirement words?' and quoted them: REQ-cmd-check-023 amended (the file is the one named for the spec's module, an entry of that name that is not a regular file is reported as unreadable, and a strict lifecycle check fails on the warning as on any other, with three added acceptance criteria), REQ-hash-cache-011 added in full, and the validator Error Cases row. He had already chosen, earlier in the same chat, to fix the three findings in one successor change and keep change check --strict failing.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795560787,
+      "digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file\": \"I approve all three\" (Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The third was '#1163 successor: do you approve these requirement words?' and quoted them: REQ-cmd-check-023 amended (the file is the one named for the spec's module, an entry of that name that is not a regular file is reported as unreadable, and a strict lifecycle check fails on the warning as on any other, with three added acceptance criteria), REQ-hash-cache-011 added in full, and the validator Error Cases row. He had already chosen, earlier in the same chat, to fix the three findings in one successor change and keep change check --strict failing.). Relayed and recorded by claude-code-t14v at 2026-11-24T22:53:04Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+        "title": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+        "description": "Check reports a broken lesson file on a cached run, under the module's own name, and when it is not a regular file",
+        "kind": "bug_fix",
+        "affected_specs": [
+          "cmd_check",
+          "hash_cache",
+          "validator"
+        ],
+        "affected_paths": [
+          "CHANGELOG.md",
+          "specs/cmd_check/",
+          "specs/hash_cache/",
+          "specs/validator/validator.3md",
+          "src/hash_cache.rs",
+          "src/validator/consumed_by_re.rs",
+          "tests/integration/check.rs"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "After a clean check, a plain check reports a module's lesson file that was added broken or broken since: every .3md entry beside a spec is an input of its cached verdict and of the changed-spec classification (REQ-hash-cache-011). check reads the lesson file the lifecycle reads, <module>.3md named for the spec's module whatever the spec file is called. A <module>.3md that is not a regular file, such as a directory, is reported as one that cannot be read. change check --strict still fails on the warning, as on any other; REQ-cmd-check-023 and the changelog say that instead of saying lifecycle commands never fail. Each of the three fixes has a test that fails without it, and the full native Verify lane passes."
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "no",
+          "constraints": "Findings from the Codex review of #1163, each reproduced on the CLI first. The warning's words do not change. Every project read stays behind the bounded reader and every directory listing behind read_project_dir (the validator lesson from #1060). A lesson file that is a link is already refused by coverage discovery and stays so.",
+          "public_contract": "yes"
+        }
+      },
+      "approved_delta_digests": {
+        "cmd_check": "7f99cf2f4ba914ed99c7a40b19b0719946372a4eb240d6fa8c7f8c10aa4b62cb",
+        "hash_cache": "b83191da1a83a94ebe8b045d04dff1217d767f7063f09595d11ff300b93291d0",
+        "validator": "98d98faf2f0f243e678e79b2a50057438b993018e6626a8a30ac92d7a50e7991"
+      },
+      "approved_delta_bases": {
+        "cmd_check: REQUIREMENT REQ-cmd-check-023": "2c11247186bdc7a8ac4230df49ec734c1e968c178ec7d14ae9f1845fe971a963",
+        "validator: SPEC SECTION Error Cases": "1a4081c9be9b30b77a03f9f7eb8176b0e1f9ca81fe5721b7482f1fc4ba143c39"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve all three",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The third was '#1163 successor: do you approve these requirement words?' and quoted them: REQ-cmd-check-023 amended (the file is the one named for the spec's module, an entry of that name that is not a regular file is reported as unreadable, and a strict lifecycle check fails on the warning as on any other, with three added acceptance criteria), REQ-hash-cache-011 added in full, and the validator Error Cases row. He had already chosen, earlier in the same chat, to fix the three findings in one successor change and keep change check --strict failing.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795573243,
+      "digest": "1e96535433328e36fda10a134b12a6804dbac2bb9471f253e56b955713890ea0",
+      "note": "Same-PR finalization closing digest"
+    }
+  ],
+  "reopenings": []
+}

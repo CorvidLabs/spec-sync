@@ -2404,6 +2404,10 @@ fn sent_back_added_block_is_own_on_disk(
     ))
 }
 
+/// Whether the living requirement `key` exists with content other than `declared`. The block is
+/// read by `markdown_block_range`, as the materializer and the already-applied check read it
+/// (#741), so validation and application never disagree about where a requirement ends: a `##`
+/// section after it is not part of it (#1071).
 fn living_requirement_conflicts(
     root: &Path,
     module: &str,
@@ -2416,15 +2420,10 @@ fn living_requirement_conflicts(
         return Ok(false);
     };
     let heading = format!("### {key}");
-    let Some(start) = source.find(&heading) else {
+    let Some(block) = markdown_block_range(&source, &heading, markdown_prefix_level("### ")) else {
         return Ok(false);
     };
-    let body = &source[start..];
-    let end = body
-        .match_indices("\n### ")
-        .next()
-        .map_or(body.len(), |(index, _)| index);
-    Ok(!markdown_block_matches(&body[..end], &heading, declared))
+    Ok(!markdown_block_matches(&source[block], &heading, declared))
 }
 
 fn removed_requirement_ids(root: &Path) -> Result<BTreeSet<String>, String> {
@@ -2536,7 +2535,9 @@ fn validate_requirement(id: &str, content: &str) -> Result<(), String> {
             "requirement ID `{id}` must use REQ-<module>-<number>"
         ));
     }
-    if !content.contains(" SHALL ") && !content.trim_start().starts_with("SHALL ") {
+    // SHALL counts as a whole word wherever whitespace sets it off, a line break included, so a
+    // requirement wrapped with SHALL at a line edge is still normative (#1076).
+    if !content.split_whitespace().any(|word| word == "SHALL") {
         return Err(format!(
             "requirement `{id}` must contain a normative SHALL statement"
         ));

@@ -139,3 +139,6 @@ A merge of two branches can leave the same `### REQ-...` heading twice in one `r
 
 @plane z=11 label="filter_map(Result::ok) is a silent verdict (#873)"
 The duplicate-ID walk dropped traversal errors with `filter_map(Result::ok)`, so an unreadable directory made audit pass over requirements files it never read — the release's most-repeated defect shape, an empty category read as a verdict, one level down in a filesystem walk. Unreadable files were already errors; an unreadable directory is the same fact at one higher level of the tree. If a check cannot reach its input, the check must say so.
+
+@plane z=12 label="A fix written before a hardening release is re-read against it (#1060)"
+The #1060 warning was written before 6.4.2 moved every project read behind the bounded reader, and read `<module>.3md` with `fs::read_to_string`. The merge with main was textually clean there, so nothing flagged it until `no_project_file_is_read_outside_the_bounded_read` did. The effect was real: a lesson file over the 8 MiB bound was read in full and reported nothing, while the lifecycle refused it and fell back to `context.md`. When a branch is brought onto a release that added a source-wide rule, run that rule's guard tests before the full lane, and read each new read, write and directory listing on the branch against the rule.

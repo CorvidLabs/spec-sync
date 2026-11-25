@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "74408b037e68e846178d777c9b2308a4de0e70a9",
+      "contract_digest": "276e52542ed32dad4e77df8f0247dd57a8a82c8037312da251cfd90cc73bfe22",
+      "execution_digest": "2de26d65d534cb410c389a48440c5b31eb7e1a8d4972a413daad5963e0b038c8",
+      "workspace_digest": "89db05c72394a2f076279fa8a697b4b6bed9c29985a3f5205f16da82daa819d0",
+      "timestamp": 1795553610,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I accept all four",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: do you accept each implementation?', which listed the four changes of the validation batch (#1071, #1076, #574 and #1060) with their native Verify lane at cb679a13, Trust, scoped checks and CLI dogfood against the 6.4.2 release binary. This change is the #1071 one of those four.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "schema_version": 2,
+      "change_id": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "0410342358c06367344266e404f9ba6e21cc7c7e",
+      "contract_digest": "276e52542ed32dad4e77df8f0247dd57a8a82c8037312da251cfd90cc73bfe22",
+      "execution_digest": "2de26d65d534cb410c389a48440c5b31eb7e1a8d4972a413daad5963e0b038c8",
+      "workspace_digest": "22f60eb63c7517023eef3d4513aea5da407c9a88ca1a1ef0e140b8b4c3630dae",
+      "timestamp": 1795554414,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I accept all four",
+        "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a request headed 'Decision for you: do you accept each implementation?', which listed the four changes of the validation batch (#1071, #1076, #574 and #1060) with their native Verify lane at cb679a13, Trust, scoped checks and CLI dogfood against the 6.4.2 release binary. This change is the #1071 one of those four. Its review was first recorded at 74408b03, before SpecSync's archive order put the other three first; this records it again on the current tree.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

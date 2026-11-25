@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "delta-validation-reads-a-living-requirement-s-block-as-the-materializer-does",
+  "implementation_commit": "0410342358c06367344266e404f9ba6e21cc7c7e",
+  "implementation_tree": "3a0ab93a41cbdf987d607062f677d4dc359da82b",
+  "contract_digest": "276e52542ed32dad4e77df8f0247dd57a8a82c8037312da251cfd90cc73bfe22",
+  "workspace_digest": "22f60eb63c7517023eef3d4513aea5da407c9a88ca1a1ef0e140b8b4c3630dae",
+  "closing_digest": "16bc17c56e41a8f38ea4c129997f4b3598178424e322261dbb50920cc900098b",
+  "review_digest": "39218535dee97697b534a0047091f9ba7eea399339490284717590cc1e0cebc8",
+  "finalization_digest": "1f2eadcc00beb1171d7a41cb84fda2928dceb07ff74c8a69f10c0e36b9b2c945",
+  "timestamp": 1795554431
+}

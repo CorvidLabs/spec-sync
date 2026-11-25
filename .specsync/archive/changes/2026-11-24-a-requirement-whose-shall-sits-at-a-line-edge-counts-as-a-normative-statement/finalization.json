@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "a-requirement-whose-shall-sits-at-a-line-edge-counts-as-a-normative-statement",
+  "implementation_commit": "f690327c2f979c708647a5890925dfe5dfeaed7d",
+  "implementation_tree": "3d10281d059f92e9aaf54693ef817b901995d887",
+  "contract_digest": "d3f82311d92252c1096081c386ab602eac5f7072363181118d3171e106429101",
+  "workspace_digest": "89db05c72394a2f076279fa8a697b4b6bed9c29985a3f5205f16da82daa819d0",
+  "closing_digest": "18319225afd13a8ef9d1fb0d63366d742d2e0318ab4dc9c4bfdb3db9eebe0c33",
+  "review_digest": "c412c9a7889954dc6b601e911f9541223c86255ffc8d919231371dc0e4b6867c",
+  "finalization_digest": "b4855c1778ef9a471bf9de9c1587759a7f44aec0685549d0c9c94f1aa6f557e6",
+  "timestamp": 1795553707
+}

@@ -242,6 +242,7 @@ degrades. This does not admit arbitrary configured files as exact Cargo targets.
 |-----------|----------|
 | Spec file unreadable | Error: "Cannot read spec" |
 | Spec discovery meets a `specs` link out of the repository, or passes 100,000 entries or 256 levels | `find_spec_files_checked` returns `spec discovery stopped: <reason>`; `find_spec_files` prints it and exits 1 |
+| The lesson file beside the spec, `<module>.3md` named for the spec's module, does not parse as 3md or cannot be read, which includes an entry of that name that is not a regular file | Warning naming the file, the parser's error and that `context.md` is used for its lessons instead, so `check --strict` fails (REQ-cmd-check-023) |
 | Pre-read snapshot passed to `validate_spec_content` | Validates those exact bytes without opening `spec_path` or adjacent companions |
 | Supplied source is `Missing`, `Rejected`, or `Unreadable` | Reports the corresponding mapped-source validation outcome without ambient fallback |
 | Missing frontmatter delimiters | Error: "Missing or malformed YAML frontmatter" |

@@ -397,6 +397,15 @@ fn validation_input_digest_for_build(
             companion.strip_prefix(root).unwrap_or(companion),
         ));
     }
+    // `check` reports a lesson file it cannot read or parse (REQ-cmd-check-023), so the verdict
+    // binds every `.3md` entry beside the spec: its name, its bytes and, because a directory of
+    // that name is reported too, its kind (REQ-hash-cache-011).
+    let mut lesson_kinds = Vec::new();
+    for lesson in lesson_files_beside(root, spec_path) {
+        let rel = normalize_rel(lesson.strip_prefix(root).unwrap_or(&lesson));
+        lesson_kinds.push(format!("{rel}={}", entry_kind(&lesson)));
+        input_paths.insert(rel);
+    }
     if let Ok(content) =
         crate::util::read_project_string(root, spec_path, crate::util::MAX_SPEC_FILE_BYTES)
     {
@@ -421,6 +430,10 @@ fn validation_input_digest_for_build(
     history_kinds.sort();
     for kind in history_kinds {
         update_digest(&mut hasher, "history_entry", &kind);
+    }
+    lesson_kinds.sort();
+    for kind in lesson_kinds {
+        update_digest(&mut hasher, "lesson_entry", &kind);
     }
     input_paths.extend(global_inputs.iter().cloned());
 
@@ -553,6 +566,30 @@ fn find_companion_files(spec_path: &Path) -> (Vec<PathBuf>, Vec<PathBuf>) {
     (req_files, other_files)
 }
 
+/// The lesson files beside a spec: every `.3md` entry in its directory, whatever kind of entry
+/// it is. `check` reports the module's lesson file when it cannot read or parse it
+/// (REQ-cmd-check-023), so each one is an input of the spec's verdict (REQ-hash-cache-011). All
+/// of them rather than one name: the cache has the spec's path, not its parsed module, and a
+/// superset only costs a re-validation. The directory is listed by the project rule; one that
+/// cannot be listed has none.
+fn lesson_files_beside(root: &Path, spec_path: &Path) -> Vec<PathBuf> {
+    let Some(parent) = spec_path.parent() else {
+        return Vec::new();
+    };
+    crate::util::read_project_dir(root, parent)
+        .map(|entries| {
+            entries
+                .into_iter()
+                .filter(|entry| {
+                    entry
+                        .extension()
+                        .is_some_and(|extension| extension == "3md")
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Classify what changed for a single spec file.
 pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> ChangeClassification {
     let mut changes = Vec::new();
@@ -575,7 +612,10 @@ pub fn classify_changes(root: &Path, spec_path: &Path, cache: &HashCache) -> Cha
             break;
         }
     }
-    for companion in &other_files {
+    for companion in other_files
+        .iter()
+        .chain(lesson_files_beside(root, spec_path).iter())
+    {
         let comp_rel = normalize_rel(companion.strip_prefix(root).unwrap_or(companion));
         if cache.is_changed(root, &comp_rel) {
             if !changes.contains(&ChangeKind::Companion) {
@@ -640,7 +680,12 @@ pub fn update_cache(root: &Path, spec_files: &[PathBuf], cache: &mut HashCache) 
 
         // Update companion files (both naming conventions)
         let (req_files, other_files) = find_companion_files(spec_path);
-        for companion in req_files.iter().chain(other_files.iter()) {
+        let lesson_files = lesson_files_beside(root, spec_path);
+        for companion in req_files
+            .iter()
+            .chain(other_files.iter())
+            .chain(lesson_files.iter())
+        {
             let comp_rel = normalize_rel(companion.strip_prefix(root).unwrap_or(companion));
             cache.update(root, &comp_rel);
         }
@@ -1430,6 +1475,50 @@ mod tests {
         let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
         fs::remove_file(&fragment).unwrap();
         assert!(!replays(&edited), "a removed fragment re-validates");
+    }
+
+    /// Verifies REQ-hash-cache-011 (review of #1163). `check` reports a lesson file it cannot
+    /// read or parse, so a snapshot is replayed only while every `.3md` entry beside the spec is
+    /// as it was: adding, editing or removing one, or putting a directory in its place,
+    /// re-validates the spec.
+    #[test]
+    fn a_snapshot_is_not_replayed_over_a_changed_lesson_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        let (spec_path, inventory) = duplicated_requirement_project(root);
+        let replays = |snapshot: &CachedValidationSnapshot| {
+            let mut cache = HashCache::default();
+            cache
+                .snapshots
+                .insert("specs/auth/auth.spec.md".into(), snapshot.clone());
+            cache
+                .replayable_validation_snapshot(root, &spec_path, &[], &inventory)
+                .is_some()
+        };
+        let lesson = root.join("specs/auth/auth.3md");
+        let layers = |planes: &str| format!("---\n3md: 1.0\naxis: layers\n---\n\n{planes}");
+
+        let before = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&before), "nothing changed, so the snapshot replays");
+        fs::write(&lesson, layers("@plane z=0 label=\"Context\"\nContext.\n")).unwrap();
+        assert!(!replays(&before), "an added lesson file re-validates");
+
+        let added = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        assert!(replays(&added));
+        fs::write(
+            &lesson,
+            layers("@plane z=0 label=\"One\"\nA.\n\n@plane z=0 label=\"Two\"\nB.\n"),
+        )
+        .unwrap();
+        assert!(!replays(&added), "an edited lesson file re-validates");
+
+        let edited = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        fs::remove_file(&lesson).unwrap();
+        assert!(!replays(&edited), "a removed lesson file re-validates");
+
+        let removed = clean_snapshot_from_build(BUILD_FINGERPRINT, root, &spec_path, &inventory);
+        fs::create_dir(&lesson).unwrap();
+        assert!(!replays(&removed), "a directory of that name re-validates");
     }
 
     /// A project beside an `outside` directory, both inside one temporary directory, so a link

@@ -52,6 +52,7 @@ files:
   - src/change_tests/terminal_evidence_isolation.rs
   - src/change_tests/transaction_journal_error.rs
   - src/change_tests/titled_requirement_header_delta.rs
+  - src/change_tests/added_requirement_block_end.rs
   - src/change_tests/fenced_requirement_example_delta.rs
   - src/change_tests/inert_ignored_paths.rs
   - src/change_tests/substantive_plan.rs

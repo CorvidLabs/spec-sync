@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "reviews": [
+    {
+      "schema_version": 2,
+      "change_id": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+      "reviewer": "0xLeif",
+      "provenance": {
+        "schema_version": 1,
+        "provider": "github_actions_check",
+        "required_check": "SpecSync scoped review"
+      },
+      "verdict": "pass",
+      "implementation_commit": "90419f6ae1afd34cf7340d1cd166a76ad4c3001a",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "31fd0acbcabea888a696bfb7bcf9fab02630fa1b8e36a8af35549fa21dbc7b19",
+      "timestamp": 1795573219,
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I accept",
+        "where": "Claude Code release-lead chat, 2026-11-25 UTC, typed by him to the agent recording it. It answered a message that asked one question: whether he accepts the implementation of the #1163 follow-up change. He had been shown the native Verify result, the four tests that failed on #1163's published head and pass now, the four review findings re-run on the CLI, the size of the change and the one hardening beyond the findings. That evidence was from the branch before main's #1166 was merged into it. The merge changed no source, test or Cargo path, and the full native Verify lane passed again on the merged head 933f6f0b before this record was made.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ]
+}

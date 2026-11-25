@@ -483,6 +483,492 @@ class PlatformEvidenceTests(unittest.TestCase):
         self.assertIn("ran lane 'test', expected 'release-candidate'", lane.stderr)
 
 
+class PartRecordTests(unittest.TestCase):
+    """The lane in parts: ten part records in, two platform records out (REQ-github-031)."""
+
+    REVISION = "c" * 40
+    LISTED = 4187
+    SLICES = (1047, 1047, 1047, 1046)
+    DROP = object()
+
+    def setUp(self) -> None:
+        self.fixture = ReleaseRepository()
+        self.addCleanup(self.fixture.close)
+        self.parts = self.fixture.root / "parts"
+        self.evidence = self.fixture.root / "evidence"
+
+    def part_payload(self, platform: str, part: str) -> dict[str, Any]:
+        """Return one good part record."""
+        payload: dict[str, Any] = {
+            "schema_version": 1,
+            "platform": platform,
+            "part": part,
+            "lane": VALIDATOR_MODULE.RELEASE_CANDIDATE_PART_LANES[part],
+            "outcome": "success",
+            "rc_tag": self.fixture.rc_tag,
+            "candidate_sha": self.fixture.candidate_sha,
+            "package_version": "1.2.3",
+            "workflow_revision": self.REVISION,
+        }
+        if part in VALIDATOR_MODULE.RELEASE_CANDIDATE_TEST_PARTS:
+            index = VALIDATOR_MODULE.RELEASE_CANDIDATE_TEST_PARTS.index(part)
+            payload["tests_in_part"] = self.SLICES[index]
+            payload["tests_listed"] = self.LISTED
+        return payload
+
+    def write_parts(
+        self,
+        overrides: dict[str, dict[str, Any]] | None = None,
+        omit: tuple[str, ...] = (),
+    ) -> None:
+        """Write every part record afresh, changed or left out as asked."""
+        overrides = overrides or {}
+        for directory in (self.parts, self.evidence):
+            if directory.exists():
+                shutil.rmtree(directory)
+        self.parts.mkdir()
+        for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
+            for part in VALIDATOR_MODULE.RELEASE_CANDIDATE_PARTS:
+                key = f"{platform}-{part}"
+                if key in omit:
+                    continue
+                payload = self.part_payload(platform, part)
+                for field, value in overrides.get(key, {}).items():
+                    if value is self.DROP:
+                        payload.pop(field, None)
+                    else:
+                        payload[field] = value
+                (self.parts / f"{key}.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    def run_parts(self) -> subprocess.CompletedProcess[str]:
+        return self.fixture.run_cli(
+            "parts",
+            "--rc-tag",
+            self.fixture.rc_tag,
+            "--candidate-sha",
+            self.fixture.candidate_sha,
+            "--workflow-revision",
+            self.REVISION,
+            "--parts-dir",
+            str(self.parts),
+            "--evidence-dir",
+            str(self.evidence),
+        )
+
+    def run_evidence(self) -> subprocess.CompletedProcess[str]:
+        return self.fixture.run_cli(
+            "evidence",
+            "--rc-tag",
+            self.fixture.rc_tag,
+            "--candidate-sha",
+            self.fixture.candidate_sha,
+            "--evidence-dir",
+            str(self.evidence),
+        )
+
+    def platform_record(self, platform: str) -> dict[str, Any]:
+        return json.loads((self.evidence / f"{platform}.json").read_text(encoding="utf-8"))
+
+    def assert_unqualified(self, platform: str, reason: str) -> None:
+        """The named platform is written as failed, and the candidate is refused for it."""
+        result = self.run_parts()
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn(reason, result.stderr)
+        self.assertEqual(self.platform_record(platform)["outcome"], "failure")
+        refused = self.run_evidence()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("is not successful", refused.stderr)
+
+    def test_the_parts_are_four_test_slices_and_one_build(self) -> None:
+        self.assertEqual(VALIDATOR_MODULE.RELEASE_CANDIDATE_TEST_SLICES, 4)
+        self.assertEqual(
+            VALIDATOR_MODULE.RELEASE_CANDIDATE_PARTS,
+            ("tests-1-of-4", "tests-2-of-4", "tests-3-of-4", "tests-4-of-4", "build"),
+        )
+        self.assertEqual(
+            VALIDATOR_MODULE.RELEASE_CANDIDATE_PART_LANES,
+            {
+                "tests-1-of-4": "release-candidate-tests",
+                "tests-2-of-4": "release-candidate-tests",
+                "tests-3-of-4": "release-candidate-tests",
+                "tests-4-of-4": "release-candidate-tests",
+                "build": "release-candidate-build",
+            },
+        )
+
+    def test_ten_good_parts_write_two_successful_platform_records(self) -> None:
+        self.write_parts()
+        result = self.run_parts()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["mode"], "parts")
+        self.assertTrue(payload["valid"])
+        self.assertEqual(sorted(payload["platforms"]), ["macos", "ubuntu"])
+        for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
+            with self.subTest(platform=platform):
+                self.assertEqual(payload["platforms"][platform]["outcome"], "success")
+                self.assertEqual(payload["platforms"][platform]["tests_listed"], self.LISTED)
+                self.assertEqual(
+                    self.platform_record(platform),
+                    {
+                        "schema_version": 1,
+                        "platform": platform,
+                        "rc_tag": self.fixture.rc_tag,
+                        "candidate_sha": self.fixture.candidate_sha,
+                        "lane": "release-candidate",
+                        "outcome": "success",
+                        "package_version": "1.2.3",
+                        "workflow_revision": self.REVISION,
+                    },
+                )
+        self.assertEqual(
+            sorted(path.name for path in self.evidence.iterdir()), ["macos.json", "ubuntu.json"]
+        )
+        accepted = self.run_evidence()
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertEqual(json.loads(accepted.stdout)["workflow_revision"], self.REVISION)
+
+    def test_a_missing_part_leaves_only_its_platform_unqualified(self) -> None:
+        self.write_parts(omit=("macos-tests-3-of-4",))
+        self.assert_unqualified("macos", "missing part record macos-tests-3-of-4.json")
+        self.assertEqual(self.platform_record("ubuntu")["outcome"], "success")
+
+    def test_no_part_records_at_all_leave_every_platform_unqualified(self) -> None:
+        self.write_parts()
+        shutil.rmtree(self.parts)
+        result = self.run_parts()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("is not a directory", result.stderr)
+        for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
+            self.assertEqual(self.platform_record(platform)["outcome"], "failure")
+
+    def test_an_unexpected_record_leaves_every_platform_unqualified(self) -> None:
+        for name in ("linux-build.json", "macos-tests-5-of-4.json", "macos-tests-1-of-5.json"):
+            with self.subTest(name=name):
+                self.write_parts()
+                (self.parts / name).write_text("{}", encoding="utf-8")
+                result = self.run_parts()
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(f"unexpected part records: {name}", result.stderr)
+                for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
+                    self.assertEqual(self.platform_record(platform)["outcome"], "failure")
+
+    def test_a_record_that_names_another_part_or_platform_is_a_duplicate(self) -> None:
+        self.write_parts({"macos-tests-2-of-4": {"part": "tests-1-of-4"}})
+        self.assert_unqualified(
+            "macos", "macos-tests-2-of-4.json declares platform 'macos' part 'tests-1-of-4'"
+        )
+        self.write_parts({"ubuntu-build": {"platform": "macos"}})
+        self.assert_unqualified("ubuntu", "ubuntu-build.json declares platform 'macos' part 'build'")
+
+    def test_a_failed_or_cancelled_part_leaves_its_platform_unqualified(self) -> None:
+        for outcome in ("failure", "cancelled", "skipped"):
+            with self.subTest(outcome=outcome):
+                self.write_parts({"macos-build": {"outcome": outcome}})
+                self.assert_unqualified(
+                    "macos", f"part macos build is not successful: outcome={outcome!r}"
+                )
+        self.write_parts(
+            {
+                "ubuntu-tests-4-of-4": {
+                    "outcome": "failure",
+                    "tests_in_part": self.DROP,
+                    "tests_listed": self.DROP,
+                }
+            }
+        )
+        self.assert_unqualified("ubuntu", "part ubuntu tests-4-of-4 is not successful")
+
+    def test_a_part_bound_to_another_candidate_is_refused(self) -> None:
+        cases = {
+            "rc_tag": ("v1.2.3-rc.2", "is bound to RC tag 'v1.2.3-rc.2'"),
+            "candidate_sha": ("b" * 40, "is bound to candidate " + "b" * 40),
+            "package_version": ("1.2.4", "package version '1.2.4' does not match '1.2.3'"),
+            "workflow_revision": ("d" * 40, "ran workflow revision " + "d" * 40),
+            "lane": ("release-candidate", "ran lane 'release-candidate', expected"),
+        }
+        for field, (value, reason) in cases.items():
+            with self.subTest(field=field):
+                self.write_parts({"macos-tests-1-of-4": {field: value}})
+                self.assert_unqualified("macos", reason)
+                self.assertEqual(self.platform_record("ubuntu")["outcome"], "success")
+
+    def test_slices_must_report_one_whole_list_count_and_add_up_to_it(self) -> None:
+        self.write_parts({"macos-tests-2-of-4": {"tests_listed": self.LISTED - 1}})
+        self.assert_unqualified("macos", "slices report different whole-list counts")
+        self.write_parts({"macos-tests-4-of-4": {"tests_in_part": self.SLICES[3] - 1}})
+        self.assert_unqualified(
+            "macos", f"slices hold {self.LISTED - 1} tests, the whole list has {self.LISTED}"
+        )
+        self.write_parts({"ubuntu-tests-1-of-4": {"tests_in_part": self.SLICES[0] + 1}})
+        self.assert_unqualified(
+            "ubuntu", f"slices hold {self.LISTED + 1} tests, the whole list has {self.LISTED}"
+        )
+
+    def test_slice_counts_must_be_positive_integers_on_test_parts_only(self) -> None:
+        for value in (0, -1, 1.5, "1047", True, None):
+            with self.subTest(value=value):
+                self.write_parts({"macos-tests-1-of-4": {"tests_in_part": value}})
+                self.assert_unqualified("macos", "tests_in_part must be a positive integer")
+        self.write_parts({"macos-tests-1-of-4": {"tests_listed": self.DROP}})
+        self.assert_unqualified("macos", "is missing fields: tests_listed")
+        self.write_parts({"macos-build": {"tests_in_part": 1, "tests_listed": 1}})
+        self.assert_unqualified("macos", "has unknown fields: tests_in_part, tests_listed")
+
+    def test_part_records_are_read_strictly(self) -> None:
+        self.write_parts()
+        target = self.parts / "macos-build.json"
+        target.write_text('{"schema_version": 1, "schema_version": 1}', encoding="utf-8")
+        self.assert_unqualified("macos", "duplicate key 'schema_version'")
+
+        self.write_parts({"macos-build": {"schema_version": 2}})
+        self.assert_unqualified("macos", "must use schema_version 1")
+
+        self.write_parts({"macos-build": {"host": "runner"}})
+        self.assert_unqualified("macos", "has unknown fields: host")
+
+        self.write_parts()
+        target.write_text("[]", encoding="utf-8")
+        self.assert_unqualified("macos", "must be a JSON object")
+
+        self.write_parts()
+        target.write_text(json.dumps({"padding": "x" * (1024 * 1024)}), encoding="utf-8")
+        self.assert_unqualified("macos", "exceeds the")
+
+        self.write_parts()
+        real = self.fixture.root / "elsewhere.json"
+        real.write_text(json.dumps(self.part_payload("macos", "build")), encoding="utf-8")
+        target.unlink()
+        target.symlink_to(real)
+        self.assert_unqualified("macos", "must be a regular, non-symlink file")
+
+    def test_parts_never_overwrite_platform_evidence(self) -> None:
+        self.write_parts()
+        self.evidence.mkdir()
+        (self.evidence / "macos.json").write_text("{}", encoding="utf-8")
+        result = self.run_parts()
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("already holds platform evidence", result.stderr)
+        self.assertEqual((self.evidence / "macos.json").read_text(encoding="utf-8"), "{}")
+        self.assertFalse((self.evidence / "ubuntu.json").exists())
+
+    def test_parts_cli_refuses_a_malformed_identity_before_writing(self) -> None:
+        self.write_parts()
+        for flag, value in (
+            ("--rc-tag", "v1.2.3"),
+            ("--candidate-sha", "abc"),
+            ("--workflow-revision", "main"),
+        ):
+            with self.subTest(flag=flag):
+                arguments = [
+                    "parts",
+                    "--rc-tag",
+                    self.fixture.rc_tag,
+                    "--candidate-sha",
+                    self.fixture.candidate_sha,
+                    "--workflow-revision",
+                    self.REVISION,
+                    "--parts-dir",
+                    str(self.parts),
+                    "--evidence-dir",
+                    str(self.evidence),
+                ]
+                arguments[arguments.index(flag) + 1] = value
+                result = self.fixture.run_cli(*arguments)
+                self.assertEqual(result.returncode, 1)
+                self.assertFalse(self.evidence.exists())
+        help_result = self.fixture.run_cli("parts", "--help")
+        self.assertEqual(help_result.returncode, 0, help_result.stderr)
+        for flag in ("--parts-dir", "--evidence-dir", "--workflow-revision"):
+            self.assertIn(flag, help_result.stdout)
+
+    def run_part_record(self, *extra: str, **changed: str) -> subprocess.CompletedProcess[str]:
+        arguments = {
+            "--platform": "macos",
+            "--part": "tests-2-of-4",
+            "--outcome": "success",
+            "--rc-tag": self.fixture.rc_tag,
+            "--candidate-sha": self.fixture.candidate_sha,
+            "--package-version": "1.2.3",
+            "--workflow-revision": self.REVISION,
+            "--counts": str(self.fixture.root / "counts.json"),
+            "--output-dir": str(self.parts),
+        }
+        arguments.update({f"--{key.replace('_', '-')}": value for key, value in changed.items()})
+        flat = [item for pair in arguments.items() for item in pair]
+        return self.fixture.run_cli("part-record", *flat, *extra)
+
+    def test_part_record_writes_what_the_parts_mode_reads(self) -> None:
+        counts = self.fixture.root / "counts.json"
+        counts.write_text(json.dumps({"tests_in_part": 1047, "tests_listed": 4187}), encoding="utf-8")
+        result = self.run_part_record()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        written = self.parts / "macos-tests-2-of-4.json"
+        self.assertEqual(
+            json.loads(written.read_text(encoding="utf-8")),
+            self.part_payload("macos", "tests-2-of-4"),
+        )
+        record = VALIDATOR_MODULE.load_part_record(written)
+        self.assertEqual((record.platform, record.part, record.tests_in_part), ("macos", "tests-2-of-4", 1047))
+
+        build = self.run_part_record(part="build", platform="ubuntu")
+        self.assertEqual(build.returncode, 0, build.stderr)
+        self.assertEqual(
+            json.loads((self.parts / "ubuntu-build.json").read_text(encoding="utf-8")),
+            self.part_payload("ubuntu", "build"),
+        )
+
+    def test_part_record_keeps_a_failed_slice_and_refuses_a_green_one_without_counts(self) -> None:
+        failed = self.run_part_record(outcome="failure")
+        self.assertEqual(failed.returncode, 0, failed.stderr)
+        payload = json.loads((self.parts / "macos-tests-2-of-4.json").read_text(encoding="utf-8"))
+        self.assertEqual(payload["outcome"], "failure")
+        self.assertNotIn("tests_in_part", payload)
+
+        shutil.rmtree(self.parts)
+        green = self.run_part_record()
+        self.assertEqual(green.returncode, 1)
+        self.assertIn("a successful test slice must carry its counts", green.stderr)
+        self.assertFalse((self.parts / "macos-tests-2-of-4.json").exists())
+
+    def test_part_record_refuses_values_the_parts_mode_would_refuse(self) -> None:
+        counts = self.fixture.root / "counts.json"
+        counts.write_text(json.dumps({"tests_in_part": 1047, "tests_listed": 4187}), encoding="utf-8")
+        for changed, reason in (
+            ({"platform": "windows"}, "unexpected platform 'windows'"),
+            ({"part": "tests-5-of-4"}, "unexpected part 'tests-5-of-4'"),
+            ({"candidate_sha": "abc"}, "40-character Git SHA"),
+            ({"workflow_revision": "main"}, "40-character Git SHA"),
+            ({"rc_tag": "v1.2.3"}, "invalid RC tag"),
+            ({"package_version": "1.2"}, "canonical X.Y.Z version"),
+        ):
+            with self.subTest(changed=changed):
+                result = self.run_part_record(**changed)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(reason, result.stderr)
+        counts.write_text(json.dumps({"tests_in_part": 5000, "tests_listed": 4187}), encoding="utf-8")
+        larger = self.run_part_record()
+        self.assertEqual(larger.returncode, 1)
+        self.assertIn("more tests than the whole list", larger.stderr)
+        self.assertFalse(self.parts.exists() and any(self.parts.iterdir()))
+
+
+class ReleaseCandidatePartScriptTests(unittest.TestCase):
+    """One test slice under a stand-in cargo: the partition asked for, and its counts."""
+
+    SCRIPT = ROOT / ".github/scripts/release-candidate-part.sh"
+    FAKE_CARGO = """#!/usr/bin/env python3
+import json, os, sys
+arguments = sys.argv[1:]
+with open(os.environ["FAKE_CARGO_LOG"], "a") as log:
+    log.write(" ".join(arguments) + "\\n")
+tests = [("specsync::bin/specsync", f"unit::t{i}") for i in range(7)]
+tests += [("specsync::integration", f"it::t{i}") for i in range(3)]
+if arguments[:2] == ["nextest", "list"]:
+    chosen, total = 0, 1
+    if "--partition" in arguments:
+        chosen, total = (int(x) for x in arguments[arguments.index("--partition") + 1].split(":")[1].split("/"))
+    suites = {}
+    for index, (suite, name) in enumerate(tests):
+        inside = total == 1 and chosen == 0 or index % total == chosen - 1
+        status = {"status": "matches"} if inside else {"status": "mismatch", "reason": "partition"}
+        suites.setdefault(suite, {"testcases": {}})["testcases"][name] = {"ignored": False, "filter-match": status}
+    suites["specsync::bin/specsync"]["testcases"]["unit::slow"] = {
+        "ignored": True, "filter-match": {"status": "mismatch", "reason": "ignored"}}
+    print(json.dumps({"test-count": len(tests) + 1, "rust-suites": suites}))
+    sys.exit(0)
+if arguments[:2] == ["nextest", "run"]:
+    sys.exit(int(os.environ.get("FAKE_RUN_EXIT", "0")))
+sys.exit(97)
+"""
+
+    def setUp(self) -> None:
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name)
+        bin_directory = self.root / "bin"
+        bin_directory.mkdir()
+        cargo = bin_directory / "cargo"
+        cargo.write_text(self.FAKE_CARGO, encoding="utf-8")
+        cargo.chmod(0o755)
+        self.log = self.root / "cargo.log"
+        self.counts = self.root / "counts.json"
+        self.environment = {
+            "PATH": f"{bin_directory}{os.pathsep}{os.environ['PATH']}",
+            "FAKE_CARGO_LOG": str(self.log),
+            "HOME": str(self.root),
+        }
+
+    def run_script(self, **environment: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["bash", str(self.SCRIPT)],
+            cwd=self.root,
+            env={**self.environment, **environment},
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    def calls(self) -> list[str]:
+        return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
+
+    def test_a_slice_runs_that_partition_and_writes_its_counts_first(self) -> None:
+        result = self.run_script(
+            RC_TEST_SLICE="2", RC_TEST_SLICES="4", RC_PART_COUNTS=str(self.counts)
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            self.calls(),
+            [
+                "nextest list --message-format json",
+                "nextest list --message-format json --partition slice:2/4",
+                "nextest run --no-fail-fast --partition slice:2/4",
+            ],
+        )
+        self.assertEqual(
+            json.loads(self.counts.read_text(encoding="utf-8")),
+            {"tests_in_part": 3, "tests_listed": 10},
+        )
+
+    def test_the_slices_of_the_stand_in_list_add_up(self) -> None:
+        held = []
+        for chosen in ("1", "2", "3", "4"):
+            self.run_script(RC_TEST_SLICE=chosen, RC_TEST_SLICES="4", RC_PART_COUNTS=str(self.counts))
+            held.append(json.loads(self.counts.read_text(encoding="utf-8")))
+        self.assertEqual([item["tests_in_part"] for item in held], [3, 3, 2, 2])
+        self.assertEqual({item["tests_listed"] for item in held}, {10})
+
+    def test_a_failing_slice_fails_and_still_leaves_its_counts(self) -> None:
+        result = self.run_script(
+            RC_TEST_SLICE="1", RC_TEST_SLICES="4", RC_PART_COUNTS=str(self.counts), FAKE_RUN_EXIT="100"
+        )
+        self.assertEqual(result.returncode, 100)
+        self.assertEqual(
+            json.loads(self.counts.read_text(encoding="utf-8")),
+            {"tests_in_part": 3, "tests_listed": 10},
+        )
+
+    def test_without_a_counts_file_only_the_run_happens(self) -> None:
+        result = self.run_script(RC_TEST_SLICE="4", RC_TEST_SLICES="4")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls(), ["nextest run --no-fail-fast --partition slice:4/4"])
+
+    def test_a_slice_outside_its_range_runs_nothing(self) -> None:
+        for chosen, total in (("", "4"), ("0", "4"), ("5", "4"), ("1", ""), ("x", "4"), ("1", "0"), ("01", "4")):
+            with self.subTest(chosen=chosen, total=total):
+                result = self.run_script(RC_TEST_SLICE=chosen, RC_TEST_SLICES=total)
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("RC_TEST_SLICE", result.stderr)
+        self.assertEqual(self.calls(), [])
+
+    def test_the_script_filters_ignores_and_retries_nothing(self) -> None:
+        script = self.SCRIPT.read_text(encoding="utf-8")
+        for refused in ("--retries", "--ignore-default-filter", "-E ", "--filterset", "--skip", "--run-ignored", "--max-fail", "--fail-fast"):
+            with self.subTest(refused=refused):
+                self.assertNotIn(refused, script.replace("--no-fail-fast", ""))
+
+
 class RulesetValidationTests(unittest.TestCase):
     """Fail-closed tag-immutability ruleset contract tests."""
 
@@ -1168,9 +1654,13 @@ class WorkflowSourceContractTests(unittest.TestCase):
         for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
             with self.subTest(platform=platform):
                 self.assertEqual(qualify_job.count(f"          - platform: {platform}\n"), 1)
-        invocation = "fledge lanes run release-candidate"
-        self.assertEqual(qualify_job.count(invocation), 1)
-        self.assertEqual(release.count(invocation), 1)
+        for lane in ("release-candidate-tests", "release-candidate-build"):
+            with self.subTest(lane=lane):
+                invocation = f"fledge lanes run {lane}\n"
+                self.assertEqual(qualify_job.count(invocation), 1)
+                self.assertEqual(release.count(invocation), 1)
+        # The whole lane is for local use; a hosted job that ran it would not fit its limit.
+        self.assertNotIn("fledge lanes run release-candidate\n", release)
 
     def assert_workflow_evidence_guard_matches_required_platforms(self, job: str) -> None:
         release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
@@ -1527,6 +2017,249 @@ class WorkflowSourceContractTests(unittest.TestCase):
             2,
         )
         self.assertEqual(release_job.count("          unset GH_TOKEN\n"), 1)
+
+
+def workflow_job(text: str, job: str) -> str:
+    """Return one job's source from a workflow file."""
+    start = text.index(f"\n  {job}:\n") + 1
+    following = re.search(r"(?m)^  [a-z][a-z0-9_-]*:$", text[start + 1 :])
+    end = start + 1 + following.start() if following else len(text)
+    return text[start:end]
+
+
+def workflow_step(job: str, name: str) -> str:
+    """Return one named step's source from a job."""
+    start = job.index(f"      - name: {name}\n")
+    following = re.search(r"(?m)^      - ", job[start + 1 :])
+    end = start + 1 + following.start() if following else len(job)
+    return job[start:end].rstrip("\n") + "\n"
+
+
+def step_script(step: str) -> str:
+    """Return a step's `run: |` block, dedented."""
+    body = step[step.index("        run: |\n") + len("        run: |\n") :]
+    lines = []
+    for line in body.splitlines():
+        if line.strip() and not line.startswith("          "):
+            break
+        lines.append(line[10:])
+    return "\n".join(lines) + "\n"
+
+
+class ReleaseCandidatePartsWorkflowTests(unittest.TestCase):
+    """The qualification runs as parts, and the rehearsal is the same parts (REQ-github-031, 033)."""
+
+    RUN_STEP = "Run one part of the immutable release-candidate lane"
+    SHARED_STEPS = ("Install pinned Fledge", "Install pinned cargo-nextest", RUN_STEP)
+
+    def setUp(self) -> None:
+        self.release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.qualify = workflow_job(self.release, "qualify")
+        self.record = workflow_job(self.release, "record-qualification")
+
+    def test_qualify_runs_every_part_on_every_platform_within_thirty_minutes(self) -> None:
+        self.assertEqual(re.findall(r"(?m)^    timeout-minutes: (\S+)$", self.qualify), ["30"])
+        self.assertIn("      fail-fast: false\n", self.qualify)
+        platforms = ", ".join(VALIDATOR_MODULE.REQUIRED_PLATFORMS)
+        parts = ", ".join(VALIDATOR_MODULE.RELEASE_CANDIDATE_PARTS)
+        self.assertEqual(self.qualify.count(f"        platform: [{platforms}]\n"), 1)
+        self.assertEqual(self.qualify.count(f"        part: [{parts}]\n"), 1)
+        self.assertIn(
+            "    name: qualify (${{ matrix.platform }}, ${{ matrix.part }})\n", self.qualify
+        )
+
+    def test_the_run_step_turns_a_part_into_its_lane_and_slice(self) -> None:
+        script = step_script(workflow_step(self.qualify, self.RUN_STEP))
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fledge = root / "fledge"
+            fledge.write_text(
+                "#!/usr/bin/env bash\n"
+                'printf "%s|%s|%s|%s\\n" "$*" "${RC_TEST_SLICE:-}" "${RC_TEST_SLICES:-}" '
+                '"${RC_PART_COUNTS:-}"\n',
+                encoding="utf-8",
+            )
+            fledge.chmod(0o755)
+            environment = {
+                "PATH": f"{root}{os.pathsep}{os.environ['PATH']}",
+                "RUNNER_TEMP": str(root),
+            }
+            expected = {
+                part: f"lanes run release-candidate-tests|{index}|4|{root}/rc-part-counts.json\n"
+                for index, part in enumerate(VALIDATOR_MODULE.RELEASE_CANDIDATE_TEST_PARTS, 1)
+            }
+            expected["build"] = "lanes run release-candidate-build|||\n"
+            self.assertEqual(sorted(expected), sorted(VALIDATOR_MODULE.RELEASE_CANDIDATE_PARTS))
+            for part, output in expected.items():
+                with self.subTest(part=part):
+                    result = subprocess.run(
+                        ["bash", "-c", script],
+                        env={**environment, "PART": part},
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(result.stdout, output)
+            for part in ("tests-5-of-4", "tests-0-of-4", "tests-1-of-5", "tests", "", "release"):
+                with self.subTest(refused=part):
+                    result = subprocess.run(
+                        ["bash", "-c", script],
+                        env={**environment, "PART": part},
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 1, result.stdout)
+                    self.assertEqual(result.stdout, "")
+
+    def test_every_part_leaves_a_record_and_no_platform_evidence(self) -> None:
+        record = workflow_step(self.qualify, "Write SHA-bound part record")
+        self.assertIn("        if: always()\n", record)
+        self.assertIn("validate-release-candidate.py part-record", record)
+        for flag in (
+            '--platform "$PLATFORM"',
+            '--part "$PART"',
+            '--outcome "$OUTCOME"',
+            '--rc-tag "$RC_TAG"',
+            '--candidate-sha "$CANDIDATE_SHA"',
+            '--package-version "$PACKAGE_VERSION"',
+            '--workflow-revision "$WORKFLOW_REVISION"',
+            '--counts "${RUNNER_TEMP}/rc-part-counts.json"',
+            "--output-dir qualification-parts",
+        ):
+            with self.subTest(flag=flag):
+                self.assertIn(flag, record)
+        self.assertIn("          OUTCOME: ${{ job.status }}\n", record)
+        self.assertIn("          WORKFLOW_REVISION: ${{ github.workflow_sha }}\n", record)
+        upload = workflow_step(self.qualify, "Upload part record")
+        self.assertIn("        if: always()\n", upload)
+        self.assertIn("          name: rc-part-${{ matrix.platform }}-${{ matrix.part }}\n", upload)
+        self.assertIn(
+            "          path: qualification-parts/${{ matrix.platform }}-${{ matrix.part }}.json\n",
+            upload,
+        )
+        self.assertIn("          if-no-files-found: error\n", upload)
+        self.assertNotIn("rc-evidence-", self.qualify)
+
+    def test_record_qualification_builds_the_platform_evidence_from_the_parts(self) -> None:
+        self.assertIn("          pattern: rc-part-*\n", self.record)
+        build = workflow_step(self.record, "Write platform evidence from the part records")
+        self.assertIn("        id: parts\n", build)
+        self.assertIn("validate-release-candidate.py parts", build)
+        self.assertIn('--workflow-revision "${{ github.workflow_sha }}"', build)
+        self.assertIn("--parts-dir qualification-parts", build)
+        self.assertIn("--evidence-dir qualification-evidence", build)
+        for platform in VALIDATOR_MODULE.REQUIRED_PLATFORMS:
+            with self.subTest(platform=platform):
+                self.assertEqual(self.record.count(f"          name: rc-evidence-{platform}\n"), 1)
+                self.assertEqual(
+                    self.record.count(f"          path: qualification-evidence/{platform}.json\n"), 1
+                )
+        order = [
+            self.record.index("validate-release-candidate.py parts"),
+            self.record.index("          name: rc-evidence-ubuntu\n"),
+            self.record.index("validate-release-candidate.py evidence"),
+            self.record.index("      - name: Publish immutable candidate gate\n"),
+        ]
+        self.assertEqual(order, sorted(order))
+        gate = workflow_step(self.record, "Publish immutable candidate gate")
+        self.assertIn("          PARTS_OUTCOME: ${{ steps.parts.outcome }}\n", gate)
+        self.assertIn('"$PARTS_OUTCOME" == "success"', gate)
+        self.assertIn('"$VERIFY_OUTCOME" == "success"', gate)
+
+    def test_fledge_defines_the_part_lanes_and_keeps_the_whole_lane(self) -> None:
+        fledge = (ROOT / "fledge.toml").read_text(encoding="utf-8")
+
+        def steps(lane: str) -> str:
+            found = re.search(
+                rf"(?ms)^\[lanes\.{re.escape(lane)}\]\n(?:(?!^\[).)*?^steps = (\[[^\]]*\])$", fledge
+            )
+            self.assertIsNotNone(found, f"fledge.toml must define lanes.{lane}")
+            return found.group(1) if found else ""
+
+        self.assertEqual(steps("release-candidate"), '["test-nextest", "test-release-guards", "build"]')
+        self.assertEqual(steps("release-candidate-tests"), '["test-nextest-slice"]')
+        self.assertEqual(steps("release-candidate-build"), '["test-release-guards", "build"]')
+        self.assertIn(
+            '[tasks.test-nextest-slice]\ncmd = "bash .github/scripts/release-candidate-part.sh"\n',
+            fledge,
+        )
+        self.assertIn('[tasks.test-nextest]\ncmd = "cargo nextest run --no-fail-fast"\n', fledge)
+
+    def test_the_rehearsal_is_the_qualification_without_a_candidate(self) -> None:
+        rehearsal = (ROOT / ".github/workflows/rc-rehearsal.yml").read_text(encoding="utf-8")
+        rehearse = workflow_job(rehearsal, "rehearse")
+        self.assertEqual(re.findall(r"(?m)^    timeout-minutes: (\S+)$", rehearse), ["30"])
+
+        def strategy(job: str) -> str:
+            start = job.index("    strategy:\n")
+            following = re.search(r"(?m)^    [a-z-]+:", job[start + 1 :])
+            return job[start : start + 1 + following.start()] if following else job[start:]
+
+        self.assertEqual(strategy(rehearse), strategy(self.qualify))
+        self.assertIn("          - platform: macos\n            os: macos-15\n", strategy(rehearse))
+        for name in self.SHARED_STEPS:
+            with self.subTest(step=name):
+                self.assertEqual(workflow_step(rehearse, name), workflow_step(self.qualify, name))
+        for pinned in (
+            "dtolnay/rust-toolchain@",
+            "Swatinem/rust-cache@",
+            "actions/checkout@",
+        ):
+            with self.subTest(pinned=pinned):
+                wanted = re.findall(rf"(?m)^\s+- uses: ({re.escape(pinned)}\S+ # \S+)$", self.qualify)
+                self.assertEqual(len(wanted), 1, pinned)
+                self.assertIn(f"      - uses: {wanted[0]}\n", rehearse)
+        self.assertIn("          save-if: false\n", rehearse)
+        self.assertIn("    runs-on: ${{ matrix.os }}\n", rehearse)
+
+    def test_the_rehearsal_starts_by_hand_weekly_and_when_the_lane_changes(self) -> None:
+        rehearsal = (ROOT / ".github/workflows/rc-rehearsal.yml").read_text(encoding="utf-8")
+        triggers = rehearsal[rehearsal.index("\non:\n") : rehearsal.index("\npermissions:\n")]
+        self.assertIn("  workflow_dispatch:\n", triggers)
+        self.assertEqual(len(re.findall(r"(?m)^    - cron: '[^']+'$", triggers)), 1)
+        self.assertRegex(triggers, r"(?m)^    - cron: '\d+ \d+ \* \* [0-6]'$")
+        paths = re.findall(r"(?m)^      - (\S+)$", triggers[triggers.index("  pull_request:\n") :])
+        self.assertEqual(
+            sorted(paths),
+            [
+                ".github/scripts/release-candidate-part.sh",
+                ".github/workflows/rc-rehearsal.yml",
+                ".github/workflows/release.yml",
+                "fledge.toml",
+            ],
+        )
+        self.assertNotIn("pull_request_target", rehearsal)
+
+    def test_a_rehearsal_writes_no_candidate_evidence_and_publishes_no_gate(self) -> None:
+        rehearsal = (ROOT / ".github/workflows/rc-rehearsal.yml").read_text(encoding="utf-8")
+        self.assertRegex(rehearsal, r"(?m)^permissions:\n  contents: read\n\n")
+        self.assertEqual(len(re.findall(r"(?m)^\s+permissions:", rehearsal)), 0)
+        for refused in (
+            "rc-evidence",
+            "rc-part-",
+            "check-runs",
+            "part-record",
+            "validate-release-candidate.py",
+            ": write",
+            "secrets.",
+        ):
+            with self.subTest(refused=refused):
+                self.assertNotIn(refused, rehearsal)
+
+    def test_the_runbook_has_the_releaser_rehearse_before_tagging(self) -> None:
+        runbook = (ROOT / "docs/RELEASING.md").read_text(encoding="utf-8")
+        candidate = runbook.index("## 2. Cut the candidate")
+        section = runbook[candidate : runbook.index("\n## 3.", candidate)]
+        rehearse = section.index("gh workflow run rc-rehearsal.yml")
+        tag = section.index("git tag -a v")
+        self.assertLess(rehearse, tag)
+        for part in ("release-candidate-tests", "release-candidate-build", "rc-part-"):
+            with self.subTest(named=part):
+                self.assertIn(part, section)
 
 
 class PromotionAndReleaseTests(unittest.TestCase):

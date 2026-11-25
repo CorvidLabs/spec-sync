@@ -1,6 +1,6 @@
 ---
 id: release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit
-state: draft
+state: approved
 type: operations
 base_commit: 39e7e17be6c6614f8bd49604de9c599939b9fa30
 ---

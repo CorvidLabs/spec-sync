@@ -7,10 +7,11 @@
   "title": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
   "description": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
   "kind": "operations",
-  "state": "approved",
+  "state": "verifying",
+  "canonical_applied": true,
   "base_commit": "39e7e17be6c6614f8bd49604de9c599939b9fa30",
   "created_at": 1795577185,
-  "updated_at": 1795577516,
+  "updated_at": 1795581129,
   "affected_specs": [
     "github"
   ],

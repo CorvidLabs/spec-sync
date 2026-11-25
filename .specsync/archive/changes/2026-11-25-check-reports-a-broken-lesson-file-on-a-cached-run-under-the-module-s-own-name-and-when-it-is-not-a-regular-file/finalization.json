@@ -1,0 +1,12 @@
+{
+  "schema_version": 2,
+  "change_id": "check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file",
+  "implementation_commit": "90419f6ae1afd34cf7340d1cd166a76ad4c3001a",
+  "implementation_tree": "3a3840e83d937e7a92f2fc1c16e9e0a655d45667",
+  "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+  "workspace_digest": "31fd0acbcabea888a696bfb7bcf9fab02630fa1b8e36a8af35549fa21dbc7b19",
+  "closing_digest": "1e96535433328e36fda10a134b12a6804dbac2bb9471f253e56b955713890ea0",
+  "review_digest": "de26cee82c622c6d85ecda4d9c1ba7e0195d4aca90762ed34a63be075814fdfb",
+  "finalization_digest": "c9d40e2accdfdfe3bea9bb65f62d8711991463a1580629eeea53904d0418e95f",
+  "timestamp": 1795573243
+}

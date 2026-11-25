@@ -109,6 +109,13 @@
         "where": "Claude Code release-lead chat, 2026-11-24 UTC, typed by him to the agent recording it. It answered a message that asked three numbered questions. The third was '#1163 successor: do you approve these requirement words?' and quoted them: REQ-cmd-check-023 amended (the file is the one named for the spec's module, an entry of that name that is not a regular file is reported as unreadable, and a strict lifecycle check fails on the warning as on any other, with three added acceptance criteria), REQ-hash-cache-011 added in full, and the validator Error Cases row. He had already chosen, earlier in the same chat, to fix the three findings in one successor change and keep change check --strict failing.",
         "recorded_by": "claude-code-t14v"
       }
+    },
+    {
+      "gate": "finalization",
+      "actor": "specsync:finalization",
+      "timestamp": 1795573243,
+      "digest": "1e96535433328e36fda10a134b12a6804dbac2bb9471f253e56b955713890ea0",
+      "note": "Same-PR finalization closing digest"
     }
   ],
   "reopenings": []

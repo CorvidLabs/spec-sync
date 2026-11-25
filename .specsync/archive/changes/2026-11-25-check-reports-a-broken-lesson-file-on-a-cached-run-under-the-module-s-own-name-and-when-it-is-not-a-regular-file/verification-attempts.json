@@ -1,0 +1,606 @@
+{
+  "schema_version": 1,
+  "attempts": [
+    {
+      "timestamp": 1795560846,
+      "commit": "b08f034e9a4a60813f1d13a29c1ce07b79f9e424",
+      "contract_digest": "",
+      "workspace_digest": "",
+      "passed": false,
+      "commands": [],
+      "requirement_ids": [],
+      "refusal": "tasks.md contains incomplete tasks: finish the 1 open task in `.specsync/changes/check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file/tasks.md` (line 11: \"Targeted tests, the full native Verify lane, 'change audit' and 'check --strict'...\") and mark it `[x]`, then re-run `specsync change check check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file --commit`"
+    },
+    {
+      "timestamp": 1795562760,
+      "commit": "3863f6d8dd6dcf23ed8076c2a64997bfda0e1cd3",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "baa475e3fb1a59cdc3e470522dfa3b05e35060212f20ada8d4cef9305ad7dbe8",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023",
+        "REQ-hash-cache-011"
+      ]
+    },
+    {
+      "timestamp": 1795562766,
+      "commit": "4afbae51689158294cc18733c96da5cf38c25282",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "21cddf29f5af56f5a2781f56bd129f84aca9cacbbdb53894ade9cd54be85c302",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023",
+        "REQ-hash-cache-011"
+      ]
+    },
+    {
+      "timestamp": 1795573204,
+      "commit": "933f6f0b05d40956a28da94848174eb5f95d9ca3",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "31fd0acbcabea888a696bfb7bcf9fab02630fa1b8e36a8af35549fa21dbc7b19",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023",
+        "REQ-hash-cache-011"
+      ]
+    },
+    {
+      "timestamp": 1795573212,
+      "commit": "91b2ec41afe7ecc625635e246dd64e038b32ab86",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "31fd0acbcabea888a696bfb7bcf9fab02630fa1b8e36a8af35549fa21dbc7b19",
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023",
+        "REQ-hash-cache-011"
+      ]
+    },
+    {
+      "timestamp": 1795573212,
+      "commit": "90419f6ae1afd34cf7340d1cd166a76ad4c3001a",
+      "contract_digest": "ed6bd0b7badb11969866b1e73a2c159a68deb17e16820aa634a712820c88e5d6",
+      "execution_digest": "f6f216b1334d213f646bd8594c25924fbe2091e291817f5241f2a7e0d1373b53",
+      "workspace_digest": "31fd0acbcabea888a696bfb7bcf9fab02630fa1b8e36a8af35549fa21dbc7b19",
+      "acceptance_input_digest": "28a074aef6c0d6eabfd0fc347d106a72e24264cec20a7ef47b01638c2f27f622",
+      "acceptance_manifest": {
+        "schema_version": 1,
+        "entries": [
+          {
+            "path": "CHANGELOG.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "22e54e3ed6b177239b15b793ce623da4461574483f124d7c97b5787800537cf3",
+            "entry_digest": "38ccb44ca70fc47d408c5106b6de816011afcb0e1d18da1f341dde558fd479e0",
+            "owners": [
+              "@exact:delivery"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/cmd_check.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "36c0159219e0700f226f11f6ba0958fb30c5469fed12e2f812f44e0ca04a4278",
+            "entry_digest": "a906f700655f50f6f4abbc54a9d6e0d01ce36a5010d4ef4a058f9de0c3131db6",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/cmd_check.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d1a7920e56a35081d23b6cfb3b155e52d9dfbfa6723ab40f3e79108719a73f33",
+            "entry_digest": "05910335be2f8b6fe99b0ae892a1f515fd8ea32a90fc542a48aaa78160ccaaed",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "12f591631a6ec23781d51e722907d5f1b5013884aa34426989fcbc2ce2e0f172",
+            "entry_digest": "11180c83e7d876ae95e761dfa2c5aa28effc5a476e93726d5d8bdba937237059",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/audit-canonical-requirements-lost-after-the-last-change-is-archived.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f25b62309cf9bdd72605683be820ed913f6039a5938a923b6ddf279bcab68e93",
+            "entry_digest": "bbe83637b1be555b9d3889006971ffd6a920bad22f79a4ebe0882aebb653d12d",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dd6a6eb1edaa995aacf109fb1efb763b7ef35a7e3a785d2b67d21351801ecf94",
+            "entry_digest": "9f7b2e82be0f91afa2368d2c887ac2c21131cdd4a75913ff560acba70f72ed95",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/check-reports-a-module-s-3md-lesson-file-that-does-not-parse.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "537d03302f1ba5a11a6753d368276b5c255ce7fe27b5b62571ac76cab1d551bf",
+            "entry_digest": "25c223cdcb6c240846471348a06df7f961c8713095d14fb57f7e5683bc822a0b",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "f19ba64dcbf8a48ba7efe5ba7746fd1bde4da3e8195fc1089f3116f6c1c6facf",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "5d409a6d8299a28956cee03bd11c3ab17b2de8ddb31e024b219146f74be81969",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-specsync-s-own-state-only-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "8005c7dbd3c2275c20f019667d99b168eb403dc0cdb204ca27ec917c81b81ae0",
+            "entry_digest": "3953360bf6acc2ca75081642c1dd3e897ea46d470f85237daed361ab398be4bc",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-strict-check-s-lost-requirements-comparison-when-a-branch-turns-sdd-off.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "0dfc9731693e89bb3ba2be45ff8f806f4e19ec9da69ef655e1a8eb00de13ad60",
+            "entry_digest": "7fe0949e1e5d72b5dc278082e33493fa3016097c1494872ca152fc8e65e5d303",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "f95a0fc61578a755e1ac02dee8f9210eba08dcac8c26d5606410a3831799bf44",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "6acd1ddce1cbb62cc45521bf0c3beb271580f3f82426e26c52e3e9836cd80b94",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/never-read-or-write-the-hash-cache-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "60e77938b73360b3f11773d7795d4fa99770c5dbf63bf8be52468ca01847aba9",
+            "entry_digest": "99e29bb1c175ee22515a5d9f4cfebd245f01fdfc013a04afb19bccaec8be9dd2",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "1f50a2c776df666bc1c0e61c31b3ed72ba126300af3e3f3cebf71bf7deb41752",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "f5d5f3aca42f00665637d3e901998ae2db5719df65c65f87e23d504ab30931c4",
+            "entry_digest": "ec66356005b3102885b12a33892a0abd51d2d79bd8929e5fb66940e05b915a0a",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "37061c760b63288a209dc26b7d5c56ef23e57f4251d185794e50477a89bc0303",
+            "entry_digest": "8e8a415268af6e8adc9257e53d65726ad99b4c89655ece607ecaf55693daf302",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/cmd_check/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "58b1b4638791e1666aab5f37b214b4fcb2bfcb18a6000a044e511488e3d70605",
+            "entry_digest": "13323a31a7127fe1c84800ed0884b6fee7d95ee2e3c2588e8fe259a43525fd59",
+            "owners": [
+              "cmd_check"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "34d8886922561665d79fc8cceca6b31c8e67f72066830dba44340ed63e7c2e80",
+            "entry_digest": "0afb9ffe3613bc6612161779eb6536a3c0c68bacbfd9ff672204f09073bf7bff",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/hash_cache.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "41195cc26a0776809196e3c2772a2dbe9b034429da301018440532ccc74eb476",
+            "entry_digest": "c9c9e182fa4ca6fd889bce473209f48829266863a0928f6698188ffd4ca37aad",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/hash_cache.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ac12a0087469013601b410ac90c3f31cf8c5556d0aff819a53ebafd8875114ec",
+            "entry_digest": "be21dd228ccaba2a32d0fc8aae0bcee48093d9d9fd6d19e95676b8b64fa287f2",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dd6a6eb1edaa995aacf109fb1efb763b7ef35a7e3a785d2b67d21351801ecf94",
+            "entry_digest": "cc5fb757205c5551481a28c80ee3d2700c9792c93613412809d3c602cf1e973f",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "af6bd2db3233c13a8a9732274aff22db2274e1995ed8776f3f03736db2aa15b9",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/fix-the-four-pr-1086-review-findings-on-history-fragments.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3e309609e8e9003847d1a4c56ab1da06c26acb9e64bb9838c69b406dbf02522c",
+            "entry_digest": "28cb1813f8496f69c61b253cb42538c7ca3cba5aaddf48d0634bf19266941b68",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "e43ea66e6d0fdf285296957dfa6f0405404ad38318cab7ad5d2567c4b1116c5d",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "219fdf8d67d015c454c9a6bac8ff25cc1df0cc8d4bd29d03d983c1f2c7b7c2b8",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "2b56dd5184689f8204e3878a25e61758ef865d5ad46dbd1808ebbbd62f3744e0",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/never-read-or-write-the-hash-cache-through-a-symbolic-link.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "60e77938b73360b3f11773d7795d4fa99770c5dbf63bf8be52468ca01847aba9",
+            "entry_digest": "13eafc9193aa275cbd9ea4be1a7841bde0a4eba66418aea93dd6b81cf6e3cbab",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "f8bdbe37541acfbcbff2ae0f255976ed8e1f4550658ff34113968b589076b4aa",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "3fff6e91f96a7a3e36e7ce15f211ed7e1398464fe270f72a1efb702a422dcc0a",
+            "entry_digest": "fe20b464a28815128ee0b0e4f96dfe59bc2413651e95f968e99e566ee9d68d98",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6d90b695463a8765aaa9e9f92087197d92ecebc24b31991ae6f7a04e01ab72df",
+            "entry_digest": "147f3e444ca5e75f8f44090f56cbc065fbb2a995c946c7f21e763c61cfae7334",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/hash_cache/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "6fd3a955032f1bcfbf664dfcc02d0f10e2229f9da17291cf3619aa40ba966c32",
+            "entry_digest": "f59a869791221c23a78d76e68abf5219e7f5ea5c5dbbc38aeecc43eff2a9899d",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "specs/validator/context.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "36e3089688e3b9b867f39652b90df2304c0166dcd3a7caabcde4c813556329a5",
+            "entry_digest": "e937e4d80126e3943fc5f3be31f9ff32195d2ada2b7f101551a3d1fa8d5e8e98",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/check-reports-a-broken-lesson-file-on-a-cached-run-under-the-module-s-own-name-and-when-it-is-not-a-regular-file.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "dd6a6eb1edaa995aacf109fb1efb763b7ef35a7e3a785d2b67d21351801ecf94",
+            "entry_digest": "cccb1c70ed550203bac10f7d74c114170ccb95c80393bdd58deba8b7086fb67c",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/check-reports-a-module-s-3md-lesson-file-that-does-not-parse.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "537d03302f1ba5a11a6753d368276b5c255ce7fe27b5b62571ac76cab1d551bf",
+            "entry_digest": "28176a9f0936442bcbc4b31ef18c41b2895e1c8ea7621521e1dfcf287d0de7d9",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/close-the-low-items-left-after-the-hash-cache-advisory-red-tests-first.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e06cd4ac887672a71bcd66b94c00d4fcfaf110546c9b04cd6f7716a4cd675bcb",
+            "entry_digest": "11182bf8d0d03fb12203342004d44b04e8f8714dd707db2836d0f66a32466419",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/keep-specsync-s-own-caches-and-journal-outside-the-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "b50678c70f0a8f52cface0729916ea50bce852a85d2e20390806ab6dbf02d323",
+            "entry_digest": "155726ffd9dc0007b333f07a5221193fe69763339dfb344d776ff87d53ba1331",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/keep-writes-reads-and-caches-a-repository-can-steer-inside-its-git-work-tree.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "e5706aefd9e7b39313cd5314c4ea2d4362fdc8715a6906cee91177455ceb0425",
+            "entry_digest": "a080c8b9e5aed3ad992e7210c693fecace94e0bd2d4226dd9764e961a6d6a260",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/never-read-a-project-file-through-a-link-that-leaves-the-project-a-non-regular-file-or-past-a-size-bound.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "505f4ea4c379eb9523f17845ec3793c57aa1d3a2b8dc3e4ebf1fc8e0d182a067",
+            "entry_digest": "532a6c6323cdfc1222a2a0bfe1405883f8ebc849d3a56e828bbeefd3fa44c1e4",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/record-each-shipped-change-in-a-history-fragment-file-instead-of-a-change-log-row-and-a-version-bump.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "502e82c9ed264eb5be56b5284ad68e87e8854675deb9bbb028efd0cbbe3b69d7",
+            "entry_digest": "f6acd0b365e379ecc1a3084dca8280e328c7b134a0324273a4a4bc342eaf357d",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/history/walk-configured-folders-only-through-the-confined-walk-and-keep-the-read-cache-in-the-user-cache-folder.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "16aa84d22eb5d88b4ca32a3009df6408c6a7dfb3cf6f6376eb26a72018528c72",
+            "entry_digest": "e094723b3db6b95b8cb2b289036bebf8fd2b8dc28ee0075d72e27eeccdf321e9",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/requirements.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "496250223fd34ff3f3499fbb4943d21bb0037270bbc4d93dd7adc8ffa97cf9a6",
+            "entry_digest": "7f05724097a3eea6677bdd60cef82f6093dd05e96ef89321719b328839e82807",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/tasks.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "34460602de7ace7af0160f0d5ae5b8534d4e34ccb7ed279cdd39427cd1f5e7ef",
+            "entry_digest": "b2788e1eb1db93f4539f95c945e1bcae94567a9bf055a4a5e7351345ed36708e",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/testing.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "85d8645cc2969a269361378254bc8dcc60df0b44cf13ace946cc6a0058bc8c0c",
+            "entry_digest": "e892b5f3a21dd7ae100716d5892a7172067cf11d8e979ad0d4e078f05420e21c",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.3md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "89363a0952f3d7732d632a9134cdac6e7e39873be91215968585ed26a20531df",
+            "entry_digest": "4f2acd9857a8b30a4faeee936fbb762d1c97e8b018fcbc5dd0f1bf444f9ac638",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "specs/validator/validator.spec.md",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "bd332469926460406b81628092e21eb36270543d45ce123a089e6ec1485cffda",
+            "entry_digest": "029b42eaecb618dfe67522ac06574c496ad6717a18ed16c141e701f841d4205c",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "src/hash_cache.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "ced4529fecdcb408eb8f3eedf82f4234ae9050dc2aec3cd3e9b695d8569f3d16",
+            "entry_digest": "68c176e7cd2b53effcd9707a1e74de0daf17292e82caaf5d67e86619bb44f691",
+            "owners": [
+              "hash_cache"
+            ]
+          },
+          {
+            "path": "src/validator/consumed_by_re.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "c2bc13104c38940b5c9fb128f80c5693203073d5201b0cdaddae9493d50d273f",
+            "entry_digest": "d419ac49de35c58d17a9c6a3ed1a4ddc60f83ddfadd21c9a7f8a9ac5f2ea4c1f",
+            "owners": [
+              "validator"
+            ]
+          },
+          {
+            "path": "tests/integration/check.rs",
+            "kind": "file",
+            "mode": 33188,
+            "payload_digest": "d87cab35ec4db37a06ae75898099af810be714bc0ae6856aa9fa96c80aaaae1b",
+            "entry_digest": "7aed633a23bb03ed320d8c546c1de8b311d160a94895c34d74d6926cd2397411",
+            "owners": [
+              "@exact:test"
+            ]
+          }
+        ]
+      },
+      "passed": true,
+      "commands": [
+        {
+          "command": "specsync check --spec cmd_check --spec hash_cache --spec validator",
+          "success": true,
+          "exit_code": 0
+        }
+      ],
+      "requirement_ids": [
+        "REQ-cmd-check-023",
+        "REQ-hash-cache-011"
+      ]
+    }
+  ]
+}

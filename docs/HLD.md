@@ -738,8 +738,8 @@ symbols. Main dependencies: `clap`, `serde`/`serde_json`, `toml`, `regex`, `walk
 flowchart LR
     rc[annotated tag<br/>vX.Y.Z-rc.N] --> resolve[resolve<br/>check tag rulesets]
     resolve --> validate[validate<br/>ancestor of main,<br/>Cargo version = tag]
-    validate --> qualify[qualify<br/>Ubuntu + macOS<br/>fledge lanes run release-candidate]
-    qualify --> record[record check run<br/>SpecSync release candidate]
+    validate --> qualify[qualify<br/>Ubuntu + macOS, five parts each:<br/>four test slices, one release build,<br/>30 minutes a part]
+    qualify --> record[record-qualification<br/>platform evidence from the part records,<br/>check run SpecSync release candidate]
     record --> dispatch{{workflow_dispatch<br/>from main with rc_tag}}
     dispatch --> authorize[authorize-release<br/>exact successful RC gate<br/>for the candidate SHA]
     authorize --> promote[promote<br/>create annotated vX.Y.Z]

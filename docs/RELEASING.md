@@ -84,6 +84,23 @@ wrapper tag or let a release gate float on `latest`.
 
 ## 2. Cut the candidate
 
+Rehearse the commit first. The rehearsal runs the candidate's ten parts on the same runner
+images, with the same pinned tools and the same 30-minute limit, and writes no candidate
+evidence (REQ-github-033). `--ref` takes a branch or a tag, so rehearse the head of `main` and
+tag that commit:
+
+```bash
+gh workflow run rc-rehearsal.yml --ref main
+gh run list --workflow rc-rehearsal.yml --limit 3
+gh run watch <run-id>
+```
+
+Tag only when every part passed and `slices add up` is green. A candidate tag is permanent, and
+one whose part runs out of time is spent. A part close to its limit is a reason to shorten the
+lane before tagging; the limit is not raised past 30 minutes (REQ-github-032). The rehearsal
+also runs every Monday, and on a pull request that changes `release.yml`, `rc-rehearsal.yml`,
+`fledge.toml` or `.github/scripts/release-candidate-part.sh`.
+
 The tag must be **annotated**, point **directly at a commit**, and be a **new, non-forced** push;
 `resolve` rejects lightweight tags, re-pushed tags, and any tag name whose earlier release runs
 carry a different head SHA (that name is then refused permanently: pick the next `N`).
@@ -97,11 +114,22 @@ git push origin refs/tags/v6.0.1-rc.1
 The push matches `on.push.tags: v*.*.*-rc.*` and runs `release.yml` in `qualify` mode:
 `resolve` (checks both immutable-tag rulesets, warns about the protections it does not enforce)
 -> `validate` (ancestor-of-main, Cargo version equals tag version) -> `qualify` on
-`ubuntu-latest` and `macos-15` (`fledge lanes run release-candidate`, i.e. `test-nextest` +
-`test-release-guards` + `build`; the job installs a checksum-pinned `cargo-nextest` the same way it
-installs Fledge and runs the same test set as `cargo test`, then runs the TOCTOU race-guard unit
-tests under `--release`, the profile it ships (CI-11, #614))
--> `record-qualification`. Watch it:
+`ubuntu-latest` and `macos-15`, as five parallel parts on each, every part with a 30-minute
+limit:
+
+- `tests-1-of-4` to `tests-4-of-4` run `fledge lanes run release-candidate-tests`, one
+  cargo-nextest slice of the suite each (`--partition slice:K/4`). The job installs a
+  checksum-pinned `cargo-nextest` the same way it installs Fledge. The four slices share no test
+  and together are the same test set as `cargo test`.
+- `build` runs `fledge lanes run release-candidate-build`: the TOCTOU race-guard unit tests under
+  `--release`, the profile it ships (CI-11, #614), then the release build.
+
+Each part uploads a record as `rc-part-<platform>-<part>`; a test slice's record carries the
+number of tests in the slice and in the whole list. `fledge lanes run release-candidate` is still
+the whole lane in one command, for local use.
+
+-> `record-qualification`, which checks the ten part records, writes the two platform evidence
+records from them, and publishes the candidate gate. Watch it:
 
 ```bash
 gh run list --workflow release.yml --limit 5
@@ -112,7 +140,10 @@ gh run watch <run-id>
 
 - The run has two artifacts, `rc-evidence-ubuntu` and `rc-evidence-macos`, each a JSON record with
   `outcome: success`, the RC tag, the candidate SHA, `lane: release-candidate`, and one shared
-  `workflow_revision`.
+  `workflow_revision`. `record-qualification` writes a platform's record as `success` only when
+  all five of its part records passed for that candidate and workflow revision, and its four
+  slices report one whole-list count and add up to it (REQ-github-031). A missing, failed or
+  mismatched part makes the record a `failure`.
 - `record-qualification` posted a check run named `SpecSync release candidate` on the candidate
   SHA with `external_id` `specsync-rc:<rc_tag>:<sha>` and conclusion `success`:
 

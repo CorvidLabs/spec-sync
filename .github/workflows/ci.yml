@@ -233,7 +233,7 @@ jobs:
     # Ubuntu and macOS (the `REQUIRED_PLATFORMS` set; Windows is not built or
     # qualified in 6.0) before any final tag can be created.
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.89.0
@@ -397,6 +397,8 @@ jobs:
         run: python3 .github/scripts/test-ci-attest-and-summary.py
       - name: Test that clippy lints every target
         run: python3 .github/scripts/test-clippy-all-targets.py
+      - name: Test that no workflow job has a time limit above 30 minutes
+        run: python3 .github/scripts/test-workflow-time-limits.py
 
   action-consumer:
     name: Packaged GitHub Action consumer
@@ -535,7 +537,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.full == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@1.89.0
@@ -559,7 +561,7 @@ jobs:
     needs: classify
     if: needs.classify.outputs.full == 'true'
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -931,6 +933,7 @@ jobs:
   attest:
     name: Record attestation
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     # Depend on every gate job, not just a subset: an attestation records
     # "proceed", so it must not sign off on a commit where any real check failed.
     # (corvid-pet is a same-repository PR mascot, not a gate, so it is intentionally out.)

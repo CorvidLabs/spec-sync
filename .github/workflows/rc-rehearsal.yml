@@ -1,0 +1,216 @@
+# The release-candidate lane, rehearsed without a candidate (REQ-github-033).
+#
+# `release.yml` qualifies a candidate as ten parts: four slices of the test set and one release
+# build, on Ubuntu and on macOS, each within 30 minutes. This workflow runs those same parts, on
+# the same runner images, with the same pinned tools, commands and limit, at an ordinary commit.
+# It writes no candidate evidence and publishes no candidate gate.
+#
+# Its purpose is that a lane which has grown is found here, and a release candidate does not
+# fail because a part ran out of time (SPEED-2.b.5). Tests arrive through ordinary pull
+# requests, which run Ubuntu only, so nothing else measures the macOS parts between candidates.
+#
+# It starts three ways:
+#   - by hand, for any branch or tag: `gh workflow run rc-rehearsal.yml --ref <ref>`. The release
+#     runbook has the releaser do this for the commit before tagging a candidate from it.
+#   - once a week on the default branch.
+#   - for a pull request that changes the lane's own definition: this file, `release.yml`,
+#     `fledge.toml` or the slice script.
+#
+# `.github/scripts/test-validate-release-candidate.py` fails when the matrix, the pins, the three
+# shared steps or the limit below differ from the `qualify` job of `release.yml`.
+name: Release-candidate rehearsal
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Mondays, 09:17 UTC.
+    - cron: '17 9 * * 1'
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/rc-rehearsal.yml
+      - .github/scripts/release-candidate-part.sh
+      - fledge.toml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rc-rehearsal-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rehearse:
+    name: rehearse (${{ matrix.platform }}, ${{ matrix.part }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ubuntu, macos]
+        part: [tests-1-of-4, tests-2-of-4, tests-3-of-4, tests-4-of-4, build]
+        include:
+          - platform: ubuntu
+            os: ubuntu-latest
+            fledge_asset: fledge-linux-x86_64
+            fledge_sha256: bebbd9b9f377468b377ee1e177aef96992ee8f8d9f075f9fe2323153f2e165ec
+            nextest_asset: cargo-nextest-0.9.151-x86_64-unknown-linux-gnu.tar.gz
+            nextest_sha256: 1d4ce302b820c41f4b89c5fb9bce45f0f0c94882c1cf08fc360caf08be6e7df4
+          - platform: macos
+            os: macos-15
+            fledge_asset: fledge-macos-x86_64
+            fledge_sha256: 5c52a05710918d8bf566546fdaa8f32792b169bbefad46addb6009837f7819d2
+            nextest_asset: cargo-nextest-0.9.151-universal-apple-darwin.tar.gz
+            nextest_sha256: d1d7d025d4bfc9fb154cd76aea3949bd78534829a0589abefa6e5dd4edb135dd
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@451ce45ce31d200b52705aadd15ce75018b006de # 1.89.0
+      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2.9.1
+        with:
+          # Restore, never save, as the release lane does: a rehearsal that started warm would
+          # run faster than the candidate it stands in for.
+          save-if: false
+
+      - name: Install pinned Fledge
+        env:
+          ASSET: ${{ matrix.fledge_asset }}
+          EXPECTED_SHA256: ${{ matrix.fledge_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/CorvidLabs/fledge/releases/download/v1.7.2"
+          curl -fsSL -o "${RUNNER_TEMP}/${ASSET}" "${base}/${ASSET}"
+          actual_sha256="$(shasum -a 256 "${RUNNER_TEMP}/${ASSET}" | awk '{print $1}')"
+          if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
+            echo "::error::Fledge checksum mismatch: ${actual_sha256}"
+            exit 1
+          fi
+          chmod +x "${RUNNER_TEMP}/${ASSET}"
+          mv "${RUNNER_TEMP}/${ASSET}" "${RUNNER_TEMP}/fledge"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Install pinned cargo-nextest
+        env:
+          ASSET: ${{ matrix.nextest_asset }}
+          EXPECTED_SHA256: ${{ matrix.nextest_sha256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://github.com/nextest-rs/nextest/releases/download/cargo-nextest-0.9.151"
+          curl -fsSL -o "${RUNNER_TEMP}/${ASSET}" "${base}/${ASSET}"
+          actual_sha256="$(shasum -a 256 "${RUNNER_TEMP}/${ASSET}" | awk '{print $1}')"
+          if [[ "$actual_sha256" != "$EXPECTED_SHA256" ]]; then
+            echo "::error::cargo-nextest checksum mismatch: ${actual_sha256}"
+            exit 1
+          fi
+          tar -xzf "${RUNNER_TEMP}/${ASSET}" -C "${RUNNER_TEMP}" cargo-nextest
+          chmod +x "${RUNNER_TEMP}/cargo-nextest"
+          "${RUNNER_TEMP}/cargo-nextest" nextest --version
+
+      # A test part is one slice of the suite; cargo-nextest deals the whole list round-robin, so
+      # the four slices share no test and together are every test. The slice's counts go to
+      # RC_PART_COUNTS for its record. Only the named parts run: anything else fails here.
+
+      - name: Run one part of the immutable release-candidate lane
+        shell: bash
+        env:
+          PART: ${{ matrix.part }}
+        run: |
+          set -euo pipefail
+          case "$PART" in
+            tests-[1-4]-of-4)
+              slice="${PART#tests-}"
+              export RC_TEST_SLICE="${slice%-of-4}" RC_TEST_SLICES=4
+              export RC_PART_COUNTS="${RUNNER_TEMP}/rc-part-counts.json"
+              fledge lanes run release-candidate-tests
+              ;;
+            build)
+              fledge lanes run release-candidate-build
+              ;;
+            *)
+              echo "::error::unknown release-candidate part '${PART}'"
+              exit 1
+              ;;
+          esac
+
+      # Every part leaves a record, green or not, bound to the candidate. `record-qualification`
+      # turns the ten of them into the two platform evidence records. A part that leaves none
+      # (a failed checkout, a lost runner) is a missing part there, and its platform is not
+      # qualified. `python3` is on both runner images; a bare `python` is not on macOS.
+
+      - name: Report the slice's counts
+        if: always() && startsWith(matrix.part, 'tests-')
+        shell: bash
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          PART: ${{ matrix.part }}
+        run: |
+          set -euo pipefail
+          counts="${RUNNER_TEMP}/rc-part-counts.json"
+          if [[ -f "$counts" ]]; then
+            mkdir -p rehearsal-counts
+            cp "$counts" "rehearsal-counts/${PLATFORM}-${PART}.json"
+            echo "${PLATFORM} ${PART}: $(cat "$counts")" | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "${PLATFORM} ${PART}: the slice left no counts" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the slice's counts
+        if: always() && startsWith(matrix.part, 'tests-')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: rehearsal-counts-${{ matrix.platform }}-${{ matrix.part }}
+          path: rehearsal-counts/${{ matrix.platform }}-${{ matrix.part }}.json
+          if-no-files-found: ignore
+          overwrite: true
+
+  # What the release validator checks for a candidate, checked here for the rehearsed commit:
+  # on each platform the four slices report one whole-list count and add up to it.
+  slices-add-up:
+    name: slices add up
+    needs: rehearse
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download the slices' counts
+        continue-on-error: true
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          pattern: rehearsal-counts-*
+          path: rehearsal-counts
+          merge-multiple: true
+
+      - name: Each platform's slices are its whole test list
+        shell: python3 {0}
+        run: |
+          import json
+          import os
+          import sys
+          from pathlib import Path
+
+          slices = 4
+          lines = ["| Platform | Tests in each slice | Sum | Whole list |", "|---|---|---|---|"]
+          problems = []
+          for platform in ("ubuntu", "macos"):
+              held, listed = [], set()
+              for index in range(1, slices + 1):
+                  path = Path("rehearsal-counts") / f"{platform}-tests-{index}-of-{slices}.json"
+                  if not path.is_file():
+                      problems.append(f"{platform}: slice {index} of {slices} left no counts")
+                      continue
+                  counts = json.loads(path.read_text(encoding="utf-8"))
+                  held.append(counts["tests_in_part"])
+                  listed.add(counts["tests_listed"])
+              whole = ", ".join(str(count) for count in sorted(listed)) or "none"
+              lines.append(f"| {platform} | {', '.join(map(str, held)) or 'none'} | {sum(held)} | {whole} |")
+              if len(held) == slices and listed != {sum(held)}:
+                  problems.append(f"{platform}: the slices hold {sum(held)} tests, the whole list has {whole}")
+          report = "\n".join(lines + [""] + [f"- {problem}" for problem in problems]) + "\n"
+          print(report)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write(report)
+          sys.exit(1 if problems else 0)

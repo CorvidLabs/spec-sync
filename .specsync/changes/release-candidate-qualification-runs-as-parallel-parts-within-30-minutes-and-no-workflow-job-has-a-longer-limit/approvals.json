@@ -1,0 +1,119 @@
+{
+  "approvals": [
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795577513,
+      "digest": "b5a80de0947c341ae7ae0c8dd6a082a959845c7e421428590c6990304a3ca538",
+      "note": null,
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit",
+        "title": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+        "description": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/release-candidate-part.sh",
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/test-workflow-time-limits.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/rc-assets.yml",
+          ".github/workflows/rc-rehearsal.yml",
+          ".github/workflows/release.yml",
+          ".github/workflows/trust.yml",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "docs/RELEASING.md",
+          "docs/ci-confidence.md",
+          "fledge.toml"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A release candidate qualifies when ten parts pass, five on each of Ubuntu and macOS, each within a 30-minute limit; a platform whose parts are incomplete, failed, bound to another candidate, or whose test slices do not add up to the whole list is not qualified; no workflow job declares a limit above 30 minutes; and the lane can be rehearsed without a candidate"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-2.b.2 (no test dropped or weakened); REQ-github-007 (one immutable candidate, both platforms green, pins and publication-time revalidation unchanged); the release lane restores caches and never saves them; ci.yml keeps no path filter and no required check depends on the rehearsal",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "dc47865fa00b9bfe3ffb28a97ded6cbc1d306bfc971a7cc5c25f3b43329a2c7b"
+      },
+      "approved_delta_bases": {
+        "github: REQUIREMENT REQ-github-007": "7c5e17e9070064765220661199809a6bb6ccbf0e367dff2d77e213e7e7b546d2"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve",
+        "where": "Claude Code release-lead chat, 2026-11-25 UTC, typed by him to the agent recording it. It answered a message headed 'Decision for you: approve these requirement words?' that quoted the three added requirement statements in full (REQ-github-031 parallel parts and whole test set, REQ-github-032 a 30-minute limit on every workflow job, REQ-github-033 a rehearsal without a candidate) and described the two amended lines of REQ-github-007. The message named two things beyond the scope he had said yes to earlier in the same chat, the rehearsal on pull requests that change the lane and the weekly rehearsal, and said he could strike the weekly one; he did not. The acceptance criteria were in the committed definition at 42be91f6 and were summarized, not quoted.",
+        "recorded_by": "claude-code-t14v"
+      }
+    },
+    {
+      "gate": "definition",
+      "actor": "0xLeif",
+      "timestamp": 1795577516,
+      "digest": "b5a80de0947c341ae7ae0c8dd6a082a959845c7e421428590c6990304a3ca538",
+      "note": "Approved by 0xLeif at the Chough gate \"Scope approval of release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit\": \"I approve\" (Claude Code release-lead chat, 2026-11-25 UTC, typed by him to the agent recording it. It answered a message headed 'Decision for you: approve these requirement words?' that quoted the three added requirement statements in full (REQ-github-031 parallel parts and whole test set, REQ-github-032 a 30-minute limit on every workflow job, REQ-github-033 a rehearsal without a candidate) and described the two amended lines of REQ-github-007. The message named two things beyond the scope he had said yes to earlier in the same chat, the rehearsal on pull requests that change the lane and the weekly rehearsal, and said he could strike the weekly one; he did not. The acceptance criteria were in the committed definition at 42be91f6 and were summarized, not quoted.). Relayed and recorded by claude-code-t14v at 2026-11-25T03:31:54Z through chough checkpoint --close-gate; a relayed claim, not authenticated.",
+      "approved_scope": {
+        "schema_version": 1,
+        "change_id": "release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit",
+        "title": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+        "description": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+        "kind": "operations",
+        "affected_specs": [
+          "github"
+        ],
+        "affected_paths": [
+          ".github/scripts/release-candidate-part.sh",
+          ".github/scripts/test-validate-release-candidate.py",
+          ".github/scripts/test-workflow-time-limits.py",
+          ".github/scripts/validate-release-candidate.py",
+          ".github/workflows/ci.yml",
+          ".github/workflows/rc-assets.yml",
+          ".github/workflows/rc-rehearsal.yml",
+          ".github/workflows/release.yml",
+          ".github/workflows/trust.yml",
+          "AGENTS.md",
+          "CHANGELOG.md",
+          "docs/RELEASING.md",
+          "docs/ci-confidence.md",
+          "fledge.toml"
+        ],
+        "no_spec_change": false,
+        "no_spec_change_rationale": null,
+        "acceptance_criteria": [
+          "A release candidate qualifies when ten parts pass, five on each of Ubuntu and macOS, each within a 30-minute limit; a platform whose parts are incomplete, failed, bound to another candidate, or whose test slices do not add up to the whole list is not qualified; no workflow job declares a limit above 30 minutes; and the lane can be rehearsed without a candidate"
+        ],
+        "dependencies": [],
+        "supersedes": [],
+        "answers": {
+          "architecture_risk": "yes",
+          "constraints": "SPEED-2.b.2 (no test dropped or weakened); REQ-github-007 (one immutable candidate, both platforms green, pins and publication-time revalidation unchanged); the release lane restores caches and never saves them; ci.yml keeps no path filter and no required check depends on the rehearsal",
+          "public_contract": "no"
+        }
+      },
+      "approved_delta_digests": {
+        "github": "dc47865fa00b9bfe3ffb28a97ded6cbc1d306bfc971a7cc5c25f3b43329a2c7b"
+      },
+      "approved_delta_bases": {
+        "github: REQUIREMENT REQ-github-007": "7c5e17e9070064765220661199809a6bb6ccbf0e367dff2d77e213e7e7b546d2"
+      },
+      "relayed_by": {
+        "decided_by": "0xLeif",
+        "words": "I approve",
+        "where": "Claude Code release-lead chat, 2026-11-25 UTC, typed by him to the agent recording it. It answered a message headed 'Decision for you: approve these requirement words?' that quoted the three added requirement statements in full (REQ-github-031 parallel parts and whole test set, REQ-github-032 a 30-minute limit on every workflow job, REQ-github-033 a rehearsal without a candidate) and described the two amended lines of REQ-github-007. The message named two things beyond the scope he had said yes to earlier in the same chat, the rehearsal on pull requests that change the lane and the weekly rehearsal, and said he could strike the weekly one; he did not. The acceptance criteria were in the committed definition at 42be91f6 and were summarized, not quoted.",
+        "recorded_by": "claude-code-t14v"
+      }
+    }
+  ],
+  "reopenings": []
+}

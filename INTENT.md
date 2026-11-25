@@ -20,7 +20,7 @@ A module's contract should be the thing you would hand a new teammate — why th
 - [setup](hi/setup.md): SETUP (21 criteria)
 - [ship](hi/ship.md): SHIP (50 criteria)
 - [spec](hi/spec.md): SPEC (17 criteria)
-- [speed](hi/speed.md): SPEED (14 criteria)
+- [speed](hi/speed.md): SPEED (17 criteria)
 - [split](hi/split.md): SPLIT (3 criteria)
 - [three](hi/three.md): THREE (6 criteria)
 - [upkeep](hi/upkeep.md): UPKEEP (8 criteria)

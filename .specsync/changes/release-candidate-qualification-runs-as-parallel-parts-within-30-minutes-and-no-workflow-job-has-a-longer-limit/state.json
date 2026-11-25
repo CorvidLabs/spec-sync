@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "workflow_version": 3,
+  "workflow_origin_version": 2,
+  "id": "release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit",
+  "slug": "release-candidate-qualification-runs-as-parallel-parts-within-30-minutes-and-no-workflow-job-has-a-longer-limit",
+  "title": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+  "description": "Release-candidate qualification runs as parallel parts within 30 minutes and no workflow job has a longer limit",
+  "kind": "operations",
+  "state": "verifying",
+  "canonical_applied": true,
+  "base_commit": "39e7e17be6c6614f8bd49604de9c599939b9fa30",
+  "created_at": 1795577185,
+  "updated_at": 1795581135,
+  "affected_specs": [
+    "github"
+  ],
+  "affected_paths": [
+    ".github/workflows/release.yml",
+    ".github/workflows/rc-rehearsal.yml",
+    ".github/workflows/ci.yml",
+    ".github/workflows/rc-assets.yml",
+    ".github/workflows/trust.yml",
+    ".github/scripts/validate-release-candidate.py",
+    ".github/scripts/test-validate-release-candidate.py",
+    ".github/scripts/release-candidate-part.sh",
+    ".github/scripts/test-workflow-time-limits.py",
+    "fledge.toml",
+    "docs/RELEASING.md",
+    "docs/ci-confidence.md",
+    "AGENTS.md",
+    "CHANGELOG.md"
+  ],
+  "no_spec_change": false,
+  "no_spec_change_rationale": null,
+  "acceptance_criteria": [
+    "A release candidate qualifies when ten parts pass, five on each of Ubuntu and macOS, each within a 30-minute limit; a platform whose parts are incomplete, failed, bound to another candidate, or whose test slices do not add up to the whole list is not qualified; no workflow job declares a limit above 30 minutes; and the lane can be rehearsed without a candidate"
+  ],
+  "selected_artifacts": [
+    "context",
+    "plan",
+    "testing",
+    "design",
+    "tasks",
+    "research"
+  ],
+  "dependencies": [],
+  "answers": {
+    "architecture_risk": "yes",
+    "constraints": "SPEED-2.b.2 (no test dropped or weakened); REQ-github-007 (one immutable candidate, both platforms green, pins and publication-time revalidation unchanged); the release lane restores caches and never saves them; ci.yml keeps no path filter and no required check depends on the rehearsal",
+    "public_contract": "no"
+  }
+}
